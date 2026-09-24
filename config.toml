@@ -1,0 +1,31 @@
+# 从此游戏目录读取主图集；缓存写入用户目录，不修改游戏文件。
+game_dir = 'D:\steam\steamapps\common\Rain World'
+
+[debug]
+tick_rate = 40
+world_width = 480.0
+world_height = 240.0
+floor_y = 180.0
+
+# Oracle 首批调试：底座沿当前边固定；40 Hz，不受 debug.tick_rate 影响。
+[oracle]
+world_width = 960.0
+world_height = 600.0
+edge_fraction = 0.20
+base_side = 'top'
+base_fraction = 0.50
+arm_scale = 0.60
+
+# 完好 Moon / DM 预览色。修改后在窗口点“重新读取配置颜色”。
+# 格式均为 #RRGGBB；未填写的字段使用 oracle_config.py 中的默认值。
+[oracle.colors]
+skin = '#478ca1'            # 皮肤、头、颈、手脚
+eyes = '#211920'           # 眼睛
+head_shell = '#969ca1'     # 头部附件底色
+head_highlight = '#c2c7ca' # 头部附件高光
+robe_top = '#ff6569'       # 衣袍上部和袖子
+robe_bottom = '#d2373b'    # 衣袍下部
+arm = '#6b6765'           # 机械臂主体
+arm_highlight = '#d1c9c5'  # 机械臂高光
+joints = '#424c5d'        # 机械关节和底座
+third_eye = '#0d5885'     # 额头标记
