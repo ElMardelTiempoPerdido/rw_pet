@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rw-creature-pet"
 version = "0.1.0"
-description = "Rain World creature desktop pet: WhiteLizard debug scene"
+description = "Rain World desktop pets: WhiteLizard and Oracle"
 requires-python = ">=3.11"
 dependencies = ["PySide6>=6.8,<7", "UnityPy>=1.25,<2"]
 

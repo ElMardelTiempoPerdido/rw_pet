@@ -1,1 +1,1 @@
-"""WhiteLizard 桌宠。仿真数据不依赖 Qt。"""
+"""Rain World 多生物桌宠。"""

@@ -7,7 +7,6 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from .config import AppConfig
-from .debug_window import DebugWindow
 
 
 def main():
@@ -29,22 +28,23 @@ def main():
     app.setStyle("Fusion")
     app.setFont(QFont("Microsoft YaHei UI", 10))
     if args.desktop:
-        from .atlas import AtlasError
+        from .shared.atlas import AtlasError
         from PySide6.QtWidgets import QMessageBox
         try:
             if args.creature == 'oracle':
-                from .oracle_desktop import OracleDesktopWindow
+                from .oracle.desktop import OracleDesktopWindow
                 window = OracleDesktopWindow(config, args.scale, path)
             else:
-                from .desktop import DesktopWindow
+                from .lizard.desktop import DesktopWindow
                 window = DesktopWindow(config, args.scale, args.activity)
         except (OSError, ValueError, RuntimeError, AtlasError) as exc:
             QMessageBox.critical(None, '桌宠启动失败', str(exc))
             return 1
     elif args.creature == 'oracle':
-        from .oracle_window import OracleDebugWindow
+        from .oracle.debug_window import OracleDebugWindow
         window = OracleDebugWindow(config, path)
     else:
+        from .lizard.debug_window import DebugWindow
         window = DebugWindow(config)
     window.show()
     sys.exit(app.exec())

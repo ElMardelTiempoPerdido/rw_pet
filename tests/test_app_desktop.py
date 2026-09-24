@@ -22,8 +22,8 @@ class DesktopEntryTests(unittest.TestCase):
                  patch('rw_creature_pet.app.QApplication', return_value=self.app), \
                  patch('rw_creature_pet.app.AppConfig.load', return_value=AppConfig()), \
                  patch.object(self.app, 'exec', return_value=0), \
-                 patch('rw_creature_pet.oracle_desktop.OracleDesktopWindow') as oracle, \
-                 patch('rw_creature_pet.desktop.DesktopWindow') as lizard:
+                 patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as oracle, \
+                 patch('rw_creature_pet.lizard.desktop.DesktopWindow') as lizard:
                 with self.assertRaises(SystemExit) as exit_result:
                     main()
                 self.assertEqual(exit_result.exception.code, 0)
