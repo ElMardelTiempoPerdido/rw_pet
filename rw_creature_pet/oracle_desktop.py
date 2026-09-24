@@ -81,8 +81,12 @@ class OracleDesktopMotion:
             # 次级外观整组重建，第一帧的 previous/current 一致，避免跨屏拉线。
             p, old = previous.pearl.home, previous.world
             home = self.scene.project_target(Vec2(p.x/old.width*size.x, p.y/old.height*size.y))
+            home = self.scene.pearl.nearby_home(home, self.scene.body.chunks[0].position,
+                                               self.scene.pearl.region, settings.pearl_follow_width, settings.pearl_follow_height)
             self.scene.pearl = PearlState(home, self.scene.world, self.scene.navigator.region,
                                           previous.pearl.glyph_id)
+            self.scene.pearl.follow_home(self.scene.body.chunks[0].position,
+                                         settings.pearl_follow_width, settings.pearl_follow_height)
             self.scene.behavior.random.setstate(previous.behavior.random.getstate())
             self.scene.eyes.random.setstate(previous.eyes.random.getstate())
             self.scene.behavior.completed_cycles = previous.behavior.completed_cycles

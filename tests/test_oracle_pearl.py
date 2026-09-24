@@ -19,7 +19,7 @@ class OraclePearlTests(unittest.TestCase):
             scene.step()
             p = scene.pearl
             self.assertTrue(p.region.segment_safe(p.previous_position, p.position))
-            self.assertLessEqual((p.position-p.previous_position).length(), p.MAX_SPEED+.02)
+            self.assertLessEqual((p.position-p.previous_position).length(), p.FOLLOW_SPEED+.02)
             for alpha in (0., .5, 1.):
                 q = p.sample(alpha)
                 self.assertTrue(p.region.contains(q))
@@ -59,15 +59,17 @@ class OraclePearlTests(unittest.TestCase):
                         displacement = (scene.body.chunks[0].position-start).length()
                         self.assertGreater(displacement, 10) if mode == 'approach' else self.assertLess(displacement, .01)
 
-    def test_far_recall_and_return_go_around_corners(self):
+    def test_far_manual_home_is_kept_near_puppet_then_recall_returns_there(self):
         scene = self.scene()
         scene.set_pearl_home(Vec2(480, 535))
         self.step_until(scene, lambda: scene.pearl.settled)
         home = scene.pearl.home
+        self.assertTrue(scene.pearl.follow_bounds.contains(home))
+        self.assertNotEqual(home, Vec2(480, 535))
         scene.observe_pearl('recall')
         self.step_until(scene, lambda: scene.behavior.state == Activity.OBSERVE)
         self.assertLess((scene.pearl.position-scene.body.chunks[0].position).length(), 40)
-        self.assertGreater(scene.pearl.route.length, 1000)
+        self.assertLess(scene.pearl.route.length, 250)
         self.assertTrue(all(c.certified_safe(scene.pearl.region) for c in scene.pearl.route.curves))
         self.step_until(scene, lambda: scene.behavior.completed_cycles == 1)
         self.assertEqual(scene.pearl.position, home)

@@ -30,6 +30,7 @@ class OracleDesktopMotionTests(unittest.TestCase):
                             for a, b in zip(scene.arm.joints, scene.arm.joints[1:])))
         self.assertTrue(scene.pearl.region.contains(scene.pearl.position))
         self.assertTrue(scene.pearl.region.contains(scene.pearl.home))
+        self.assertTrue(scene.pearl.follow_bounds.contains(scene.pearl.home))
 
     def test_physical_pixel_scale_and_global_coordinates(self):
         for dpr in (1., 1.25, 1.5, 2.):
@@ -264,6 +265,9 @@ class OracleDesktopWindowTests(unittest.TestCase):
             w._next_render_time = 0.
             w.advance()
             self.assertEqual(update.call_count, 0)
-            s.set_pearl_home(s.pearl.home+Vec2(60, 0))
+            # 工作区重建后的悬浮点可能已在跟随框边缘；向人偶一侧移动，
+            # 避免旧的“继续向外 +60”被合法裁剪成原地不动。
+            s.set_pearl_home(s.pearl.home.lerp(s.body.chunks[0].position, .5))
+            self.assertFalse(s.pearl.settled)
             w.advance()
             self.assertEqual(update.call_count, 1)

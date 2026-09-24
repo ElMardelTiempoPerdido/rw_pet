@@ -49,6 +49,10 @@ class OracleBehavior:
         return self.state in (Activity.NOTICE, Activity.APPROACH, Activity.RECALL,
                               Activity.OBSERVE, Activity.RETURN)
 
+    @property
+    def controls_pearl(self):
+        return self.state in (Activity.NOTICE, Activity.APPROACH, Activity.RECALL, Activity.OBSERVE)
+
     def enter(self, state, duration=0):
         self.state, self.state_ticks, self.duration = state, 0, duration
 

@@ -282,7 +282,9 @@ class OracleScene:
         tangent = Vec2(normal.y, -normal.x)
         candidates = [self.project_target(start+tangent*(sign*90)+Vec2(0, -12)) for sign in (1, -1)]
         home = max(candidates, key=lambda p: (p-start).length())
+        home = PearlState.nearby_home(home, start, region, self.config.pearl_follow_width, self.config.pearl_follow_height)
         self.pearl = PearlState(home, self.world, region)
+        self.pearl.follow_home(start, self.config.pearl_follow_width, self.config.pearl_follow_height)
         self.behavior = OracleBehavior()
         self.eyes = OracleEyes()
         # 字形只在创建时选择；独立随机流不影响日常行为的节奏。
@@ -366,7 +368,8 @@ class OracleScene:
     def set_pearl_home(self, point):
         finite_point(point)
         self.behavior.cancel(self)
-        self.pearl.home = self.project_target(point)
+        self.pearl.home = self.pearl.nearby_home(self.project_target(point), self.body.chunks[0].position,
+                                                self.pearl.region, self.config.pearl_follow_width, self.config.pearl_follow_height)
         self.pearl.return_home()
 
     def set_tilt(self, degrees):
@@ -422,6 +425,8 @@ class OracleScene:
         for chunk in self.body.chunks:
             chunk.position = chunk.position + shift
             chunk.velocity = chunk.position - chunk.previous_position
+        self.pearl.follow_home(upper.position, self.config.pearl_follow_width, self.config.pearl_follow_height,
+                              allow_motion=not self.behavior.controls_pearl)
         self.pearl.step()
         if self.behavior.looking:
             self.look_target = self.pearl.position

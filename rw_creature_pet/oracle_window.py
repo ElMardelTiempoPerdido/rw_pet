@@ -195,6 +195,11 @@ class OracleCanvas(QWidget):
                 painter.drawLine(point(scene.head.position), point(scene.look_target))
             if self.show_path:
                 cross(scene.pearl.home, '#849aab', 3)
+                bounds = scene.pearl.follow_bounds
+                if bounds is not None:
+                    painter.setPen(pen('#536b80', Qt.PenStyle.DotLine))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRect(QRectF(bounds.left, bounds.top, bounds.right-bounds.left, bounds.bottom-bounds.top))
                 if not scene.pearl.settled:
                     painter.setPen(pen('#849aab', Qt.PenStyle.DotLine))
                     route = scene.pearl.route
@@ -208,7 +213,7 @@ class OracleCanvas(QWidget):
             painter.setPen(QColor('#8fa4b5'))
             mode = '适应窗口' if self.view_scale is None else '固定比例'
             painter.drawText(QPointF(14, 23), f'{mode} · {scale*self.devicePixelRatioF():g}×（屏幕像素）')
-            painter.drawText(QPointF(26, self.height() - 24), '绿色：边缘活动带   深色：中央禁入区   灰色小十字：珍珠悬浮点')
+            painter.drawText(QPointF(26, self.height() - 24), '绿色：边缘活动带   灰色十字：珍珠悬浮点   虚线框：珍珠跟随范围')
             if self.magnifier:
                 rect = self.magnifier_rect()
                 painter.save()

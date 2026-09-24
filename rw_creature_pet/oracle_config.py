@@ -45,11 +45,13 @@ class OracleConfig:
     float_speed: float = 1.6
     base_speed: float = 2.8
     cross_edge_probability: float = .05
+    pearl_follow_width: float = 360.
+    pearl_follow_height: float = 280.
     colors: OracleColors = OracleColors()
 
     def __post_init__(self):
         for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'base_speed',
-                     'cross_edge_probability'):
+                     'cross_edge_probability', 'pearl_follow_width', 'pearl_follow_height'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(f'oracle.{name} 必须为有限数值')
@@ -69,6 +71,8 @@ class OracleConfig:
             raise ValueError('float_speed 必须在 0.3～2.0；base_speed 必须在 1.5～4.0')
         if not 0 <= self.cross_edge_probability <= 1:
             raise ValueError('cross_edge_probability 必须在 0～1 之间')
+        if self.pearl_follow_width < 160 or self.pearl_follow_height < 160:
+            raise ValueError('珍珠跟随矩形的宽和高至少为 160 逻辑单位')
 
     @classmethod
     def from_mapping(cls, data):

@@ -239,10 +239,13 @@ class CurveRoute:
 
 
 class EdgePlanner:
-    def __init__(self, world, region):
+    def __init__(self, world, region, *, corner_clearance=None):
         self.region = region
         x = (region.outer.left + region.hole.left) / 2
         y = (region.outer.top + region.hole.top) / 2
+        if corner_clearance is not None:
+            x = max(region.outer.left, region.hole.left-corner_clearance)
+            y = max(region.outer.top, region.hole.top-corner_clearance)
         self.corners = (Vec2(x, y), Vec2(world.width - x, y),
                         Vec2(world.width - x, world.height - y), Vec2(x, world.height - y))
 
