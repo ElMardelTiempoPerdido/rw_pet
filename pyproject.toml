@@ -9,6 +9,9 @@ description = "Rain World desktop pets: WhiteLizard and Oracle"
 requires-python = ">=3.11"
 dependencies = ["PySide6>=6.8,<7", "UnityPy>=1.25,<2"]
 
+[project.optional-dependencies]
+speedups = ["numba>=0.61,<0.66"]
+
 [project.gui-scripts]
 rw-creature-pet = "rw_creature_pet.app:main"
 

@@ -35,9 +35,9 @@ class OracleAutonomyTests(unittest.TestCase):
         for value in (-.01, 1.01, float('nan'), True):
             with self.assertRaises(ValueError):
                 OracleConfig(cross_edge_probability=value)
-        scene = self.scene()
+        scene = self.scene(antigravity_probability=0.)
         counts = Counter(scene.behavior.choose_activity(scene) for _ in range(20000))
-        for activity, expected in ((Activity.CROSS_EDGE, .05), (Activity.IDLE, .38),
+        for activity, expected in ((Activity.CROSS_EDGE, .05), (Activity.IDLE, .266), (Activity.MEDITATE, .114),
                                    (Activity.ROAM, .3325), (Activity.NOTICE, .2375)):
             self.assertAlmostEqual(counts[activity]/20000, expected, delta=.015)
         scene.set_autonomous(True)
@@ -120,7 +120,8 @@ class OracleAutonomyTests(unittest.TestCase):
             scene = self.scene(base_side=('top', 'right', 'bottom', 'left')[source], cross_edge_probability=0.)
             opposite = scene.navigator.region.boxes[(source+2) % 4]
             home = Vec2((opposite.left+opposite.right)/2, (opposite.top+opposite.bottom)/2)
-            scene.pearl = PearlState(home, scene.world, scene.navigator.region)
+            # 构造唯一的远端固定珠；旧调试单珠已移除，pearl 为只读别名。
+            scene.fixed_pearls.roots = (PearlState(home, scene.world, scene.navigator.region),)
             scene.set_autonomous(True)
             scene.behavior.notice(scene, mode='approach')
             scene.behavior.duration = 1

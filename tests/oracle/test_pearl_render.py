@@ -16,6 +16,7 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.paths import DEFAULT_GAME_DIR
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
+from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.glyphs import PearlGlyphs, load_pearl_glyphs
 from rw_creature_pet.oracle.debug_window import OracleDebugWindow
 from rw_creature_pet.oracle.render import OracleRenderer
@@ -71,7 +72,8 @@ class OraclePearlRenderTests(unittest.TestCase):
                                      255 if texture.getpixel((i*15+x, y))[0] < 128 else 0)
 
     def test_pearl_moves_without_rebuilding_sleeping_puppet(self):
-        scene, renderer = OracleScene(), OracleRenderer()
+        # 本例验证单个运动对象的缓存；多固定珠的最近目标选择另有覆盖。
+        scene, renderer = OracleScene(OracleConfig(pearl_fixed_count=1)), OracleRenderer()
         for _ in range(650):
             scene.step()
         self.assertTrue(scene.appearance.sleeping)
@@ -97,7 +99,7 @@ class OraclePearlRenderTests(unittest.TestCase):
             painter.end()
 
     def test_window_controls_pause_step_takeover_and_reset(self):
-        window = OracleDebugWindow(AppConfig(), load_atlas=False)
+        window = OracleDebugWindow(AppConfig(oracle=OracleConfig(pearl_fixed_count=1)), load_atlas=False)
         window.timer.stop()
         try:
             window.show()

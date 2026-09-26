@@ -129,7 +129,7 @@ class OracleEyesRenderTests(unittest.TestCase):
             if direct:
                 renderer.draw_geometry(painter, scene, alpha)
             else:
-                renderer.draw(painter, scene, alpha)
+                renderer.draw(painter, scene, alpha, pixelated=False)
         finally:
             painter.end()
         return bytes(image.constBits())
@@ -158,6 +158,7 @@ class OracleEyesRenderTests(unittest.TestCase):
     def test_sleeping_debug_window_refreshes_eyes_then_stops(self):
         window = OracleDebugWindow(AppConfig(), load_atlas=False)
         window.timer.stop()
+        window.scene.set_halo_enabled(False)  # 本项单独验证眼睛结束后的完全静止。
         try:
             for _ in range(650):
                 window.scene.step()

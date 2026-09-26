@@ -107,6 +107,21 @@ class OracleDesktopMotionTests(unittest.TestCase):
             self.assert_valid(motion.scene)
             self.assertFalse(motion.scene.behavior.enabled)
 
+    def test_resize_during_antigravity_rebuilds_upright_and_keeps_cooldown(self):
+        old = OracleDesktopMotion(OracleConfig(), OracleDesktopViewport(0, 0, 1920, 1040)).scene
+        old.behavior.start_drift(old)
+        old.appearance.step = lambda scene: None
+        for _ in range(300):
+            old.step()
+        self.assertGreater(abs(old.pose.angle), 1.)
+        new = OracleDesktopMotion(OracleConfig(), OracleDesktopViewport(-1280, 0, 640, 480), old).scene
+        self.assert_valid(new)
+        self.assertTrue(new.behavior.enabled)
+        self.assertEqual(new.behavior.state, Activity.IDLE)
+        self.assertEqual(new.behavior.drift_cooldown, old.behavior.drift_cooldown)
+        self.assertEqual(new.pose.angle, 0.)
+        self.assertEqual(new.pose.gravity_scale, 1.)
+
 
 class FakeScreen(QObject):
     availableGeometryChanged = Signal(QRect)
@@ -158,6 +173,42 @@ class OracleDesktopWindowTests(unittest.TestCase):
         w.set_paused(True)
         image = w.grab().toImage()
         self.assertEqual(image.pixelColor(image.width()//2, image.height()//2).alpha(), 0)
+
+    def test_matrix_tray_toggle_preserves_behavior_pause_and_survives_rebuild(self):
+        w = self.window
+        w.set_paused(True)
+        behavior, pearl = w.motion.scene.behavior, w.motion.scene.pearl
+        w.matrix_action.trigger()
+        self.assertIsNotNone(w.motion.scene.pearl_matrix)
+        self.assertIs(w.motion.scene.behavior, behavior)
+        self.assertIs(w.motion.scene.pearl, pearl)
+        self.assertTrue(behavior.enabled)
+        self.assertTrue(w.clock.paused)
+        w.change_scale(2.)
+        self.assertIsNotNone(w.motion.scene.pearl_matrix)
+        w.reset_position()
+        self.assertIsNotNone(w.motion.scene.pearl_matrix)
+        w.open_debug()
+        self.assertTrue(w.debug_window.matrix_box.isChecked())
+        w.matrix_action.trigger()
+        self.assertIsNone(w.motion.scene.pearl_matrix)
+
+    def test_orbits_tray_toggle_pause_resize_and_debug(self):
+        w = self.window
+        w.set_paused(True)
+        before = w.motion.scene.behavior, w.motion.scene.pearl
+        w.orbits_action.trigger()
+        self.assertIsNotNone(w.motion.scene.pearl_orbits)
+        self.assertEqual(before, (w.motion.scene.behavior, w.motion.scene.pearl))
+        self.assertTrue(w.clock.paused)
+        w.change_scale(2.)
+        self.assertIsNotNone(w.motion.scene.pearl_orbits)
+        w.reset_position()
+        self.assertIsNotNone(w.motion.scene.pearl_orbits)
+        w.open_debug()
+        self.assertTrue(w.debug_window.orbits_box.isChecked())
+        w.orbits_action.trigger()
+        self.assertIsNone(w.motion.scene.pearl_orbits)
 
     def test_workarea_signals_coalesce_origin_only_preserves_scene_and_old_screen_disconnects(self):
         w = self.window
@@ -242,6 +293,7 @@ class OracleDesktopWindowTests(unittest.TestCase):
     def test_idle_refresh_is_suppressed_and_eyes_or_pearl_wake_it(self):
         w = self.window
         s = w.motion.scene
+        s.set_halo_enabled(False)  # 常驻光环动画另测独立刷新。
         s.set_autonomous(False)
         for _ in range(700):
             s.step()

@@ -4,10 +4,12 @@
 保留绳长、导向点和末端柔性拉回，屏幕外沿由窗口裁剪。
 """
 from dataclasses import dataclass
+from array import array
 from math import hypot, sin, pi
 from random import Random
 
 from ..shared.geometry import Vec2
+from .numeric import rope_solver
 
 
 @dataclass(slots=True)
@@ -65,7 +67,7 @@ def close_inputs(a, b, tolerance=.001):
 
 
 class Rope:
-    def __init__(self, positions, lengths, gravity, damping):
+    def __init__(self, positions, lengths, gravity, damping, *, backend='auto'):
         self.points = [CordPoint(p, p) for p in positions]
         self.rest = list(lengths)
         self.gravity, self.damping = gravity, damping
@@ -73,12 +75,17 @@ class Rope:
         self.quiet_ticks = 0
         self.last_inputs = None
         n = len(positions)
-        self._x, self._y = [0.]*n, [0.]*n
-        self._weights = [1.]*n
+        self._x, self._y = array('d', [0.]*n), array('d', [0.]*n)
+        self._weights = array('d', [1.]*n)
         self._pin_indices = None
         self._long_indices = [(i, i+stride) for stride in (16, 8, 4)
                               for i in range(0, n-stride, stride//2)] if n > 30 else []
-        self._prefix = [0.]*n
+        self._prefix = array('d', [0.]*n)
+        self._rest = array('d', self.rest)
+        self._long_i = array('q', (i for i, j in self._long_indices))
+        self._long_j = array('q', (j for i, j in self._long_indices))
+        self._pins, self._pin_x, self._pin_y = array('q'), array('d'), array('d')
+        self._solver = rope_solver(backend)
         self.iterations = 0
 
     def __eq__(self, other):
@@ -108,8 +115,10 @@ class Rope:
         x, y, weights = self._x, self._y, self._weights
         pin_indices = tuple(pins)
         if pin_indices != self._pin_indices:
-            weights[:] = [0. if i in pins else 1. for i in range(n)]
+            weights[:] = array('d', (0. if i in pins else 1. for i in range(n)))
             self._pin_indices = pin_indices
+            self._pins = array('q', pin_indices)
+            self._pin_x, self._pin_y = array('d', [0.]*len(pins)), array('d', [0.]*len(pins))
         for i, p in enumerate(self.points):
             p.previous_position = p.position
             x[i] = p.position.x+p.velocity.x*self.damping
@@ -132,15 +141,10 @@ class Rope:
                 x[-1] -= dx*pull
                 y[-1] -= dy*pull
 
-        def project():
-            for i, p in pins.items():
-                x[i], y[i] = p.x, p.y
-
-        project()
-        prefix = self._prefix
+        for k, p in enumerate(pins.values()):
+            self._pin_x[k], self._pin_y[k] = p.x, p.y
         for i, rest in enumerate(self.rest):
-            prefix[i+1] = prefix[i]+rest
-        long_links = [(i, j, prefix[j]-prefix[i]) for i, j in self._long_indices]
+            self._rest[i] = rest
         minimum, maximum, tolerance = (4, 12, .35) if n > 30 else (2, 10, .30)
         if stable:
             # 输入停稳后锁住已采用的精度，只允许增加，避免求解遍数在
@@ -149,34 +153,9 @@ class Rope:
             maximum = 24 if n > 30 else 20
             if n <= 30:
                 tolerance = .18
-        for iteration in range(maximum):
-            # 跨节点约束只传递拉力；松弛时不把绳子拉直。
-            for i, j, length in long_links:
-                dx, dy = x[j]-x[i], y[j]-y[i]
-                d2, w = dx*dx+dy*dy, weights[i]+weights[j]
-                if d2 > length*length and w:
-                    d = d2**.5
-                    f = (d-length)/(d*w)
-                    x[i] += dx*f*weights[i]; y[i] += dy*f*weights[i]
-                    x[j] -= dx*f*weights[j]; y[j] -= dy*f*weights[j]
-            indices = range(n-1) if iteration % 2 == 0 else range(n-2, -1, -1)
-            for i in indices:
-                j = i+1
-                dx, dy = x[j]-x[i], y[j]-y[i]
-                d = hypot(dx, dy)
-                w = weights[i]+weights[j]
-                if d < 1e-9 or not w:
-                    continue
-                f = (d-self.rest[i])/(d*w)
-                x[i] += dx*f*weights[i]; y[i] += dy*f*weights[i]
-                x[j] -= dx*f*weights[j]; y[j] -= dy*f*weights[j]
-            project()
-            self.iterations = iteration+1
-            if self.iterations >= minimum and self.iterations % 2 == 0:
-                # 按收敛误差提前结束，不按帧耗时改变行为，回放保持确定性。
-                if all(abs(hypot(x[i+1]-x[i], y[i+1]-y[i])-rest) <= tolerance
-                       for i, rest in enumerate(self.rest)):
-                    break
+        self.iterations = self._solver(x, y, weights, self._rest, self._pins,
+                                      self._pin_x, self._pin_y, self._long_i, self._long_j,
+                                      self._prefix, minimum, maximum, tolerance)
         speed2 = 0.
         for i, p in enumerate(self.points):
             p.position = Vec2(x[i], y[i])
@@ -214,7 +193,8 @@ class OracleCords:
         first, last = self.routes(scene, junction)
         lengths = self.supply_lengths(first, last)
         positions = sample_path(first, 61)+sample_path(last, 20)[1:]
-        self.main = Rope(positions, [lengths[0]/60]*60+[lengths[1]/19]*19, .20, .86)
+        self.main = Rope(positions, [lengths[0]/60]*60+[lengths[1]/19]*19, .20, .86,
+                         backend=scene.config.physics_backend)
         rng = Random(10544)
         self.fine = []
         self.head_dirs, self.colors, self.fine_lengths = [], [], []
@@ -232,7 +212,8 @@ class OracleCords:
             positions = [junction.lerp(head, k/19)+Vec2(sin(pi*k/19)*direction.x*8, 0)
                          for k in range(20)]
             length = self.fine_lengths[-1]
-            self.fine.append(Rope(positions, [length/19]*19, .16, .82))
+            self.fine.append(Rope(positions, [length/19]*19, .16, .82,
+                                  backend=scene.config.physics_backend))
 
     @staticmethod
     def guide_position(scene):
@@ -241,6 +222,9 @@ class OracleCords:
 
     def routes(self, scene, junction):
         joints = [j.position for j in scene.arm.joints]
+        if getattr(scene, 'drag', None) is not None and scene.drag.controlling:
+            # 手动拖拽允许进入中央，此时供线不能再要求每段位于边缘带内。
+            return [joints[0], self.guide], [self.guide, junction]
         first = short_route(self.region, [joints[0], joints[1], self.guide])
         # 供线仍以机械臂到身体的合法路径为基准，不随自由末端下垂不断加长。
         last = short_route(self.region, [self.guide, joints[2], joints[3], junction])

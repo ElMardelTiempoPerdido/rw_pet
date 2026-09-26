@@ -34,7 +34,7 @@ class OracleRenderCacheTests(unittest.TestCase):
         if direct:
             renderer.draw_geometry(painter, scene, alpha)
         else:
-            renderer.draw(painter, scene, alpha)
+            renderer.draw(painter, scene, alpha, pixelated=False)
         painter.end()
         return bytes(image.constBits())
 

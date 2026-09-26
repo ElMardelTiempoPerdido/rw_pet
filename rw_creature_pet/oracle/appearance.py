@@ -1,7 +1,7 @@
 """Moon 的外观状态：固定 40 Hz 的布料、肢体与连接线，不反向驱动物理导航。
 
 参考 OracleGraphics.Gown / UbilicalCord / GenericBodyPart。原版房间中的长线
-改为底座供线并允许小幅越界；布料使用固定视觉重力，限幅与阻尼适配窄活动带。
+改为底座供线并允许小幅越界；局部视觉重力随漫游渐变，限幅与阻尼适配窄活动带。
 """
 from dataclasses import dataclass
 from math import atan2, cos, pi, sin, sqrt
@@ -119,7 +119,7 @@ def arm_elbow(a, b, length, index, region):
 class OracleAppearance:
     CLOTH_DIVS = 11
     CLOTH_SLACK = 9.
-    CLOTH_GRAVITY = .45  # 原版 0.9 × room.gravity；桌面使用固定视觉重力 0.5。
+    CLOTH_GRAVITY = .45  # 原版 0.9 × room.gravity；桌面常态视觉重力 0.5。
     CLOTH_DAMPING = .90  # 原版 .999；桌宠更快收敛，仍保留起停摆动。
     MAIN_CORD_POINTS = 80
     SMALL_CORDS = 14
@@ -133,6 +133,7 @@ class OracleAppearance:
     NECKLACE_ANCHOR_UP = 8.
 
     def __init__(self, scene):
+        self.gravity_scale = scene.pose.gravity_scale
         self.sway = self.previous_sway = self.sway_velocity = 0.
         self.last_body_velocity = scene.body.chunks[0].velocity
         self.upper = scene.body.chunks[0].position
@@ -200,7 +201,10 @@ class OracleAppearance:
         # OracleGraphics.cs:1652-1654；完好 Moon 的零重力场景也保留固定
         # 向画面下方 .5、沿躯干向下 .3、左右外展 .3，不追踪固定放手位置。
         side = perpendicular(self.direction)
-        return [Vec2(0, .5) - self.direction*.3 + side*(sign*.3) for sign in (-1, 1)]
+        # 原作手部的 .5 并不乘 room.gravity。局部反重力活动中减弱此项，
+        # 保留 20% 向下偏置，以及躯干方向力与外展力，属于 Bell 的桌面适配。
+        return [Vec2(0, .5*(.2+.8*self.gravity_scale)) - self.direction*.3
+                + side*(sign*.3) for sign in (-1, 1)]
 
     def foot_goals(self):
         side = perpendicular(self.direction)
@@ -231,7 +235,7 @@ class OracleAppearance:
                 # 阻尼相对于佩戴者，避免匀速向下移动时全局空气阻力把项链
                 # 持续拖到脸前；加减速仍保留相对速度，产生短暂摆动。
                 p.position += (host_velocity+(p.velocity-host_velocity)*self.NECKLACE_DAMPING
-                               + Vec2(0, self.NECKLACE_GRAVITY))
+                               + Vec2(0, self.NECKLACE_GRAVITY*self.gravity_scale))
         for iteration in range(self.NECKLACE_PASSES):
             # 交替求解方向，避免把最后一次修正的偏差固定堆在同一侧。
             edges = range(last) if iteration % 2 == 0 else range(last-1, -1, -1)
@@ -280,7 +284,7 @@ class OracleAppearance:
             factor = min(1., self.CLOTH_SLACK*depth/max(sqrt(dx*dx+dy*dy), 1e-9))
             x[i], y[i] = goal.x+dx*factor, goal.y+dy*factor
             vx[i] = vx[i]*self.CLOTH_DAMPING+fx+x[i]-px
-            vy[i] = vy[i]*self.CLOTH_DAMPING+fy+self.CLOTH_GRAVITY+y[i]-py
+            vy[i] = vy[i]*self.CLOTH_DAMPING+fy+self.CLOTH_GRAVITY*self.gravity_scale+y[i]-py
             for j, rest in self._cloth_neighbors[i]:
                 dx, dy = x[j]-x[i], y[j]-y[i]
                 distance = sqrt(dx*dx+dy*dy)
@@ -302,10 +306,14 @@ class OracleAppearance:
         self._arm_spans = spans
         inputs = (scene.body.chunks[0].position, scene.body.chunks[1].position,
                   scene.head.position, scene.look_direction, *(j.position for j in scene.arm.joints))
-        if self.sleeping and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
+        gravity = scene.pose.gravity_scale
+        gravity_changed = abs(gravity-self.gravity_scale) > 1e-9
+        reacting = scene.drag_reactions.gesturing
+        if self.sleeping and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
             # 静置收敛后休眠；新移动、转头、倾角都会唤醒。不依赖墙钟时间。
             return
         self.sleeping = False
+        self.gravity_scale = gravity
         self.revision += 1
         self.previous_sway = self.sway
         upper = scene.body.chunks[0]
@@ -319,8 +327,9 @@ class OracleAppearance:
         self.direction = rotate(scene.body.direction, self.sway)
         self.lower = self.upper - self.direction * 9
         self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
-        for hand, force in zip(self.hands, self.hand_forces()):
-            hand.step(self.upper, upper.velocity, force)
+        reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
+        for hand, force, extra in zip(self.hands, self.hand_forces(), reactions):
+            hand.step(self.upper, upper.velocity, force+extra)
         for p, goal in zip(self.feet, self.foot_goals()):
             p.follow(goal, spring=.075, damping=.80, slack=5.)
             p.position = self.lower + clamp_length(p.position-self.lower, 10)
@@ -328,7 +337,7 @@ class OracleAppearance:
         self.step_cloth()
         self.step_necklace()
         self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
-        self._quiet_ticks = (self._quiet_ticks+1 if self.maximum_speed < .002
+        self._quiet_ticks = (self._quiet_ticks+1 if not reacting and not gravity_changed and self.maximum_speed < .002
                              and abs(self.sway_velocity) < 1e-6
                              and max((a-b).length() for a, b in zip(inputs, self._sleep_inputs)) < .001
                              else 0) if self._sleep_inputs else 0

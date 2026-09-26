@@ -1,5 +1,6 @@
 """以完好 Moon 为基础的 Bell 外观预览；绘制只读，不推进次级运动。"""
-from math import atan2, cos, degrees, radians, sin
+from math import atan2, cos, degrees, floor, radians, sin
+from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF
@@ -9,6 +10,7 @@ from .config import OracleColors
 from .scene import unit
 from .appearance import perpendicular, rotate
 from .arm_graphics import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
+from .damage import body_bounds
 
 
 def point(v):
@@ -32,19 +34,28 @@ class PaintCommands:
     """帧内只建立一次 Qt 几何对象，两个视图分别重放；不序列化贴图。"""
     def __init__(self):
         self.commands = []
+        self.names = set()
 
     def __getattr__(self, name):
         commands = self.commands
+        self.names.add(name)
         def record(*args):
             commands.append((name, args))
         setattr(self, name, record)
         return record
 
     def replay(self, painter):
-        methods = {name: getattr(painter, name) for name in dict.fromkeys(name for name, _ in self.commands)}
+        if isinstance(painter, PaintCommands):
+            # 引用已完成的子层，而非每帧重新记录上千条身体绘图指令。
+            painter.commands.append((None, self))
+            return
+        methods = {name: getattr(painter, name) for name in self.names}
         painter.save()
         for name, args in self.commands:
-            methods[name](*args)
+            if name is None:
+                args.replay(painter)
+            else:
+                methods[name](*args)
         painter.restore()
 
 
@@ -52,7 +63,7 @@ class OracleRenderer:
     SPRITES = ('Circle20', 'pixel', 'haloGlyph-1',
                'MirosLegSmallPart', 'deerEyeB', 'CentipedeSegment', 'JetFishEyeA', 'tinyStar')
     # Bell 的试用外观尺寸，与原版 Moon / Pebbles 的分支取值独立。
-    CORD_SEGMENT_SPACING = 10.  # 沿用用户实机校准；节纹长 7.2，间隙约 2.8。
+    CORD_SEGMENT_SPACING = 12.  # 沿用用户实机校准；节纹长 7.2，间隙约 2.8。
     SLEEVE_ROOT_HALF_WIDTH = 3.
     SLEEVE_CUFF_HALF_WIDTH = 5.
     SLEEVE_ROOT_RISE = 2.
@@ -85,6 +96,8 @@ class OracleRenderer:
         self.atlas = atlas
         self.colors = colors
         self.glyphs = glyphs
+        self._pearl_palette_key = None
+        self._pearl_palette = ()
         self._arm_geometry_key = None
         self._arm_frames = ()
         self._frame_key = None
@@ -98,6 +111,12 @@ class OracleRenderer:
         self._head_image = None
         self._bead_key = None
         self._bead_images = ()
+        self._raster_key = None
+        self._raster_image = None
+        self._halo_key = None
+        self._halo_image = None
+        self._gown_colors_key = None
+        self._gown_colors = ()
         if atlas is not None:
             for name in self.SPRITES:
                 atlas.sprite(name)
@@ -110,7 +129,7 @@ class OracleRenderer:
             painter.scale(-1, 1)
         rect = QRectF(-width / 2, -height / 2, width, height)
         if self.atlas is not None:
-            painter.drawImage(rect, self.atlas.sprite(name, QColor(color).name()))
+            painter.drawImage(rect, self.atlas.sprite(name, color if isinstance(color, str) else color.name()))
         else:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(color))
@@ -376,7 +395,9 @@ class OracleRenderer:
         return (a*(1-fx)+b*(fx-fy)+e*fy if fy <= fx
                 else a*(1-fy)+e*fx+d*(fy-fx))
 
-    def neck_opening(self, cloth, n, half, depth, *, clip_to_gown=True):
+    @staticmethod
+    @lru_cache(maxsize=32)
+    def neck_uv(n, half, depth, clip_to_gown):
         # 领口顶部沿原有网格边；V 的两边在网格边界/对角线处分段。
         # 不重建物理网格，也不使用固定在屏幕上的三角形遮盖。
         if clip_to_gown:
@@ -396,6 +417,10 @@ class OracleRenderer:
                     cuts.update(t for i in range(-(n-1), n)
                                 if 0 < (t := (i/(n-1)-start)/(end-start)) < 1)
             uv.extend((a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t) for t in sorted(cuts))
+        return tuple(uv)
+
+    def neck_opening(self, cloth, n, half, depth, *, clip_to_gown=True):
+        uv = self.neck_uv(n, half, depth, clip_to_gown)
         path = QPainterPath()
         path.addPolygon(QPolygonF([point(self.gown_point(cloth, n, u, v)) for u, v in uv]))
         path.closeSubpath()
@@ -426,6 +451,10 @@ class OracleRenderer:
 
     def draw_gown(self, painter, scene, alpha):
         c, n = self.colors, scene.appearance.CLOTH_DIVS
+        color_key = (c.robe_top, c.robe_bottom, n)
+        if color_key != self._gown_colors_key:
+            self._gown_colors = tuple(mixed(c.robe_top, c.robe_bottom, (y/(n-1))**2) for y in range(n))
+            self._gown_colors_key = color_key
         cloth = [p.sample(alpha) for p in scene.appearance.cloth]
         vertices = [point(p) for p in cloth]
         painter.save()
@@ -450,8 +479,7 @@ class OracleRenderer:
         painter.drawPolygon(QPolygonF([point(p) for p in outline]))
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         for y in range(n-1):
-            top = mixed(c.robe_top, c.robe_bottom, (y/(n-1))**2)
-            bottom = mixed(c.robe_top, c.robe_bottom, ((y+1)/(n-1))**2)
+            top, bottom = self._gown_colors[y:y+2]
             for x in range(n-1):
                 a, b = cloth[y*n+x:y*n+x+2]
                 d, e = cloth[(y+1)*n+x:(y+1)*n+x+2]
@@ -512,7 +540,7 @@ class OracleRenderer:
             painter.drawImage(QRectF(center.x-size/2, center.y-size/2, size, size), image)
         painter.restore()
 
-    def draw_head(self, painter, head, upper, direction, look, openness=0.):
+    def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False):
         head_direction = unit(head-upper, direction)
         side_axis = perpendicular(head_direction)
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
@@ -541,8 +569,11 @@ class OracleRenderer:
             self._head_key, self._head_image = key, image
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        painter.drawImage(QRectF(head.x-self.HEAD_PIXELS/2, head.y-self.HEAD_PIXELS/2,
-                                self.HEAD_PIXELS, self.HEAD_PIXELS), self._head_image)
+        x, y = head.x-self.HEAD_PIXELS/2, head.y-self.HEAD_PIXELS/2
+        if pixelated:
+            # 与躯干图层使用同一世界像素网格；只对最终图像落点取整。
+            x, y = floor(x+.5), floor(y+.5)
+        painter.drawImage(QRectF(x, y, self.HEAD_PIXELS, self.HEAD_PIXELS), self._head_image)
         painter.restore()
 
     def phone_segments(self, sign, gx, gy):
@@ -618,48 +649,173 @@ class OracleRenderer:
         painter.restore()
         phone(near)
 
-    def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True):
+    def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True):
+        self.draw_halo(painter, scene, alpha)
         # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
         self.draw_pearl(painter, scene, alpha)
         app = scene.appearance
         eye_alpha = alpha
         if app.sleeping:
             alpha = 1.
-        key = (app, app.revision, alpha, self.colors, self.atlas, cords, painter.renderHints())
+        key = (app, app.revision, alpha, self.colors, self.atlas, cords)
         if key != self._frame_key:
             commands = PaintCommands()
-            self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False, include_head=False)
+            self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
+                               include_head=False, halo=False)
             self._frame_key, self._frame = key, commands
-        # 同一帧主视图 / 放大镜复用矢量绘制指令，缩放时仍使用原图和路径。
-        self._frame.replay(painter)
+        # 主视图、放大镜和桌面共用 1 倍像素结果，不在放大后重新光栅化。
+        # 非像素路径仅供几何缓存的回归对照；正常入口默认启用像素绘制。
+        if pixelated:
+            self.draw_pixel_layer(painter, scene)
+        else:
+            self._frame.replay(painter)
         # 开合只刷新头部小图；身体休眠时不重建衣袍、机械臂或长线缆指令。
-        self.draw_scene_head(painter, scene, alpha, eye_alpha)
+        self.draw_scene_head(painter, scene, alpha, eye_alpha, pixelated=pixelated)
         if skeleton:
             self.draw_skeleton(painter, scene, alpha)
 
+    def draw_pixel_layer(self, painter, scene):
+        """局部 1 倍透明画布：全身材质统一像素密度，缓存与窗口倍率无关。"""
+        if self._frame_key != self._raster_key:
+            # 整数原点保证包围盒变化不改变像素网格相位。真实线缆节点也
+            # 包含在范围内；不能用活动带裁掉自然下垂的线束。
+            rect = body_bounds(scene).toAlignedRect()
+            image = QImage(rect.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(Qt.GlobalColor.transparent)
+            local = QPainter(image)
+            try:
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                local.translate(-rect.x(), -rect.y())
+                self._frame.replay(local)
+            finally:
+                local.end()
+            self._raster_image = image
+            self._raster_target = QRectF(rect)
+            self._raster_key = self._frame_key
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._raster_target, self._raster_image)
+        painter.restore()
+
     def draw_pearl(self, painter, scene, alpha):
-        p = scene.pearl.sample(alpha)
+        glyph_color = None
+        if self.glyphs is not None and scene.config.projection_opacity > 0:
+            color = QColor(self.colors.pearl_glyph)
+            color.setAlphaF(scene.config.projection_opacity)
+            # alpha 随颜色进入现有字形缓存；不改变画笔或珍珠本体的不透明度。
+            glyph_color = color.name(QColor.NameFormat.HexArgb)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        if self.glyphs is not None:
-            # 原版标签左下角锚在珠心。Qt 的 y 向下，15px 单元上移一格高度。
-            glyph = self.glyphs.sprite(scene.pearl.glyph_id, self.colors.pearl_glyph)
-            painter.drawImage(QPointF(round(p.x), round(p.y)-15), glyph)
-        self.sprite(painter, 'JetFishEyeA', p, 6, 6, self.colors.pearl)
-        self.sprite(painter, 'tinyStar', p+Vec2(-.5, -1.5), 3, 3, '#ffffff')
+        if scene.pearl_matrix is not None:
+            for p, glyph_id, slot in scene.pearl_matrix.samples(alpha):
+                self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        if scene.pearl_orbits is not None:
+            for p, glyph_id, slot in scene.pearl_orbits.samples(alpha):
+                self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        for p, glyph_id, slot in scene.fixed_pearls.samples(alpha):
+            self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
         painter.restore()
 
-    def draw_scene_head(self, painter, scene, alpha, eye_alpha=None):
+    def draw_halo(self, painter, scene, alpha):
+        if not scene.halo_visible:
+            return
+        halo = scene.halo
+        # 光环自己动画；不进入身体/衣袍/线缆帧键。位移和透明度也不使
+        # 局部图案失效，重复主视图与放大镜仅合成同一张小图。
+        key = (halo, halo.revision, alpha, self.colors.pearl_glyph)
+        if key != self._halo_key:
+            scale, push, detail_scale = halo.geometry_at(alpha)
+            # 预留范围可很大，实际只栅格化当前外形，避免小光环也清空最大画布。
+            radius = int((5.5+push)*10*scale+5*detail_scale+3)
+            image = QImage(radius*2+1, radius*2+1, QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(Qt.GlobalColor.transparent)
+            local = QPainter(image)
+            try:
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                local.translate(radius, radius)
+                local.setPen(Qt.PenStyle.NoPen)
+                local.setBrush(QColor(self.colors.pearl_glyph))
+                for index in range(2):
+                    r = (3+index+push)*10*scale
+                    white = halo.white_at(alpha) if index == 0 else 0.
+                    inner = max(0., r-3*detail_scale)*(1-white)
+                    # VectorCircle 的 alpha 编码环宽；真实投影透明度在整层合成时应用。
+                    # 奇偶填充留下透明空洞，不能用背景色覆盖，以兼容透明桌面。
+                    path = QPainterPath()
+                    path.setFillRule(Qt.FillRule.OddEvenFill)
+                    path.addEllipse(QPointF(), r, r)
+                    if inner > 0:
+                        path.addEllipse(QPointF(), inner, inner)
+                    local.drawPath(path)
+                for index, (ring, row) in enumerate(zip(halo.rings, halo.bits)):
+                    r = (3.5+index+push)*10*scale
+                    angle = ring.previous+(ring.angle-ring.previous)*alpha
+                    for i, bit in enumerate(row):
+                        fill = bit.fill_at(alpha)
+                        if fill <= 0:
+                            continue
+                        theta = radians(angle+i*360/len(row))
+                        dx, dy = sin(theta), -cos(theta)
+                        # 原版矩形宽 4、长 8*Fill，长轴沿半径；先在 1 倍
+                        # 光环画布栅格化，再整体按投影透明度合成，交点不加深。
+                        half = fill*4*detail_scale
+                        width = 2*detail_scale
+                        near, far = r-half, r+half
+                        local.drawPolygon(QPolygonF([
+                            QPointF(dx*near-dy*width, dy*near+dx*width),
+                            QPointF(dx*near+dy*width, dy*near-dx*width),
+                            QPointF(dx*far+dy*width, dy*far-dx*width),
+                            QPointF(dx*far-dy*width, dy*far+dx*width)]))
+            finally:
+                local.end()
+            self._halo_key, self._halo_image = key, image
+        center = halo.center_at(alpha)
+        image = self._halo_image
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*scene.config.projection_opacity)
+        painter.drawImage(QPointF(floor(center.x-image.width()/2+.5),
+                                 floor(center.y-image.height()/2+.5)), image)
+        painter.restore()
+
+    def pearl_palette(self):
+        if self._pearl_palette_key != self.colors:
+            colors = (self.colors.pearl_primary, self.colors.pearl, self.colors.pearl_secondary)
+            palette = []
+            for value in colors:
+                color = QColor(value)
+                # DataPearl 无闪烁/无暗度时的高光：Lerp(珠体色 * 1.3, 白, .5)。
+                highlight = QColor.fromRgbF(*(min(1., channel*.65+.5) for channel in
+                                               (color.redF(), color.greenF(), color.blueF())))
+                palette.append((value, highlight.name()))
+            self._pearl_palette = tuple(palette)
+            self._pearl_palette_key = self.colors
+        return self._pearl_palette
+
+    def draw_pearl_at(self, painter, p, glyph_id, glyph_color, color_slot):
+        if glyph_color is not None:
+            # 原版标签左下角锚在珠心。Qt 的 y 向下，15px 单元上移一格高度。
+            glyph = self.glyphs.sprite(glyph_id, glyph_color)
+            painter.drawImage(QPointF(round(p.x), round(p.y)-15), glyph)
+        color, highlight = self.pearl_palette()[color_slot]
+        self.sprite(painter, 'JetFishEyeA', p, 6, 6, color)
+        self.sprite(painter, 'tinyStar', p+Vec2(-.5, -1.5), 3, 3, highlight)
+
+    def draw_scene_head(self, painter, scene, alpha, eye_alpha=None, *, pixelated=False):
         app = scene.appearance
         upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
         sway = app.previous_sway+(app.sway-app.previous_sway)*alpha
         direction = rotate(unit(upper-lower), sway)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
-                       scene.eyes.sample(alpha if eye_alpha is None else eye_alpha))
+                       scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated)
 
-    def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True, include_head=True):
+    def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
+                      include_head=True, halo=True, arm=True):
+        if halo:
+            self.draw_halo(painter, scene, alpha)
         if pearl:
             self.draw_pearl(painter, scene, alpha)
         app = scene.appearance
@@ -668,7 +824,8 @@ class OracleRenderer:
         direction = rotate(unit(upper-lower), sway)
         lower = upper-direction*9
         head = app.head.sample(alpha)
-        self.draw_arm(painter, scene, alpha)
+        if arm:
+            self.draw_arm(painter, scene, alpha)
         if cords:
             self.draw_cords(painter, scene, alpha)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)

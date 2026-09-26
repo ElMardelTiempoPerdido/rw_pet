@@ -6,7 +6,7 @@
 from bisect import bisect_right
 from dataclasses import dataclass
 from heapq import heappop, heappush
-from math import atan2, ceil, cos, pi, sin, sqrt
+from math import atan2, ceil, cos, pi, sin, sqrt, tan
 
 from ..shared.geometry import Bounds, Vec2
 
@@ -205,8 +205,10 @@ class CurveRoute:
         self.samples = [start]
         self.distances = [0.]
         self.parameters = [(0, 0.)]
+        self.curve_offsets = []
         length = 0.
         for index, curve in enumerate(curves):
+            self.curve_offsets.append(length)
             polygon_length = sum((b - a).length() for a, b in zip((curve.a, curve.b, curve.c), (curve.b, curve.c, curve.d)))
             count = max(12, ceil(polygon_length / 2))
             for j in range(1, count + 1):
@@ -294,7 +296,35 @@ class EdgePlanner:
         points = [start, target] if destination.contains(start) else [start, self.corners[corner], target]
         return self.round_polyline(points, velocity)
 
-    def round_polyline(self, points, velocity=Vec2()):
+    @staticmethod
+    def local_arc(start, center, box, preferred_sign=1):
+        """只选完整凸包位于同一走廊的局部绕珠弧；空间不足返回 None。"""
+        radius = (start-center).length()
+        if not 32 <= radius <= 72 or not box.contains(start):
+            return None
+        angle = atan2(start.y-center.y, start.x-center.x)
+        candidates = []
+        for sign in (preferred_sign, -preferred_sign):
+            for degrees in (110, 100, 90, 80, 70, 60, 50, 40, 30, 20, 12):
+                sweep = sign*degrees*pi/180
+                count = ceil(abs(sweep)/(pi/4))
+                step = sweep/count
+                handle = 4/3*tan(step/4)*radius
+                curves = []
+                a = start
+                for i in range(count):
+                    t0, t1 = angle+i*step, angle+(i+1)*step
+                    d = center+Vec2(cos(t1), sin(t1))*radius
+                    b = a+Vec2(-sin(t0), cos(t0))*handle
+                    c = d-Vec2(-sin(t1), cos(t1))*handle
+                    curves.append(Bezier(a, b, c, d))
+                    a = d
+                if all(box.contains(p) for curve in curves for p in (curve.a, curve.b, curve.c, curve.d)):
+                    candidates.append(CurveRoute(curves, start))
+                    break
+        return max(candidates, key=lambda route: route.length) if candidates else None
+
+    def round_polyline(self, points, velocity=Vec2(), *, box=None):
         clean = [points[0]]
         for p in points[1:]:
             if (p - clean[-1]).length() > 1e-7:
@@ -309,7 +339,7 @@ class EdgePlanner:
 
         if len(clean) == 2:
             a, b = clean
-            box = next(box for box in self.region.boxes if box.contains(a) and box.contains(b))
+            box = box or next(box for box in self.region.boxes if box.contains(a) and box.contains(b))
             v = b - a
             side = Vec2(-normalized(v).y, normalized(v).x)
             bend = min(10., v.length() * .12)
@@ -422,14 +452,37 @@ class FloatNavigator:
         self.distance = 0.
         self.guide = route.start
         self.velocity = Vec2()
-        # 路线改变保留有界推进速度，身体仍保留原速度并限制加速度。
-        self.speed = min(self.speed, self.max_speed)
+        # 保留已有速度，下一步按加速度收敛到本次行动的上限。
 
-    def step(self, body, reach):
+    def extend_to(self, target, box):
+        """将当前终点变成途经点；保留当前曲线、导引位置和推进速度。"""
+        if self.done or not self.route.curves:
+            return False
+        last = self.route.curves[-1]
+        start, forward = last.d, normalized(last.d-last.c)
+        offset = target-start
+        distance = offset.length()
+        outgoing = normalized(offset)
+        # 掉头或指向边界时保留原来的终点刹车，不硬拼一个尖角。
+        if distance < 30 or forward.x*outgoing.x+forward.y*outgoing.y < .35:
+            return False
+        curve = Bezier(start, start+forward*min(24., distance/3), target-offset*(1/3), target)
+        if not all(box.contains(p) for p in (curve.a, curve.b, curve.c, curve.d)):
+            return False
+        # 只保留尚未走完的曲线，长达数分钟的漫游不会累计路径历史。
+        index = max(0, bisect_right(self.route.curve_offsets, self.distance)-1)
+        distance = self.distance-self.route.curve_offsets[index]
+        curves = [*self.route.curves[index:], curve]
+        self.route = CurveRoute(curves, curves[0].a)
+        self.distance = distance
+        return True
+
+    def step(self, body, reach, *, speed_limit=None):
         remaining = max(0., self.route.length - self.distance)
         preview = self.route.sample(self.distance + min(60., reach*.28))
         self.base.step(preview, body, reach)
-        desired_speed = min(self.route.speed_limit(self.distance, self.max_speed), sqrt(2 * .045 * remaining))
+        maximum = self.max_speed if speed_limit is None else speed_limit
+        desired_speed = min(self.route.speed_limit(self.distance, maximum), sqrt(2 * .045 * remaining))
         probe = self.route.sample(self.distance + max(24., self.speed * 18))
         reserve = reach - (probe - self.base.position).length()
         desired_speed *= max(0., min(1., (reserve - 12) / 32))

@@ -24,6 +24,11 @@ class OracleEyes:
         self.observing = False
         self.target = 0.
 
+    def begin_reaction(self, opened):
+        """交互使用自己的抽签结果，不改变自主观察的低概率随机流。"""
+        self.observing = True
+        self.target = float(opened)
+
     @property
     def moving(self):
         return self.openness != self.target or self.previous_openness != self.openness

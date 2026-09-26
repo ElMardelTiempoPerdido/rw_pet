@@ -3,9 +3,9 @@ from dataclasses import fields, replace
 from pathlib import Path
 from time import perf_counter
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
-from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSpinBox, QVBoxLayout, QWidget
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..config import AppConfig
@@ -14,7 +14,10 @@ from .scene import OracleScene, RailSide
 from .config import OracleColors
 from .glyphs import load_pearl_glyphs
 from .render import OracleRenderer, point
+from .input import PuppetHitMap
 from ..shared.timing import FixedStepper
+from ..interaction.audio import VoicePlayer
+from .voice import bell_voice_paths
 
 
 COLOR_LABELS = {
@@ -23,7 +26,8 @@ COLOR_LABELS = {
     'robe_bottom': '衣袍下部', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
     'joints': '关节 / 底座', 'third_eye': '额头标记',
     'inner_robe': '高领内搭', 'collar_trim': 'V 形领边', 'beads': '念珠主体',
-    'pearl': '珍珠', 'pearl_glyph': '珍珠投影字符',
+    'pearl': '珍珠共有色', 'pearl_primary': '珍珠主色', 'pearl_secondary': '珍珠辅色',
+    'pearl_glyph': '投影（珍珠/光环）',
 }
 
 
@@ -41,6 +45,7 @@ class OracleCanvas(QWidget):
         self.view_scale = 1.  # 屏幕物理像素 / 游戏单位；None 表示适应窗口。
         self.view_center = None
         self._pan_position = None
+        self.drag_hit = PuppetHitMap()
         self._route = None
         self._route_path = None
         self.setMinimumSize(640, 420)
@@ -93,6 +98,13 @@ class OracleCanvas(QWidget):
             return
         pos = self.view_to_world(position)
         if event.button() == Qt.MouseButton.LeftButton:
+            if (not self.clock.paused and not event.modifiers()
+                    and self.scene.drag.press(pos, self.drag_hit.get(
+                        self.renderer, self.scene, self.clock.alpha).contains)):
+                self.grabMouse()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                event.accept()
+                return
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 self.pearl_picked.emit(pos.x, pos.y)
             else:
@@ -102,7 +114,11 @@ class OracleCanvas(QWidget):
         event.accept()
 
     def mouseMoveEvent(self, event):
-        if self._pan_position is not None:
+        if self.scene.drag.active:
+            position = Vec2(event.position().x(), event.position().y())
+            self.scene.drag.move(self.view_to_world(position))
+            event.accept()
+        elif self._pan_position is not None:
             position = Vec2(event.position().x(), event.position().y())
             scale, _ = self.view_transform()
             world = self.scene.world
@@ -115,12 +131,25 @@ class OracleCanvas(QWidget):
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.MiddleButton and self._pan_position is not None:
+        if event.button() == Qt.MouseButton.LeftButton and self.scene.drag.active:
+            self.scene.drag.move(self.view_to_world(Vec2(event.position().x(), event.position().y())))
+            self.scene.drag.release()
+            self.releaseMouse()
+            self.unsetCursor()
+            event.accept()
+        elif event.button() == Qt.MouseButton.MiddleButton and self._pan_position is not None:
             self._pan_position = None
             self.unsetCursor()
             event.accept()
         else:
             super().mouseReleaseEvent(event)
+
+    def event(self, event):
+        if (event.type() == QEvent.Type.UngrabMouse and hasattr(self, 'scene')
+                and self.scene.drag.active):
+            self.scene.drag.release(cancel=True)
+            self.unsetCursor()
+        return super().event(event)
 
     def magnifier_rect(self):
         # 衣袍垂坠后下摆距上身约 33.3；保持 4×，增高检查窗容纳完整外形。
@@ -191,15 +220,42 @@ class OracleCanvas(QWidget):
                 painter.setPen(pen('#5b839c', Qt.PenStyle.DotLine))
                 painter.drawLine(point(scene.head.position), point(scene.look_target))
             if self.show_path:
-                cross(scene.pearl.home, '#849aab', 3)
-                bounds = scene.pearl.follow_bounds
+                for pearl in scene.fixed_pearls.roots:
+                    cross(pearl.home, '#849aab', 3)
+                if scene.pearl_matrix is not None:
+                    matrix = scene.pearl_matrix
+                    cross(matrix.anchor.home, '#b3a2c7', 4)
+                    if not matrix.anchor.settled:
+                        route = matrix.anchor.route
+                        if getattr(self, '_matrix_route', None) is not route:
+                            self._matrix_route = route
+                            self._matrix_path = QPainterPath(point(route.start))
+                            for p in route.samples[1:]:
+                                self._matrix_path.lineTo(point(p))
+                        painter.setPen(pen('#88769c', Qt.PenStyle.DotLine))
+                        painter.drawPath(self._matrix_path)
+                    if matrix.extracted is not None:
+                        pearl = matrix.extracted
+                        cross(pearl.home, '#e5c281', 4)
+                        if not pearl.settled:
+                            route = pearl.route
+                            if getattr(self, '_extracted_route', None) is not route:
+                                self._extracted_route = route
+                                self._extracted_path = QPainterPath(point(route.start))
+                                for p in route.samples[1:]:
+                                    self._extracted_path.lineTo(point(p))
+                            painter.setPen(pen('#c4a16a', Qt.PenStyle.DotLine))
+                            painter.drawPath(self._extracted_path)
+                fixed = scene.fixed_pearls.roots
+                pearl = scene.observed_pearl if scene.observed_pearl in fixed else (fixed[0] if fixed else None)
+                bounds = pearl.follow_bounds if pearl is not None else None
                 if bounds is not None:
                     painter.setPen(pen('#536b80', Qt.PenStyle.DotLine))
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     painter.drawRect(QRectF(bounds.left, bounds.top, bounds.right-bounds.left, bounds.bottom-bounds.top))
-                if not scene.pearl.settled:
+                if pearl is not None and not pearl.settled:
                     painter.setPen(pen('#849aab', Qt.PenStyle.DotLine))
-                    route = scene.pearl.route
+                    route = pearl.route
                     if getattr(self, '_pearl_route', None) is not route:
                         self._pearl_route = route
                         self._pearl_path = QPainterPath(point(route.start))
@@ -241,6 +297,9 @@ class OracleDebugWindow(QMainWindow):
         super().__init__()
         self.config, self.config_path = config, config_path
         self.scene = OracleScene(config.oracle)
+        self.scene.drag.set_enabled(config.interaction.drag_enabled)
+        self.voice_player = VoicePlayer(bell_voice_paths(config.oracle, config_path), config.audio, self)
+        self.voice_player.sync(self.scene.drag_reactions.voice)
         self.clock = FixedStepper(self.scene.TICK_RATE)
         self.asset_message = '几何预览（未加载图集）'
         atlas = None
@@ -284,6 +343,10 @@ class OracleDebugWindow(QMainWindow):
                        self.skeleton_box, self.zoom_box):
             toolbar.addWidget(widget)
         toolbar.addStretch()
+        self.drag_box = QCheckBox('允许拖动人偶')
+        self.drag_box.setChecked(config.interaction.drag_enabled)
+        self.drag_box.toggled.connect(self.set_drag_enabled)
+        toolbar.addWidget(self.drag_box)
         toolbar.addWidget(QLabel('预览比例'))
         self.scale_input = QComboBox()
         for text, value in (('固定 1×', 1.), ('固定 2×', 2.), ('固定 4×', 4.), ('适应窗口', None)):
@@ -296,6 +359,23 @@ class OracleDebugWindow(QMainWindow):
         self.focus_button.clicked.connect(self.canvas.center_on_pet)
         toolbar.addWidget(self.focus_button)
         layout.addLayout(toolbar)
+        audio_controls = QHBoxLayout()
+        self.voice_box = QCheckBox('播放语音')
+        self.voice_box.setChecked(config.audio.enabled)
+        self.voice_box.toggled.connect(lambda enabled: self.voice_player.configure(enabled=enabled))
+        audio_controls.addWidget(self.voice_box)
+        audio_controls.addWidget(QLabel('音量'))
+        self.voice_volume = QSpinBox()
+        self.voice_volume.setRange(0, 100)
+        self.voice_volume.setSuffix(' %')
+        self.voice_volume.setValue(round(config.audio.volume*100))
+        self.voice_volume.valueChanged.connect(lambda value: self.voice_player.configure(volume=value/100))
+        audio_controls.addWidget(self.voice_volume)
+        self.voice_status = QLabel(self.voice_player.status)
+        self.voice_status.setWordWrap(True)
+        self.voice_player.status_changed.connect(self.voice_status.setText)
+        audio_controls.addWidget(self.voice_status, 1)
+        layout.addLayout(audio_controls)
         controls = QHBoxLayout()
         controls.addWidget(QLabel('初始底座'))
         self.side_input = QComboBox()
@@ -315,7 +395,7 @@ class OracleDebugWindow(QMainWindow):
         self.tilt_input = QDoubleSpinBox()
         self.tilt_input.setRange(-25, 25)
         self.tilt_input.setSuffix('°')
-        self.tilt_input.setToolTip('自主行动会叠加平滑侧倾；合计目标角保持在 ±25° 内。手动观察仍只转头。')
+        self.tilt_input.setToolTip('普通行动在停留姿态附近轻微侧倾；失重时朝向由运动和观察牵引改变，结束后保留姿态。')
         self.tilt_input.valueChanged.connect(self.scene.set_tilt)
         controls.addWidget(self.tilt_input)
         self.look_pearl_button = QPushButton('靠近观察一次')
@@ -342,18 +422,37 @@ class OracleDebugWindow(QMainWindow):
         self.path_box.setChecked(True)
         self.path_box.toggled.connect(self.set_path_visible)
         navigation.addWidget(self.path_box)
+        self.matrix_box = QCheckBox('珍珠矩阵')
+        self.matrix_box.setChecked(self.scene.pearl_matrix_enabled)
+        self.matrix_box.setToolTip('珍珠随人偶整组迁移，允许抽出一颗观察后回到原槽位。数量可在下方预览，0 表示不创建。')
+        self.matrix_box.toggled.connect(self.set_pearl_matrix)
+        navigation.addWidget(self.matrix_box)
+        self.orbit_pearl_button = QPushButton('绕珠观察一次')
+        self.orbit_pearl_button.setToolTip('先靠近，再沿当前边内的局部圆弧观察；空间不足时保持原地观察。')
+        self.orbit_pearl_button.clicked.connect(lambda: self.observe_pearl('orbit'))
+        self.orbit_pearl_button.setEnabled(self.scene.sliding_base)
+        navigation.addWidget(self.orbit_pearl_button)
+        self.meditate_button = QPushButton('冥想一次')
+        self.meditate_button.setToolTip('向当前走廊中间稍微收拢，闭眼低头；停稳后保持 30～60 秒，外观可休眠。')
+        self.meditate_button.clicked.connect(self.meditate)
+        navigation.addWidget(self.meditate_button)
         navigation.addStretch()
         self.clockwise_button.setEnabled(self.scene.sliding_base)
         self.counterclockwise_button.setEnabled(self.scene.sliding_base)
         layout.addLayout(navigation)
         behavior_row = QHBoxLayout()
         self.autonomous_box = QCheckBox('自主行为')
-        self.autonomous_box.setToolTip('停留、同边短途、低概率邻边移动、珍珠观察独立选择；手动操作接管后停止循环。')
+        self.autonomous_box.setToolTip('停留、冥想、同边短途、低概率反重力漫游与邻边移动、珍珠观察独立选择；手动操作接管后停止循环。')
         self.autonomous_box.toggled.connect(self.set_autonomous)
         behavior_row.addWidget(self.autonomous_box)
         self.short_roam_button = QPushButton('短途漂浮一次')
         self.short_roam_button.clicked.connect(lambda: self.roam(False))
         behavior_row.addWidget(self.short_roam_button)
+        self.drift_button = QPushButton('反重力漫游一次')
+        self.drift_button.setToolTip(f'沿边自由漂浮约 {config.oracle.antigravity_duration_seconds:g} 秒'
+                                    '（每次浮动 ±10%），期间可以观察珍珠、低概率移到邻边；结束后平滑恢复直立。')
+        self.drift_button.clicked.connect(self.drift)
+        behavior_row.addWidget(self.drift_button)
         self.cross_edge_button = QPushButton('移到邻边一次')
         self.cross_edge_button.setToolTip('只移到当前边的两条相邻边之一，最多经过一个角；此按钮不受随机概率与冷却限制。')
         self.cross_edge_button.clicked.connect(lambda: self.roam(True))
@@ -362,12 +461,55 @@ class OracleDebugWindow(QMainWindow):
         self.recall_pearl_button = QPushButton('召近观察一次')
         self.recall_pearl_button.clicked.connect(lambda: self.observe_pearl('recall'))
         behavior_row.addWidget(self.recall_pearl_button)
+        self.matrix_pearl_button = QPushButton('抽取矩阵珠一次')
+        self.matrix_pearl_button.setToolTip('随机选一颗矩阵珍珠召近观察，保留空位，结束后送回；重复点击仍使用已抽出的珠子。')
+        self.matrix_pearl_button.clicked.connect(self.observe_matrix_pearl)
+        behavior_row.addWidget(self.matrix_pearl_button)
         self.return_pearl_button = QPushButton('结束观察并送回')
         self.return_pearl_button.clicked.connect(self.stop_motion)
         behavior_row.addWidget(self.return_pearl_button)
-        behavior_row.addWidget(QLabel('Shift + 左键：移动珍珠的悬浮点'))
+        behavior_row.addWidget(QLabel('Shift + 左键：移动最近固定珠的悬浮点'))
         behavior_row.addStretch()
         layout.addLayout(behavior_row)
+        pearl_row = QHBoxLayout()
+        self.orbits_box = QCheckBox('环绕珍珠')
+        self.orbits_box.setChecked(self.scene.pearl_orbits_enabled)
+        self.orbits_box.toggled.connect(self.set_pearl_orbits)
+        pearl_row.addWidget(self.orbits_box)
+        self.pearl_count_inputs = {}
+        for key, label, maximum in (('matrix', '矩阵', 64), ('inner', '内圈', 32), ('outer', '外圈', 32),
+                                    ('fixed', '固定', 32), ('satellite', '卫星', 32)):
+            pearl_row.addWidget(QLabel(label))
+            control = QSpinBox()
+            control.setRange(0, maximum)
+            control.setValue(getattr(self.scene.config, f'pearl_{key}_count'))
+            control.setKeyboardTracking(False)
+            control.setToolTip('0 隐藏这一类；卫星需要至少一颗固定母珠。颜色按比例分配，仅预览，永久修改请写入 TOML。')
+            control.valueChanged.connect(lambda value, key=key: self.set_pearl_count(key, value))
+            pearl_row.addWidget(control)
+            self.pearl_count_inputs[key] = control
+        pearl_row.addWidget(QLabel('数量仅本次预览；0 隐藏对应一类，永久配置见 TOML'))
+        pearl_row.addStretch()
+        layout.addLayout(pearl_row)
+        halo_row = QHBoxLayout()
+        self.halo_box = QCheckBox('光环')
+        self.halo_box.setChecked(self.scene.config.halo_enabled)
+        self.halo_box.toggled.connect(self.set_halo_enabled)
+        halo_row.addWidget(self.halo_box)
+        self.halo_pulse_button = QPushButton('光环扩张一次')
+        self.halo_pulse_button.setToolTip('预览平滑扩张与恢复；保持当前自主行为，暂停时可用单步查看。')
+        self.halo_pulse_button.clicked.connect(self.pulse_halo)
+        halo_row.addWidget(self.halo_pulse_button)
+        self.halo_flash_button = QPushButton('外圈闪烁一次')
+        self.halo_flash_button.clicked.connect(self.flash_halo)
+        halo_row.addWidget(self.halo_flash_button)
+        self.halo_fill_button = QPushButton('实心化一次')
+        self.halo_fill_button.setToolTip('强制进入实心目标并重选尺寸；保持时间与自然事件一样随机，退出时由中央挖空。暂停时可单步查看。')
+        self.halo_fill_button.clicked.connect(self.fill_halo)
+        halo_row.addWidget(self.halo_fill_button)
+        halo_row.addWidget(QLabel('与珍珠投影共用颜色和透明度；空间不足时限制尺寸'))
+        halo_row.addStretch()
+        layout.addLayout(halo_row)
         hint = QLabel('左键：指定移动目标　右键：独立观察（均接管自主行为）　中键拖动：平移视图；放大镜内不设置目标')
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -460,6 +602,8 @@ class OracleDebugWindow(QMainWindow):
             self.canvas.center_on_pet()
 
     def set_paused(self, paused):
+        if paused:
+            self.cancel_drag()
         self.clock.set_paused(paused)
         self.last_time = perf_counter()
         self.pause_button.setText('继续 [Space]' if paused else '暂停 [Space]')
@@ -471,6 +615,7 @@ class OracleDebugWindow(QMainWindow):
         self.refresh()
 
     def reset_scene(self):
+        self.cancel_drag()
         self.scene.reset()
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
@@ -478,6 +623,7 @@ class OracleDebugWindow(QMainWindow):
         self.refresh()
 
     def place_anchor(self):
+        self.cancel_drag()
         self.scene.set_anchor(self.side_input.currentData(), self.base_input.value() / 100)
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
@@ -489,6 +635,7 @@ class OracleDebugWindow(QMainWindow):
         self.refresh()
 
     def set_sliding_mode(self, enabled):
+        self.cancel_drag()
         self.scene.set_sliding_base(enabled)
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
@@ -496,6 +643,7 @@ class OracleDebugWindow(QMainWindow):
         self.clockwise_button.setEnabled(enabled)
         self.counterclockwise_button.setEnabled(enabled)
         self.cross_edge_button.setEnabled(enabled)
+        self.orbit_pearl_button.setEnabled(enabled)
         self.refresh()
 
     def start_lap(self, clockwise):
@@ -514,12 +662,52 @@ class OracleDebugWindow(QMainWindow):
         self.scene.set_autonomous(enabled)
         self.refresh()
 
+    def set_pearl_matrix(self, enabled):
+        self.scene.set_pearl_matrix(enabled)
+        self.refresh()
+
+    def set_halo_enabled(self, enabled):
+        self.scene.set_halo_enabled(enabled)
+        self.refresh()
+
+    def pulse_halo(self):
+        self.scene.pulse_halo()
+        self.refresh()
+
+    def flash_halo(self):
+        self.scene.halo.flash_ring(2)
+        self.refresh()
+
+    def fill_halo(self):
+        self.scene.halo.pulse_fill()
+        self.refresh()
+
     def observe_pearl(self, mode):
         self.scene.observe_pearl(mode)
         self.refresh()
 
+    def observe_matrix_pearl(self):
+        self.scene.observe_matrix_pearl()
+        self.refresh()
+
+    def set_pearl_orbits(self, enabled):
+        self.scene.set_pearl_orbits(enabled)
+        self.refresh()
+
+    def set_pearl_count(self, key, value):
+        self.scene.set_pearl_counts(**{key: value})
+        self.refresh()
+
     def roam(self, adjacent):
         self.scene.roam(adjacent=adjacent)
+        self.refresh()
+
+    def drift(self):
+        self.scene.drift()
+        self.refresh()
+
+    def meditate(self):
+        self.scene.meditate()
         self.refresh()
 
     def pick_pearl_home(self, x, y):
@@ -538,14 +726,24 @@ class OracleDebugWindow(QMainWindow):
         now = perf_counter()
         self.clock.advance(now - self.last_time, self.scene.step)
         self.last_time = now
+        self.voice_player.sync(self.scene.drag_reactions.voice, paused=self.clock.paused)
         self.refresh(force=False)
 
     def refresh(self, *, force=True):
         scene = self.scene
+        self.halo_pulse_button.setEnabled(scene.halo_visible)
+        self.halo_flash_button.setEnabled(scene.halo_visible)
+        self.halo_fill_button.setEnabled(scene.halo_visible)
+        self.matrix_pearl_button.setEnabled(scene.pearl_matrix is not None)
+        available = bool(scene.fixed_pearls.roots) or scene.pearl_matrix is not None
+        self.look_pearl_button.setEnabled(available)
+        self.recall_pearl_button.setEnabled(available)
+        self.orbit_pearl_button.setEnabled(scene.sliding_base and available)
         now = perf_counter()
-        revision = (scene.appearance, scene.appearance.revision, scene.pearl.revision, scene.eyes.revision)
+        revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
+                    scene.halo_visual_revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
-                                                   or not scene.pearl.settled or scene.eyes.moving))
+                                                   or not scene.pearls_settled or scene.eyes.moving))
                        or revision != self._last_visual_revision)
         if force or (needs_frame and now >= self._next_render_time):
             self.canvas.update()
@@ -558,13 +756,34 @@ class OracleDebugWindow(QMainWindow):
         if not force and now-self._last_status_time < .25:
             return
         self._last_status_time = now
+        for control in (self.look_pearl_button, self.recall_pearl_button, self.orbit_pearl_button,
+                        self.meditate_button, self.short_roam_button, self.drift_button,
+                        self.cross_edge_button, self.clockwise_button, self.counterclockwise_button):
+            if scene.drag.controlling:
+                control.setEnabled(False)
+        if not scene.drag.controlling:
+            for control in (self.meditate_button, self.short_roam_button, self.drift_button):
+                control.setEnabled(True)
+            for control in (self.cross_edge_button, self.clockwise_button, self.counterclockwise_button):
+                control.setEnabled(scene.sliding_base)
         self.autonomous_box.blockSignals(True)
-        self.autonomous_box.setChecked(scene.behavior.enabled)
+        self.autonomous_box.setChecked(scene.drag.resume_autonomy if scene.drag.controlling else scene.behavior.enabled)
         self.autonomous_box.blockSignals(False)
         upper = scene.body.chunks[0]
         state = scene.behavior.state.value if scene.behavior.active else ('已停稳' if scene.arrived else '手动移动')
+        if scene.drag.controlling:
+            state = '鼠标拖拽' if scene.drag.active else '松手返回活动带'
+            reactions = scene.drag_reactions
+            state += f' · {reactions.label}'
+            if reactions.voice.last_cue is not None:
+                state += f' · 语音请求 {reactions.voice.last_cue.clip_id}（{reactions.voice.request_count} 次）'
+        if scene.behavior.matrix_observation:
+            state += f' · 矩阵 {scene.behavior.last_matrix_slot}'
+        if scene.behavior.drift_active:
+            state += ' · 恢复重力' if scene.behavior.drift_recovering else ' · 失重'
         state += f' · 已观察 {scene.behavior.completed_cycles} 次'
-        state += f' · 自主侧倾 {scene.pose.angle:+.1f}°'
+        body_angle = (scene.tilt_degrees+scene.pose.angle+180.) % 360.-180.
+        state += f' · 躯干角度 {body_angle:+.1f}°'
         navigation = ''
         if scene.navigator:
             nav = scene.navigator
@@ -580,5 +799,19 @@ class OracleDebugWindow(QMainWindow):
                             f'　丢弃积压 {self.clock.dropped_seconds:.2f}s')
 
     def closeEvent(self, event):
+        self.cancel_drag()
         self.timer.stop()
         super().closeEvent(event)
+
+    def cancel_drag(self):
+        self.voice_player.stop()
+        self.scene.drag.release(cancel=True)
+        if QWidget.mouseGrabber() is self.canvas:
+            self.canvas.releaseMouse()
+        self.canvas.unsetCursor()
+
+    def set_drag_enabled(self, enabled):
+        if not enabled:
+            self.cancel_drag()
+        self.scene.drag.set_enabled(enabled)
+        self.canvas.update()

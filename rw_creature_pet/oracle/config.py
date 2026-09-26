@@ -22,14 +22,34 @@ class OracleColors:
     arm_highlight: str = '#d2dae3'
     joints: str = '#424c5d'
     third_eye: str = '#bc29e7'
-    pearl: str = '#d8cdc5'
-    pearl_glyph: str = '#a6bcb9'
+    pearl: str = '#d8cdc5'  # 保留旧配置名，作为共有色。
+    pearl_primary: str = '#75a9b9'  # Bell 肤色向白色混合约 25% 的初始值。
+    pearl_secondary: str = '#ff8c8f'  # Bell 衣袍上部向白色混合约 25%。
+    pearl_glyph: str = '#7faabc'
 
     def __post_init__(self):
         for field in fields(self):
             value = getattr(self, field.name)
             if not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value):
                 raise ValueError(f'oracle.colors.{field.name} 必须为 #RRGGBB 颜色')
+
+
+@dataclass(frozen=True, slots=True)
+class DragReactionConfig:
+    enabled: bool = True
+    gesture_probability: float = .90
+    flutter_probability: float = .60  # 手势触发后：扑腾 / 单手抗议的比例。
+    eye_open_probability: float = .65
+    voice_probability: float = .55  # 与手势、睁眼独立；窗口层消费播放请求。
+
+    def __post_init__(self):
+        if type(self.enabled) is not bool:
+            raise ValueError('oracle.drag_reactions.enabled 必须为布尔值')
+        for name in ('gesture_probability', 'flutter_probability', 'eye_open_probability', 'voice_probability'):
+            value = getattr(self, name)
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not isfinite(value) or not 0 <= value <= 1):
+                raise ValueError(f'oracle.drag_reactions.{name} 必须在 0～1 之间')
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,15 +63,41 @@ class OracleConfig:
     arm_scale: float = .60
     sliding_base: bool = True
     float_speed: float = 1.6
+    drift_speed: float = 1.0  # 漫游巡航基准，独立于视觉失重程度；40 Hz。
     base_speed: float = 2.8
-    cross_edge_probability: float = .05
+    cross_edge_probability: float = .05  # 普通活动选择及漫游低频选路时的邻边概率。
+    antigravity_probability: float = .08
+    antigravity_duration_seconds: float = 300.
     pearl_follow_width: float = 360.
     pearl_follow_height: float = 280.
+    pearl_matrix_enabled: bool = False
+    pearl_matrix_count: int = 14
+    pearl_orbits_enabled: bool = False
+    pearl_inner_count: int = 4
+    pearl_outer_count: int = 2
+    pearl_fixed_count: int = 2
+    pearl_satellite_count: int = 0  # 旧配置默认不增加持续运动；本机 TOML 开启 1 颗。
+    projection_opacity: float = .5  # 全息投影的不透明度；珍珠字符及后续光环共用。
     colors: OracleColors = OracleColors()
+    physics_backend: str = 'auto'  # 安装 speedups 可选依赖后自动使用 Numba。
+    halo_enabled: bool = True
+    halo_scale: float = .8  # 原版圆环/短条的整体倍率；窄活动带会再限制上限。
+    drag_reactions: DragReactionConfig = DragReactionConfig()
+    voice_directory: str = 'artifacts/oracle-voice-reference/bell-clips'
 
     def __post_init__(self):
-        for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'base_speed',
-                     'cross_edge_probability', 'pearl_follow_width', 'pearl_follow_height'):
+        if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
+            raise ValueError('oracle.voice_directory 必须为非空路径字符串')
+        if type(self.halo_enabled) is not bool:
+            raise ValueError('oracle.halo_enabled 必须为布尔值')
+        if (isinstance(self.halo_scale, bool) or not isinstance(self.halo_scale, (int, float))
+                or not isfinite(self.halo_scale) or not .25 <= self.halo_scale <= 1.5):
+            raise ValueError('oracle.halo_scale 必须在 0.25～1.5')
+        if self.physics_backend not in ('auto', 'python', 'numba'):
+            raise ValueError('oracle.physics_backend 必须为 auto / python / numba')
+        for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'drift_speed', 'base_speed',
+                     'cross_edge_probability', 'antigravity_probability', 'antigravity_duration_seconds',
+                     'pearl_follow_width', 'pearl_follow_height', 'projection_opacity'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(f'oracle.{name} 必须为有限数值')
@@ -67,10 +113,27 @@ class OracleConfig:
             raise ValueError('oracle.arm_scale 必须在 0.35～0.75 之间')
         if type(self.sliding_base) is not bool:
             raise ValueError('oracle.sliding_base 必须为布尔值')
+        if type(self.pearl_matrix_enabled) is not bool:
+            raise ValueError('oracle.pearl_matrix_enabled 必须为布尔值')
+        if type(self.pearl_orbits_enabled) is not bool:
+            raise ValueError('oracle.pearl_orbits_enabled 必须为布尔值')
+        for name, maximum in (('pearl_matrix_count', 64), ('pearl_inner_count', 32), ('pearl_outer_count', 32),
+                              ('pearl_fixed_count', 32), ('pearl_satellite_count', 32)):
+            value = getattr(self, name)
+            if type(value) is not int or not 0 <= value <= maximum:
+                raise ValueError(f'oracle.{name} 必须为 0～{maximum} 的整数')
+        if not 0 <= self.projection_opacity <= 1:
+            raise ValueError('oracle.projection_opacity 必须在 0～1 之间')
         if not .3 <= self.float_speed <= 2.0 or not 1.5 <= self.base_speed <= 4.0:
             raise ValueError('float_speed 必须在 0.3～2.0；base_speed 必须在 1.5～4.0')
+        if not .3 <= self.drift_speed <= 1.8:
+            raise ValueError('drift_speed 必须在 0.3～1.8')
         if not 0 <= self.cross_edge_probability <= 1:
             raise ValueError('cross_edge_probability 必须在 0～1 之间')
+        if not 0 <= self.antigravity_probability <= 1:
+            raise ValueError('antigravity_probability 必须在 0～1 之间')
+        if self.antigravity_duration_seconds < 1:
+            raise ValueError('antigravity_duration_seconds 必须至少为 1 秒')
         if self.pearl_follow_width < 160 or self.pearl_follow_height < 160:
             raise ValueError('珍珠跟随矩形的宽和高至少为 160 逻辑单位')
 
@@ -80,4 +143,5 @@ class OracleConfig:
             raise ValueError('oracle 必须为配置表')
         data = dict(data)
         data['colors'] = OracleColors(**data.get('colors', {}))
+        data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))
         return cls(**data)

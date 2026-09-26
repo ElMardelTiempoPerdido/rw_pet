@@ -1,6 +1,13 @@
 # 从此游戏目录读取主图集，缓存写入用户目录
 game_dir = 'D:\steam\steamapps\common\Rain World'
 
+[interaction]
+drag_enabled = false     # Oracle：可在托盘/调试窗口勾选“允许拖动人偶”；只命中人偶轮廓
+
+[audio]
+enabled = true           # 托盘和调试窗口可即时静音；不影响手势与睁眼反应
+volume = 0.70            # 0～1；0 为静音
+
 [debug]
 tick_rate = 40
 world_width = 480.0
@@ -9,12 +16,23 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
+voice_directory = 'artifacts/oracle-voice-reference/bell-clips' # 已试听的外层 WAV；相对本配置文件
 world_width = 960.0
 world_height = 600.0
 edge_fraction = 0.20
 base_side = 'top'
 base_fraction = 0.50
 arm_scale = 0.60
+pearl_matrix_enabled = true
+pearl_matrix_count = 7    # 0～64；14 恢复原版缺一格矩阵
+pearl_orbits_enabled = true
+pearl_inner_count = 4     # 0～32；原版内圈为 6
+pearl_outer_count = 2     # 0～32；原版外圈为 2
+pearl_fixed_count = 2     # 0～32；原版完整房间有 11 颗，包含卫星母珠
+pearl_satellite_count = 1 # 0～32；原版有 5 颗。固定珠为 0 时不生成卫星
+projection_opacity = 0.5   # 投影不透明度：0 隐藏，0.5 半透明，1 完全不透明
+halo_enabled = true       # 圆环与短条光环；当前不包含墙壁电弧
+halo_scale = 0.8          # 相对原版尺寸；边缘空间不足时自动限制大小
 
 # 未填写的字段使用 oracle_config.py 中的默认值
 [oracle.colors]
@@ -28,3 +46,13 @@ arm = '#6b6765'           # 机械臂主体
 arm_highlight = '#d1c9c5'  # 机械臂高光
 joints = '#424c5d'        # 机械关节和底座
 third_eye = '#0d5885'     # 额头标记
+pearl = '#d8cdc5'         # 珍珠共有色：数量按各组比例分配
+pearl_primary = '#024866' # 珍珠主色：按各珠组比例分配
+pearl_secondary = '#ff2c07' # 珍珠辅色：矩阵与环绕珠
+
+[oracle.drag_reactions]
+enabled = true
+gesture_probability = 0.90  # 抓起及后续间歇机会：触发手势的概率
+flutter_probability = 0.60  # 手势中扑腾的占比，其余为短暂抗议
+eye_open_probability = 0.65 # 独立抽签；不改变自主观察时的开眼概率
+voice_probability = 0.55    # 独立语音概率；播放已处理的 01～05 段，不与手势绑定

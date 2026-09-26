@@ -4,7 +4,8 @@
 中心线保持原有 7 单位边界余量，最大外壳厚度另限幅，覆盖绘制插值帧。
 """
 from dataclasses import dataclass
-from math import pi, sin, sqrt
+from math import hypot, pi, sin, sqrt
+from functools import lru_cache
 
 from ..shared.geometry import Bounds, Vec2
 from .appearance import arm_elbow, normalized, perpendicular
@@ -107,6 +108,26 @@ class ArmFrame:
     metal_end: Vec2
 
 
+@lru_cache(maxsize=32)
+def section_parameters(length, index, scale, half):
+    count = max(3, int(length/10))
+    rows = []
+    for i in range(count):
+        t = i/(count-1)
+        u = 1-t
+        profile = .6+.5*(1-sin(pi*t))+.3*max(sin(min(1., t/.3)*pi),
+                                                           sin(max(0., (t-.7)/.3)*pi))
+        if i == count-1:
+            profile = .5
+        radius = (7., 5., 4., 3.)[index]*detail_scale(scale)*profile
+        offset = 0.
+        if (half == 0 and t > .75) or (half == 1 and t < .25):
+            radius *= .5
+            offset = radius*(1 if index % 2 == 0 else -1)
+        rows.append((u*u, 2*u*t, t*t, u*u*u, 3*u*u*t, 3*u*t*t, t*t*t, radius, offset))
+    return tuple(rows)
+
+
 def make_arm_frame(a, b, length, index, scale, region):
     ds = detail_scale(scale)
     elbow = (ik_bend(a, b, length/3, length/3, -1, region) if index == 3
@@ -119,26 +140,22 @@ def make_arm_frame(a, b, length, index, scale, region):
                          elbow-middle*((elbow-start).length()*.2), elbow, region),
               safe_curve(elbow, elbow+middle*((end-elbow).length()*.2),
                          end-outgoing*((end-elbow).length()*.2), end, region))
-    count = max(3, int(length/10))
     strips = []
     for half, curve in enumerate(curves):
         sections = []
-        for i in range(count):
-            t = i/(count-1)
-            u = 1-t
-            derivative = ((curve.b-curve.a)*(u*u) + (curve.c-curve.b)*(2*u*t)
-                          + (curve.d-curve.c)*(t*t))
-            side = perpendicular(normalized(derivative, incoming if half == 0 else outgoing))
-            profile = .6+.5*(1-sin(pi*t))+.3*max(sin(min(1., t/.3)*pi),
-                                                               sin(max(0., (t-.7)/.3)*pi))
-            if i == count-1:
-                profile = .5
-            radius = (7., 5., 4., 3.)[index]*ds*profile
-            offset = 0.
-            if (half == 0 and t > .75) or (half == 1 and t < .25):
-                radius *= .5
-                offset = radius*(1 if index % 2 == 0 else -1)
-            sections.append((curve.sample(t)+side*offset, side, radius))
+        a0, b0, c0, d0 = curve.a, curve.b, curve.c, curve.d
+        ab, bc, cd = b0-a0, c0-b0, d0-c0
+        for u2, ut2, t2, aa, bb, cc, dd, radius, offset in section_parameters(length, index, scale, half):
+            dx, dy = ab.x*u2+bc.x*ut2+cd.x*t2, ab.y*u2+bc.y*ut2+cd.y*t2
+            distance = hypot(dx, dy)
+            if distance > 1e-9:
+                factor = 1/distance
+                side = Vec2(-dy*factor, dx*factor)
+            else:
+                side = perpendicular(incoming if half == 0 else outgoing)
+            center = Vec2(a0.x*aa+b0.x*bb+c0.x*cc+d0.x*dd+side.x*offset,
+                          a0.y*aa+b0.y*bb+c0.y*cc+d0.y*dd+side.y*offset)
+            sections.append((center, side, radius))
         strips.append(ShellStrip(tuple(sections)))
     root = a+incoming*min((12 if index == 0 else 2)*ds, (elbow-a).length()*.4)
     piston = fit_bend(elbow, b, elbow+normalized(a.lerp(b, .8)-elbow)*(length/4), region)

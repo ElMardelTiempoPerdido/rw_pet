@@ -1,8 +1,16 @@
 """一颗悬浮珍珠。曲线导引限制在边缘带内，阻尼跟随保留柔和的起停。"""
+from enum import IntEnum
 from math import sqrt
 
 from ..shared.geometry import Bounds, Vec2
 from .navigation import CurveRoute, EdgePlanner, approach
+
+
+class PearlColorSlot(IntEnum):
+    """独立于排列/运动方式的颜色档位，编号对应原版 CreateMarble。"""
+    PRIMARY = 0
+    COMMON = 1
+    SECONDARY = 2
 
 
 class PearlState:
@@ -13,11 +21,12 @@ class PearlState:
     FOLLOW_INSET = 64.
     REPLAN_TICKS = 12
 
-    def __init__(self, position, world, region, glyph_id=4):
+    def __init__(self, position, world, region, glyph_id=4, *, color_slot=PearlColorSlot.COMMON):
         self.home = self.position = self.previous_position = position
         self.velocity = Vec2()
         self.radius = self.RADIUS
         self.glyph_id = glyph_id
+        self.color_slot = PearlColorSlot(color_slot)
         self.region = region
         # 珍珠无需给机械臂让出整条走廊。靠近内角绕行，避免跟随时先向
         # 远处的走廊中线退让一大圈；region 已预留珠体和字符的安全边距。
