@@ -1,5 +1,5 @@
 """以完好 Moon 为基础的 Bell 外观预览；绘制只读，不推进次级运动。"""
-from math import atan2, cos, degrees, floor, radians, sin
+from math import atan2, ceil, cos, degrees, floor, radians, sin
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -8,9 +8,10 @@ from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPat
 from ..shared.geometry import Vec2
 from .config import OracleColors
 from .scene import unit
-from .appearance import perpendicular, rotate
+from .appearance import HangingHand, perpendicular, rotate
 from .arm_graphics import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
 from .damage import body_bounds
+from .raster import local_canvas, painter_density, pixel_density
 
 
 def point(v):
@@ -66,7 +67,7 @@ class OracleRenderer:
     CORD_SEGMENT_SPACING = 12.  # 沿用用户实机校准；节纹长 7.2，间隙约 2.8。
     SLEEVE_ROOT_HALF_WIDTH = 3.
     SLEEVE_CUFF_HALF_WIDTH = 5.
-    SLEEVE_ROOT_RISE = 2.
+    SLEEVE_ROOT_RISE = HangingHand.SHOULDER_RISE
     SLEEVE_SHOULDER_OUTSET = 3.
     OPEN_EYE_WIDTH = 2.
     OPEN_EYE_HEIGHT = 2.
@@ -109,6 +110,8 @@ class OracleRenderer:
         self._body_front_frame = None
         self._head_key = None
         self._head_image = None
+        self._head_geometry_key = None
+        self._head_frame = None
         self._bead_key = None
         self._bead_images = ()
         self._raster_key = None
@@ -363,7 +366,7 @@ class OracleRenderer:
             end = p.sample(alpha)
             if hands:
                 # 沿身体轴抬高袖根，倾斜时仍与衣领保持同样的相对位置。
-                shoulder = upper+side*(sign*4)+direction*self.SLEEVE_ROOT_RISE
+                shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
                 self.draw_hand(painter, end)
                 # 对应 Gown.Color(0.4) / Color(0)，从现有衣袍配色取色。
                 # 原版顺序是先手掌再袖子，袖口自然覆盖靠手腕的一部分。
@@ -499,7 +502,7 @@ class OracleRenderer:
         coverage = gown
         side = perpendicular(direction)
         for sign, hand in zip((-1, 1), scene.appearance.hands):
-            shoulder = upper+side*(sign*4)+direction*self.SLEEVE_ROOT_RISE
+            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
             edges = self.sleeve_edges(shoulder, hand.sample(alpha), direction, sign)
             # 每个采样点有两个截面；前六个截面覆盖袖子曲线最靠肩的 1/3。
             coverage = coverage.united(self.strip_path(edges[:6]))
@@ -540,7 +543,8 @@ class OracleRenderer:
             painter.drawImage(QRectF(center.x-size/2, center.y-size/2, size, size), image)
         painter.restore()
 
-    def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False):
+    def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False,
+                  raster_scale=1.):
         head_direction = unit(head-upper, direction)
         side_axis = perpendicular(head_direction)
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
@@ -550,30 +554,38 @@ class OracleRenderer:
         # 的栅格判定。精度远小于可见角度，不按帧保存或推进朝向状态。
         gx, gy, angle = round(gx, 6), round(gy, 6), round(angle, 5)
         openness = max(0., min(1., openness))
-        key = (gx, gy, angle, openness, self.colors, self.atlas)
+        density = pixel_density('adaptive', raster_scale)
+        geometry_key = (gx, gy, openness, self.colors)
+        if geometry_key != self._head_geometry_key:
+            commands = PaintCommands()
+            self.draw_head_parts(commands, gx, gy, openness)
+            self._head_geometry_key, self._head_frame = geometry_key, commands
+        key = (geometry_key, angle, density)
         if key != self._head_key:
-            # 先在 1 倍逻辑像素完成投影/倾斜/遮挡，再放大同一结果。
-            # 与世界位置无关，匀速平移不会改变像素阶梯或重建头部。
-            image = QImage(self.HEAD_PIXELS, self.HEAD_PIXELS,
-                           QImage.Format.Format_ARGB32_Premultiplied)
+            # 在当前显示精度下完成投影、倾斜和遮挡。几何与倍率分离，
+            # 世界平移不重建小图；旋转也只重放已有的面部矢量图形。
+            pixels = ceil(self.HEAD_PIXELS*density)
+            image = QImage(pixels, pixels, QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(Qt.GlobalColor.transparent)
             local = QPainter(image)
             try:
                 local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
                 local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-                local.translate(self.HEAD_PIXELS/2, self.HEAD_PIXELS/2)
+                local.translate(pixels/2, pixels/2)
+                local.scale(density, density)
                 local.rotate(angle)
-                self.draw_head_parts(local, gx, gy, openness)
+                self._head_frame.replay(local)
             finally:
                 local.end()
             self._head_key, self._head_image = key, image
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        x, y = head.x-self.HEAD_PIXELS/2, head.y-self.HEAD_PIXELS/2
+        size = self._head_image.width()/density
+        x, y = head.x-size/2, head.y-size/2
         if pixelated:
             # 与躯干图层使用同一世界像素网格；只对最终图像落点取整。
-            x, y = floor(x+.5), floor(y+.5)
-        painter.drawImage(QRectF(x, y, self.HEAD_PIXELS, self.HEAD_PIXELS), self._head_image)
+            x, y = floor(x*density+.5)/density, floor(y*density+.5)/density
+        painter.drawImage(QRectF(x, y, size, size), self._head_image)
         painter.restore()
 
     def phone_segments(self, sign, gx, gy):
@@ -608,24 +620,31 @@ class OracleRenderer:
             for start, end in self.phone_segments(sign, gx, gy):
                 painter.drawLine(point(start), point(end))
             w = 3.5+1.5*abs(gx)
-            self.sprite(painter, 'Circle20', ear, w, 5.5, c.head_shell)
-            self.sprite(painter, 'Circle20', ear, w*.8, 4.4, c.head_highlight)
-            self.sprite(painter, 'pixel', ear+Vec2(sign*.5, .3), .65, 2.8, c.joints)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(c.head_shell))
+            painter.drawEllipse(QRectF(ear.x-w/2, ear.y-2.75, w, 5.5))
+            painter.setBrush(QColor(c.head_highlight))
+            painter.drawEllipse(QRectF(ear.x-w*.4, ear.y-2.2, w*.8, 4.4))
+            painter.setBrush(QColor(c.joints))
+            painter.drawRect(QRectF(ear.x+sign*.5-.325, ear.y+.3-1.4, .65, 2.8))
         # 原版 PhoneSprite 的近侧与转头方向相反；否则转头一侧的耳壳
         # 会盖掉已经向该侧移动的眼睛，而背后的附件反倒浮在脸上。
         near = -1 if gx >= 0 else 1
         phone(-near)
-        self.sprite(painter, 'Circle20', Vec2(0, head_rect.center().y()),
-                    head_rect.width(), head_rect.height(), c.skin)
-        self.sprite(painter, 'Circle20', Vec2(gx*2, 1.8), 20/3, 20/3, c.skin)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(c.skin))
+        painter.drawEllipse(head_rect)
+        painter.drawEllipse(QRectF(gx*2-10/3, 1.8-10/3, 20/3, 20/3))
+        painter.setBrush(QColor(c.eyes))
         for sign in (-1, 1):
             # Bell 双眼相对原版沿面部局部向下平移 1，随头部一起旋转。
             eye = Vec2(max(-5., min(5., gx*3+2.5*sign)), 2-gy*3)
             # 原版 InverseLerp：正面及轻微侧视保留宽 2，超过半侧视后
             # 对应一眼逐渐缩至 1。闭眼高 1，完全睁眼高 2；保持二值像素轮廓。
             foreshortening = max(0., min(1., (sign*gx-.5)*2))
-            self.sprite(painter, 'pixel', eye, self.OPEN_EYE_WIDTH-foreshortening,
-                        1+(self.OPEN_EYE_HEIGHT-1)*openness, c.eyes)
+            width = self.OPEN_EYE_WIDTH-foreshortening
+            height = 1+(self.OPEN_EYE_HEIGHT-1)*openness
+            painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
         mark = Vec2(gx*2.5, self.FOREHEAD_CENTER_Y-gy*1.5)
         # Bell 两侧的小标记与额头图案共享面部坐标和透视，不增加物理节点。
         # 大幅侧视时让标记自然隐入头部轮廓，避免像附件一样突出脸侧。
@@ -644,13 +663,15 @@ class OracleRenderer:
         for sign in (-1, 1):
             for down in self.FACE_DOT_Y_OFFSETS:
                 dot = mark+Vec2(sign*self.FACE_DOT_HALF_SPACING*sx, down*sy)
-                self.sprite(painter, 'pixel', dot, self.FACE_DOT_SIZE*sx,
-                            self.FACE_DOT_SIZE*sy, c.third_eye)
+                width, height = self.FACE_DOT_SIZE*sx, self.FACE_DOT_SIZE*sy
+                painter.drawRect(QRectF(dot.x-width/2, dot.y-height/2, width, height))
         painter.restore()
         phone(near)
 
-    def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True):
-        self.draw_halo(painter, scene, alpha)
+    def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True,
+             raster_scale=None):
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        self.draw_halo(painter, scene, alpha, raster_scale=density)
         # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
         self.draw_pearl(painter, scene, alpha)
         app = scene.appearance
@@ -663,36 +684,37 @@ class OracleRenderer:
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
                                include_head=False, halo=False)
             self._frame_key, self._frame = key, commands
-        # 主视图、放大镜和桌面共用 1 倍像素结果，不在放大后重新光栅化。
+        # 几何帧与显示倍率无关；倍率只影响局部光栅缓存。放大镜可指定
+        # 主视图的 raster_scale，查看主视图已有的像素而不是重新细分。
         # 非像素路径仅供几何缓存的回归对照；正常入口默认启用像素绘制。
         if pixelated:
-            self.draw_pixel_layer(painter, scene)
+            self.draw_pixel_layer(painter, scene, density)
         else:
             self._frame.replay(painter)
         # 开合只刷新头部小图；身体休眠时不重建衣袍、机械臂或长线缆指令。
-        self.draw_scene_head(painter, scene, alpha, eye_alpha, pixelated=pixelated)
+        self.draw_scene_head(painter, scene, alpha, eye_alpha, pixelated=pixelated,
+                             raster_scale=density)
         if skeleton:
             self.draw_skeleton(painter, scene, alpha)
 
-    def draw_pixel_layer(self, painter, scene):
-        """局部 1 倍透明画布：全身材质统一像素密度，缓存与窗口倍率无关。"""
-        if self._frame_key != self._raster_key:
-            # 整数原点保证包围盒变化不改变像素网格相位。真实线缆节点也
-            # 包含在范围内；不能用活动带裁掉自然下垂的线束。
-            rect = body_bounds(scene).toAlignedRect()
-            image = QImage(rect.size(), QImage.Format.Format_ARGB32_Premultiplied)
-            image.fill(Qt.GlobalColor.transparent)
+    def draw_pixel_layer(self, painter, scene, density=1.):
+        """按显示精度绘制局部透明画布，保留硬像素边缘。"""
+        key = (self._frame_key, density)
+        if key != self._raster_key:
+            # 包含真实线缆节点，不能用活动带裁掉自然下垂的线束。
+            image, target = local_canvas(body_bounds(scene), density)
             local = QPainter(image)
             try:
                 local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
                 local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-                local.translate(-rect.x(), -rect.y())
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
                 self._frame.replay(local)
             finally:
                 local.end()
             self._raster_image = image
-            self._raster_target = QRectF(rect)
-            self._raster_key = self._frame_key
+            self._raster_target = target
+            self._raster_key = key
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.drawImage(self._raster_target, self._raster_image)
@@ -718,23 +740,26 @@ class OracleRenderer:
             self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
         painter.restore()
 
-    def draw_halo(self, painter, scene, alpha):
+    def draw_halo(self, painter, scene, alpha, *, raster_scale=None):
         if not scene.halo_visible:
             return
         halo = scene.halo
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
         # 光环自己动画；不进入身体/衣袍/线缆帧键。位移和透明度也不使
         # 局部图案失效，重复主视图与放大镜仅合成同一张小图。
-        key = (halo, halo.revision, alpha, self.colors.pearl_glyph)
+        key = (halo, halo.revision, alpha, self.colors.pearl_glyph, density)
         if key != self._halo_key:
             scale, push, detail_scale = halo.geometry_at(alpha)
             # 预留范围可很大，实际只栅格化当前外形，避免小光环也清空最大画布。
             radius = int((5.5+push)*10*scale+5*detail_scale+3)
-            image = QImage(radius*2+1, radius*2+1, QImage.Format.Format_ARGB32_Premultiplied)
+            pixels = ceil(radius*density)
+            image = QImage(pixels*2+1, pixels*2+1, QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(Qt.GlobalColor.transparent)
             local = QPainter(image)
             try:
                 local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-                local.translate(radius, radius)
+                local.translate(pixels, pixels)
+                local.scale(density, density)
                 local.setPen(Qt.PenStyle.NoPen)
                 local.setBrush(QColor(self.colors.pearl_glyph))
                 for index in range(2):
@@ -758,7 +783,7 @@ class OracleRenderer:
                             continue
                         theta = radians(angle+i*360/len(row))
                         dx, dy = sin(theta), -cos(theta)
-                        # 原版矩形宽 4、长 8*Fill，长轴沿半径；先在 1 倍
+                        # 原版矩形宽 4、长 8*Fill，长轴沿半径；先在局部
                         # 光环画布栅格化，再整体按投影透明度合成，交点不加深。
                         half = fill*4*detail_scale
                         width = 2*detail_scale
@@ -776,8 +801,9 @@ class OracleRenderer:
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.setOpacity(painter.opacity()*scene.config.projection_opacity)
-        painter.drawImage(QPointF(floor(center.x-image.width()/2+.5),
-                                 floor(center.y-image.height()/2+.5)), image)
+        painter.drawImage(QRectF(floor(center.x*density-image.width()/2+.5)/density,
+                                floor(center.y*density-image.height()/2+.5)/density,
+                                image.width()/density, image.height()/density), image)
         painter.restore()
 
     def pearl_palette(self):
@@ -803,14 +829,15 @@ class OracleRenderer:
         self.sprite(painter, 'JetFishEyeA', p, 6, 6, color)
         self.sprite(painter, 'tinyStar', p+Vec2(-.5, -1.5), 3, 3, highlight)
 
-    def draw_scene_head(self, painter, scene, alpha, eye_alpha=None, *, pixelated=False):
+    def draw_scene_head(self, painter, scene, alpha, eye_alpha=None, *, pixelated=False, raster_scale=None):
         app = scene.appearance
         upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
         sway = app.previous_sway+(app.sway-app.previous_sway)*alpha
         direction = rotate(unit(upper-lower), sway)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
-                       scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated)
+                       scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
+                       raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale))
 
     def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
                       include_head=True, halo=True, arm=True):
@@ -860,7 +887,8 @@ class OracleRenderer:
             self.draw_necklace(painter, scene, alpha)
             self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
         if include_head:
-            self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha))
+            self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
+                           raster_scale=painter_density(painter, scene.config.pixel_mode))
 
     def draw_body(self, painter, scene, alpha, upper, lower, direction, head, look):
         self.draw_inner_robe(painter, upper, lower, direction, head)
@@ -881,7 +909,7 @@ class OracleRenderer:
         side = perpendicular(direction)
         for sign, hand in zip((-1, 1), scene.appearance.hands):
             end = hand.sample(alpha)
-            shoulder = upper+side*(sign*4)+direction*self.SLEEVE_ROOT_RISE
+            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
             edges = self.sleeve_edges(shoulder, end, direction, sign)
             sleeve = self.strip_path(edges)
             palm = QPainterPath()

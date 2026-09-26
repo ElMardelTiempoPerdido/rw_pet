@@ -239,6 +239,30 @@ class OracleDesktopWindowTests(unittest.TestCase):
         self.assertTrue(w.clock.paused)
         self.assertAlmostEqual(w.motion.viewport.world_size.x*w.motion.viewport.scale, 900)
 
+    def test_pixel_style_changes_without_reset_and_survives_viewport_and_debug(self):
+        w = self.window
+        w.set_paused(True)
+        scene, body = w.motion.scene, w.motion.scene.body
+        w.pixel_mode_actions['classic'].trigger()
+        self.assertIs(w.motion.scene, scene)
+        self.assertIs(w.motion.scene.body, body)
+        self.assertTrue(w.clock.paused)
+        self.assertEqual(scene.config.pixel_mode, 'classic')
+        w.change_scale(2.)
+        self.assertEqual(w.motion.scene.config.pixel_mode, 'classic')
+        w.reset_position()
+        self.assertEqual(w.motion.scene.config.pixel_mode, 'classic')
+        w.open_debug()
+        debug = w.debug_window
+        debug.timer.stop()
+        self.assertEqual(debug.pixel_mode_input.currentData(), 'classic')
+        scene = debug.scene
+        debug.pixel_mode_input.setCurrentIndex(debug.pixel_mode_input.findData('adaptive'))
+        self.assertIs(debug.scene, scene)
+        self.assertEqual(scene.config.pixel_mode, 'adaptive')
+        debug.reset_scene()
+        self.assertEqual(debug.scene.config.pixel_mode, 'adaptive')
+
     def test_empty_or_missing_screen_suspends_then_recovers(self):
         w = self.window
         w.bind_screen(None)

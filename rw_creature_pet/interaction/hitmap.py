@@ -6,18 +6,20 @@ from PySide6.QtGui import QBitmap, QRegion
 
 
 class PixelHitMap:
-    def __init__(self, image, origin):
+    def __init__(self, image, origin, density=1.):
         self.image, self.origin = image, origin
+        self.density = density  # 图像像素 / 世界单位，独立于 Qt DIP。
 
     def contains(self, point):
-        x, y = floor(point.x-self.origin.x), floor(point.y-self.origin.y)
+        x = floor((point.x-self.origin.x)*self.density)
+        y = floor((point.y-self.origin.y)*self.density)
         return (0 <= x < self.image.width() and 0 <= y < self.image.height()
                 and self.image.pixelColor(x, y).alpha() >= 128)
 
     def region(self, scale, offset):
         """映射到 Qt DIP；不把系统 DPI 再乘一次。"""
-        width = max(1, round(self.image.width()*scale))
-        height = max(1, round(self.image.height()*scale))
+        width = max(1, round(self.image.width()*scale/self.density))
+        height = max(1, round(self.image.height()*scale/self.density))
         mask = self.image.scaled(width, height, Qt.AspectRatioMode.IgnoreAspectRatio,
                                  Qt.TransformationMode.FastTransformation).createAlphaMask(
                                      Qt.ImageConversionFlag.ThresholdDither)

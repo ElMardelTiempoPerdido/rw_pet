@@ -50,7 +50,7 @@ class DamageTests(unittest.TestCase):
         scene.set_pearl_orbits(False)
         scene.set_halo_enabled(False)
         snapshots.append(scene)
-        for scale, dpr in ((1., 1.), (1., 1.5), (.5, 1.25), (2., 2.)):
+        for scale, dpr in ((1., 1.), (1., 1.5), (.5, 1.25), (1.5, 1.25), (2., 2.)):
             renderer = OracleRenderer()
             images = [QImage(round(960*scale), round(600*scale), QImage.Format.Format_ARGB32_Premultiplied)
                       for _ in range(2)]

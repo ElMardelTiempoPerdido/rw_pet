@@ -2,6 +2,7 @@
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from math import floor
+from dataclasses import replace
 from pathlib import Path
 import sys
 
@@ -38,7 +39,7 @@ def main():
     atlas = Atlas(extract_atlas(config.game_dir))
     renderer = OracleRenderer(atlas, config.oracle.colors,
                               glyphs=load_pearl_glyphs(config.game_dir, atlas.root))
-    scene = OracleScene(config.oracle)
+    scene = OracleScene(replace(config.oracle, pixel_mode='classic'))
     scene.start_lap()
     out = ROOT/'artifacts'
     out.mkdir(exist_ok=True)

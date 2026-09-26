@@ -10,8 +10,8 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..shared.desktop import configure_desktop_overlay
 from ..interaction.desktop import DragInputWindow
-from ..interaction.audio import AudioConfig, VoicePlayer
-from .voice import bell_voice_paths
+from ..interaction.config import AudioConfig
+from .voice_assets import make_bell_voice_player
 from .input import PuppetHitMap
 from ..shared.geometry import Vec2
 from .scene import OracleScene, RailSide
@@ -83,6 +83,7 @@ class OracleDesktopMotion:
                                pearl_matrix_enabled=previous.pearl_matrix_enabled,
                                pearl_orbits_enabled=previous.pearl_orbits_enabled,
                                halo_enabled=previous.config.halo_enabled,
+                               pixel_mode=previous.config.pixel_mode,
                                pearl_matrix_count=previous.config.pearl_matrix_count,
                                pearl_inner_count=previous.config.pearl_inner_count,
                                pearl_outer_count=previous.config.pearl_outer_count,
@@ -134,7 +135,7 @@ class OracleDesktopWindow(QWidget):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             raise RuntimeError('系统托盘不可用，无法提供桌宠退出入口')
         self.config, self.config_path = config, config_path
-        self.voice_player = VoicePlayer(bell_voice_paths(config.oracle, config_path), config.audio, self)
+        self.voice_player = make_bell_voice_player(config, config_path, self, initialize=renderer is None)
         self.requested_scale = scale
         self.asset_message = 'Bell · 原版主图集与珍珠字形缓存'
         if renderer is None:
@@ -238,6 +239,16 @@ class OracleDesktopWindow(QWidget):
             group.addAction(action)
             action.triggered.connect(lambda checked=False, value=factor: self.change_scale(value))
             self.scale_actions[factor] = action
+        pixels = self.menu.addMenu('像素样式（人偶 / 光环）')
+        pixel_group = QActionGroup(pixels)
+        self.pixel_mode_actions = {}
+        for label, mode in (('精细像素', 'adaptive'), ('原始像素', 'classic')):
+            action = pixels.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(mode == self.config.oracle.pixel_mode)
+            pixel_group.addAction(action)
+            action.triggered.connect(lambda checked=False, value=mode: self.set_pixel_mode(value))
+            self.pixel_mode_actions[mode] = action
         self.menu.addSeparator()
         self.debug_action = self.menu.addAction('打开调试窗口…', self.open_debug)
         self.reset_action = self.menu.addAction('重置到边缘', self.reset_position)
@@ -346,6 +357,14 @@ class OracleDesktopWindow(QWidget):
     def reset_position(self):
         self.rebuild(reset=True)
 
+    def set_pixel_mode(self, mode):
+        self.config = replace(self.config, oracle=replace(self.config.oracle, pixel_mode=mode))
+        self.pixel_mode_actions[mode].setChecked(True)
+        if self.motion is not None:
+            self.motion.scene.config = replace(self.motion.scene.config, pixel_mode=mode)
+        self._last_revision = None
+        self.update()
+
     def set_pearl_matrix(self, enabled):
         if self.motion is not None:
             self.motion.scene.set_pearl_matrix(enabled)
@@ -381,7 +400,8 @@ class OracleDesktopWindow(QWidget):
             self.drag_input.suspend()
             return
         scene = self.motion.scene
-        self.drag_input.sync(scene.drag, self.drag_hit.get(self.renderer, scene, self.clock.alpha),
+        self.drag_input.sync(scene.drag, self.drag_hit.get(self.renderer, scene, self.clock.alpha,
+                             raster_scale=self.motion.viewport.physical_scale),
                              self.motion.viewport)
 
     def set_paused(self, paused):
@@ -450,7 +470,7 @@ class OracleDesktopWindow(QWidget):
                                interaction=replace(self.config.interaction,
                                                    drag_enabled=self.drag_action.isChecked()),
                                audio=AudioConfig(self.voice_player.enabled, self.voice_player.volume))
-            debug = OracleDebugWindow(settings, self.config_path, load_atlas=False)
+            debug = OracleDebugWindow(settings, self.config_path, load_atlas=False, voice_source=self.voice_player)
             debug.renderer = debug.canvas.renderer = OracleRenderer(
                 self.renderer.atlas, self.renderer.colors, glyphs=self.renderer.glyphs)
             debug.asset_message = self.asset_message

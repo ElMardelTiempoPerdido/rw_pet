@@ -38,14 +38,16 @@ class OracleColors:
 class DragReactionConfig:
     enabled: bool = True
     gesture_probability: float = .90
-    flutter_probability: float = .60  # 手势触发后：扑腾 / 单手抗议的比例。
+    flutter_probability: float = .85  # 手势触发后：85% 双手动作 / 15% 单手抗议。
+    alternating_probability: float = .47  # 双手动作内部：47% 固定交替，其余随机扑腾。
     eye_open_probability: float = .65
     voice_probability: float = .55  # 与手势、睁眼独立；窗口层消费播放请求。
 
     def __post_init__(self):
         if type(self.enabled) is not bool:
             raise ValueError('oracle.drag_reactions.enabled 必须为布尔值')
-        for name in ('gesture_probability', 'flutter_probability', 'eye_open_probability', 'voice_probability'):
+        for name in ('gesture_probability', 'flutter_probability', 'alternating_probability',
+                     'eye_open_probability', 'voice_probability'):
             value = getattr(self, name)
             if (isinstance(value, bool) or not isinstance(value, (int, float))
                     or not isfinite(value) or not 0 <= value <= 1):
@@ -82,10 +84,13 @@ class OracleConfig:
     physics_backend: str = 'auto'  # 安装 speedups 可选依赖后自动使用 Numba。
     halo_enabled: bool = True
     halo_scale: float = .8  # 原版圆环/短条的整体倍率；窄活动带会再限制上限。
+    pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
     drag_reactions: DragReactionConfig = DragReactionConfig()
-    voice_directory: str = 'artifacts/oracle-voice-reference/bell-clips'
+    voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
 
     def __post_init__(self):
+        if self.pixel_mode not in ('classic', 'adaptive'):
+            raise ValueError('oracle.pixel_mode 必须为 classic / adaptive')
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
             raise ValueError('oracle.voice_directory 必须为非空路径字符串')
         if type(self.halo_enabled) is not bool:

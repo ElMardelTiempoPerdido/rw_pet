@@ -16,8 +16,7 @@ from .glyphs import load_pearl_glyphs
 from .render import OracleRenderer, point
 from .input import PuppetHitMap
 from ..shared.timing import FixedStepper
-from ..interaction.audio import VoicePlayer
-from .voice import bell_voice_paths
+from .voice_assets import make_bell_voice_player
 
 
 COLOR_LABELS = {
@@ -100,7 +99,8 @@ class OracleCanvas(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if (not self.clock.paused and not event.modifiers()
                     and self.scene.drag.press(pos, self.drag_hit.get(
-                        self.renderer, self.scene, self.clock.alpha).contains)):
+                        self.renderer, self.scene, self.clock.alpha,
+                        raster_scale=self.view_transform()[0]*self.devicePixelRatioF()).contains)):
                 self.grabMouse()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
                 event.accept()
@@ -278,13 +278,14 @@ class OracleCanvas(QWidget):
                 upper = scene.body.chunks[0]
                 center = upper.previous_position.lerp(upper.position, self.clock.alpha)
                 painter.translate(-center.x, -center.y)
-                self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton)
+                self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton,
+                                   raster_scale=scale*self.devicePixelRatioF())
                 painter.restore()
                 painter.setPen(QPen(QColor('#536b80'), 1))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(rect)
                 painter.setPen(QColor('#bfceda'))
-                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22), '人偶局部 · 4× · 只读')
+                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22), '人偶局部 · 4× · 主视图像素')
         finally:
             painter.end()
 
@@ -293,12 +294,13 @@ class OracleDebugWindow(QMainWindow):
     # 调试画布最高 30 fps，固定物理仍为 40 Hz；避免空闲 CPU 全用于重复预览。
     RENDER_HZ = 30
 
-    def __init__(self, config: AppConfig, config_path: Path | None = None, *, load_atlas=True):
+    def __init__(self, config: AppConfig, config_path: Path | None = None, *, load_atlas=True, voice_source=None):
         super().__init__()
         self.config, self.config_path = config, config_path
         self.scene = OracleScene(config.oracle)
         self.scene.drag.set_enabled(config.interaction.drag_enabled)
-        self.voice_player = VoicePlayer(bell_voice_paths(config.oracle, config_path), config.audio, self)
+        self.voice_player = make_bell_voice_player(config, config_path, self,
+                                                  initialize=load_atlas, source=voice_source)
         self.voice_player.sync(self.scene.drag_reactions.voice)
         self.clock = FixedStepper(self.scene.TICK_RATE)
         self.asset_message = '几何预览（未加载图集）'
@@ -360,6 +362,14 @@ class OracleDebugWindow(QMainWindow):
         toolbar.addWidget(self.focus_button)
         layout.addLayout(toolbar)
         audio_controls = QHBoxLayout()
+        audio_controls.addWidget(QLabel('像素样式'))
+        self.pixel_mode_input = QComboBox()
+        for text, value in (('精细像素', 'adaptive'), ('原始像素', 'classic')):
+            self.pixel_mode_input.addItem(text, value)
+        self.pixel_mode_input.setCurrentIndex(self.pixel_mode_input.findData(config.oracle.pixel_mode))
+        self.pixel_mode_input.setToolTip('大倍率下细化人偶与光环的轮廓；原始像素保留较粗的像素块')
+        self.pixel_mode_input.currentIndexChanged.connect(self.set_pixel_mode)
+        audio_controls.addWidget(self.pixel_mode_input)
         self.voice_box = QCheckBox('播放语音')
         self.voice_box.setChecked(config.audio.enabled)
         self.voice_box.toggled.connect(lambda enabled: self.voice_player.configure(enabled=enabled))
@@ -600,6 +610,10 @@ class OracleDebugWindow(QMainWindow):
         self.focus_button.setEnabled(scale is not None)
         if scale is not None:
             self.canvas.center_on_pet()
+
+    def set_pixel_mode(self, index):
+        self.scene.config = replace(self.scene.config, pixel_mode=self.pixel_mode_input.currentData())
+        self.canvas.update()
 
     def set_paused(self, paused):
         if paused:

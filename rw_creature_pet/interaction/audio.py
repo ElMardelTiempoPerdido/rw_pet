@@ -49,7 +49,7 @@ class VoicePlayer(QObject):
     status_changed = Signal(str)
 
     def __init__(self, clips, config=AudioConfig(), parent=None, *,
-                 backend_factory=QtSoundBackend, time_source=monotonic):
+                 backend_factory=QtSoundBackend, time_source=monotonic, asset_error=''):
         super().__init__(parent)
         self.clips = {key: Path(path) for key, path in clips.items()}
         self.enabled, self.volume = config.enabled, config.volume
@@ -58,7 +58,8 @@ class VoicePlayer(QObject):
         self.channel = None
         self.current = None
         self.play_count = 0
-        self.error = ''
+        self.asset_error = asset_error
+        self.error = asset_error
         self._deadline = 0.
         self._started = False
         self._last_status = ''
@@ -129,7 +130,7 @@ class VoicePlayer(QObject):
             return
         self._poll()
         cue = channel.take_pending() if channel is not None else None
-        if cue and self.enabled and self.volume > 0 and self.current is None:
+        if cue and self.enabled and self.volume > 0 and self.current is None and not self.asset_error:
             path = self.clips.get(cue.clip_id)
             if path is None or not path.is_file():
                 self.error = f'缺少音频 {path or cue.clip_id}'

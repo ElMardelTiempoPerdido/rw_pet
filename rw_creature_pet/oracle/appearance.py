@@ -59,12 +59,31 @@ class SoftPoint:
 class HangingHand(SoftPoint):
     """原版 GenericBodyPart 手部；积分速度与约束后的实际位移分开保存。"""
     drive_velocity: Vec2 = Vec2()
+    reach_weight: float = 0.
     MAX_REACH = 15.
+    SWING_REACH = 16.
+    SWING_TARGET_REACH = 15.5
+    SHOULDER_HALF = 4.
+    SHOULDER_RISE = 2.
+    SWING_MIN = -40*pi/180
+    SWING_MAX = 50*pi/180
 
-    def step(self, origin, host_velocity, force):
+    @classmethod
+    def shoulder(cls, origin, direction, index):
+        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*cls.SHOULDER_HALF)+direction*cls.SHOULDER_RISE
+
+    def reach_limit(self, origin, shoulder):
+        # 常态保留原版胸部中心限长；主动手势改用实际袖根，避免外展时扣掉肩宽。
+        return (origin.lerp(shoulder, self.reach_weight),
+                self.MAX_REACH+(self.SWING_REACH-self.MAX_REACH)*self.reach_weight)
+
+    def step(self, origin, host_velocity, force, *, shoulder, weight):
         self.previous_position = self.position
+        # 独立平滑物理连接点；即使取消/重新抓起使手势权重清零，也不瞬间缩回胸部半径。
+        self.reach_weight += max(-.1, min(.1, weight-self.reach_weight))
+        anchor, reach = self.reach_limit(origin, shoulder)
         predicted = self.position + self.drive_velocity
-        self.position = origin + clamp_length(predicted-origin, self.MAX_REACH)
+        self.position = anchor + clamp_length(predicted-anchor, reach)
         correction = predicted-self.position
         # GenericBodyPart.Update -> ConnectToPoint(push=False, adapt=.3,
         # exaggerate=.01) -> OracleGraphics 的垂手受力。屏幕坐标 y 向下。
@@ -72,6 +91,43 @@ class HangingHand(SoftPoint):
         self.drive_velocity = (velocity-host_velocity)*.7 + host_velocity + force
         # 静止时 drive_velocity 仍含下一 tick 会被长度约束抵消的径向分量；
         # 不把它当成可见运动，否则外观永远无法休眠。
+        self.velocity = self.position-self.previous_position
+
+    def constrain_swing(self, origin, direction, index, host_velocity, weight):
+        """主动挣扎的肩部角度限位；只消除继续越界的速度，不反弹或积累径向能量。"""
+        if weight <= 0:
+            return
+        outward = perpendicular(direction)*(-1 if index == 0 else 1)
+        shoulder = self.shoulder(origin, direction, index)
+        delta = self.position-shoulder
+        x = delta.x*outward.x+delta.y*outward.y
+        y = delta.x*direction.x+delta.y*direction.y
+        angle = atan2(y, x)
+        # 开始/结束时暂时放宽扇形，让垂手自然进入/离开，避免第一帧直接掰到边界。
+        low = -pi+(self.SWING_MIN+pi)*weight
+        high = pi+(self.SWING_MAX-pi)*weight
+        constrained = max(low, min(high, angle))
+        if constrained == angle:
+            return
+        radial = outward*cos(constrained)+direction*sin(constrained)
+        anchor, maximum = self.reach_limit(origin, shoulder)
+        root = shoulder-anchor
+        along = root.x*radial.x+root.y*radial.y
+        reach = -along+sqrt(max(0., along*along+maximum**2-root.length()**2))
+        radius = min(delta.length(), reach)
+        self.position = shoulder+radial*radius
+        velocity = self.drive_velocity-host_velocity
+        tangent = outward*(-sin(constrained))+direction*cos(constrained)
+        normal = tangent*(1 if angle > high else -1)
+        violation = velocity.x*normal.x+velocity.y*normal.y
+        if violation > 0:
+            velocity -= normal*violation
+        if delta.length() > reach:
+            normal = normalized(self.position-anchor)
+            violation = velocity.x*normal.x+velocity.y*normal.y
+            if violation > 0:
+                velocity -= normal*violation
+        self.drive_velocity = host_velocity+velocity
         self.velocity = self.position-self.previous_position
 
 
@@ -308,7 +364,7 @@ class OracleAppearance:
                   scene.head.position, scene.look_direction, *(j.position for j in scene.arm.joints))
         gravity = scene.pose.gravity_scale
         gravity_changed = abs(gravity-self.gravity_scale) > 1e-9
-        reacting = scene.drag_reactions.gesturing
+        reacting = scene.drag_reactions.gesturing or any(hand.reach_weight > 0 for hand in self.hands)
         if self.sleeping and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
             # 静置收敛后休眠；新移动、转头、倾角都会唤醒。不依赖墙钟时间。
             return
@@ -328,8 +384,11 @@ class OracleAppearance:
         self.lower = self.upper - self.direction * 9
         self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
         reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
-        for hand, force, extra in zip(self.hands, self.hand_forces(), reactions):
-            hand.step(self.upper, upper.velocity, force+extra)
+        for index, (hand, force, extra) in enumerate(zip(self.hands, self.hand_forces(), reactions)):
+            weight = scene.drag_reactions.hand_weight(index)
+            shoulder = hand.shoulder(self.upper, self.direction, index)
+            hand.step(self.upper, upper.velocity, force+extra, shoulder=shoulder, weight=weight)
+            hand.constrain_swing(self.upper, self.direction, index, upper.velocity, weight)
         for p, goal in zip(self.feet, self.foot_goals()):
             p.follow(goal, spring=.075, damping=.80, slack=5.)
             p.position = self.lower + clamp_length(p.position-self.lower, 10)

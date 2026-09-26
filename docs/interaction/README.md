@@ -36,11 +36,16 @@ Oracle 规则位于 `oracle/drag.py`，人偶专用的轮廓生成位于 `oracle
 
 ## Oracle 拖动反应
 
-`oracle/drag_reactions.py` 在抓取成功后启用。手势向现有 `HangingHand` 物理叠加力，
-不固定手部位置，不改变身体导航或机械臂约束；关闭反应仍保留自然甩手。
+`oracle/drag_reactions.py` 在抓取成功后启用。手势向现有 `HangingHand` 物理叠加阻尼跟随力，
+主动摆动时增加肩部角度限位，不改变身体导航或机械臂约束；关闭反应仍保留自然甩手。
 
-- **悬空扑腾**：双手错开节奏划动，按身体局部方向计算；实际移动较快时稍微加强。
-- **短暂抗议**：靠近抓取方向的一只手伸出并挥动，另一只手保持较小的动作。
+- **悬空扑腾**：两手各自在肩外扇形内往返摆动，每 0.35～0.9 秒重新选择快慢、幅度与协调方式；约 35% 的小段偏向双手同时抬起/放下，其余独立进行，不再保持固定相位差，也不绕肩整圈旋转。
+- **交替划动**：两手相差半个周期，一只抬起时另一只放下；每组随机选择初始相位和 1.15～1.65 Hz 的频率，组内保持固定节拍。沿用肩外扇形、稳定臂长与随机抬手上限，不混入随机扑腾的同向同步。
+- **短暂抗议**：靠近抓取方向的一只手在同一扇形范围内向鼠标方向挥动，另一只手自然垂下。
+- 默认已触发手势中，随机扑腾约占 45%，固定交替约占 40%，单手抗议占 15%。每组动作单独抽取偏低的抬手上限，左右手略有差异；最高目标角可从略低于身体外侧水平线到向上 43°，更常见的是轻摆，偶尔高举。整组动作保留这个上限，间歇调整节奏时不重新放大；抗议也受此上限约束，不会因为鼠标在头上就总是高举。
+- 扇形以实际袖根为中心，相对身体外侧水平线向下 40°、向上 50°，随躯干朝向旋转；目标内收 7°给惯性留出余量。物理限位会移除继续越界的速度，避免在边界积累能量或反弹。开始/收尾随手势权重放宽限位，使垂手自然进入/离开扇形。
+- 主动手势的肩到手腕目标长度为 15.5 逻辑像素，上限为 16；沿肩部圆弧追赶摆角，径向保留少量伸屈，避免抬手时沿弦收短。长度约束的中心和半径平滑过渡，松手或取消后回到原来的胸部中心 15 像素垂手约束，不瞬间拉回。参数位于 `oracle/appearance.py` 的 `HangingHand.SWING_TARGET_REACH` / `SWING_REACH`。
+- 首次手势在成功抓起后随机等待 0.15～1.5 秒再按概率触发，与语音延迟独立；等待期间保留自然甩手。提前松手/取消会撤销等待，重新抓起重新抽取。
 - 手势约持续 1.4～2.6 秒，之后间隔 0.45～1.35 秒再抽签。正常松手在 0.25 秒内撤去驱动力；取消抓取立即停止施力，保留次级物理收敛。
 - 睁眼与语音分别使用独立的随机流和计时，不依附手势触发，也不改变自主观察的低开眼概率。
 - 静止抓住时也会间歇反应；未抓住时不产生新事件，松手收敛后恢复原来的休眠机制。暂停不推进计时，尺寸重建丢弃旧动作并保留随机流。
@@ -51,16 +56,20 @@ Oracle 规则位于 `oracle/drag.py`，人偶专用的轮廓生成位于 `oracle
 [oracle.drag_reactions]
 enabled = true
 gesture_probability = 0.90
-flutter_probability = 0.60  # 手势触发后扑腾的占比，其余为抗议
+flutter_probability = 0.85  # 手势触发后双手动作的总占比，其余 15% 为单手抗议
+alternating_probability = 0.47 # 双手动作内部的交替占比；总占比 = 0.85 × 0.47 ≈ 40%
 eye_open_probability = 0.65
 voice_probability = 0.55
 ```
+
+`alternating_probability = 0` 可恢复全部双手动作使用随机扑腾；设为 `1` 则全部采用固定交替。
+旧配置省略此项时使用默认 `0.47`，原 `flutter_probability` 的双手/单手划分保持不变。
 
 ### 语音播放与准备
 
 桌面和调试窗口通过 `interaction/audio.py` 消费 `VoiceCueChannel`，用 PySide6 自带的
 QtMultimedia 异步播放已处理的本地 WAV。第一次实际触发时才创建一个 `QSoundEffect`；
-不做在线切分、混音或声音分离，不随绘制重建播放器。
+日常播放不做切分、混音或声音分离，不随绘制重建播放器；首次初始化单独准备缓存。
 
 每次成功抓起后先随机等待 0～3 秒，再按 `voice_probability` 独立抽签。
 等待期间松手、取消拖动或重置会撤销本次等待；重新抓起重新抽取延时，不会补播。
@@ -76,18 +85,38 @@ enabled = true
 volume = 0.70  # 0～1，0 为静音
 
 [oracle]
-voice_directory = 'artifacts/oracle-voice-reference/bell-clips'
+voice_directory = 'auto'  # 默认：从本机游戏提取并处理；也可填写自定义音频目录
 ```
 
 桌面托盘的「语音」子菜单和调试窗口均可即时静音、调音量，并显示加载/播放/错误状态。
 这些操作只影响本次运行；永久设置修改 TOML。调试窗口继承打开时桌面的音量和开关，
 关闭后返回桌面原设置。仍需开启「允许拖动人偶」才能通过拖动触发；没有添加空闲时随机喊话。
 
-相对音频目录按 TOML 所在目录解析；不传配置文件时按项目根目录解析，也支持绝对路径。
-只加载外层 `bell_01.wav`～`bell_05.wav`，不使用 `raw/` 或旧的 `stereo-trial/`。
-缺少文件、没有输出设备或加载失败时保持桌宠运行，在语音状态处提示原因，不弹窗、不卡住动作。
+新设备先安装项目依赖（`python -m pip install -e .`），在 TOML 中设置本机 `game_dir`，
+保留 `voice_directory = 'auto'`，正常启动 Oracle 调试或桌面模式即可，无需复制 `artifacts`。
+`oracle/voice_assets.py` 在启动时执行以下步骤：
 
-片段时间表在 `oracle/voice.py`。本机已准备并试听确认；需要重新生成时使用离线工具：
+1. 查找游戏的 `RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_ATalkShow.wav`。
+   若该文件是空占位或无效 WAV，则从 `AssetBundles/loadedsoundeffects` 中导出指定的 AudioClip。
+2. 使用 `oracle/voice_processing.py` 的同一份已试听算法，切出 01～05，并处理 04/05 开头，
+   再按确认的停顿切成 10 个短片段。每次拖动语音从这 10 段中选取一段，不顺序连播。
+   首次需要读取较大的游戏音效包，启动会多等待几秒；完成后释放音效包内存。
+3. 将十段 WAV 和来源、处理版本、片段哈希清单保存至
+   `%LOCALAPPDATA%/rw_creature_pet/voices/bell-<指纹>/`，不写入游戏或项目安装目录。
+4. 后续启动仅校验缓存。源文件路径/大小/修改时间、切分范围或处理版本改变时使用新缓存；
+   文件缺失、内容损坏或上次写入中断时重新生成。生成过程加锁，清单最后发布。
+
+已确认的自定义目录仍可使用：相对路径按 TOML 所在目录解析；不传配置文件时按项目根目录解析，
+也支持绝对路径。自定义目录不会被自动覆盖，需包含下表列出的 10 个文件；只有旧版五段的自定义目录
+需重新离线准备或改回 `auto`。不播放 `raw/`、`source-clips/` 或旧的 `stereo-trial/`。
+旧配置若仍使用 `artifacts/oracle-voice-reference/bell-clips`，缺少新短片段时自动走游戏提取流程，
+不再沿用旧的完整长片段。
+
+缺少游戏内容、提取失败或自定义目录缺少文件时，桌宠仍可运行，语音状态处保留具体原因。
+修正 `game_dir`、补齐游戏内容或修复依赖后重新启动即可重试。没有输出设备或播放加载失败也不影响动作。
+桌面打开调试窗口时复用已解析的音频路径；测试/性能工具的几何预览（`load_atlas=False`）不触发提取。
+
+片段时间表在 `oracle/voice.py`。日常部署自动准备；开发时仍可使用离线工具重做试听：
 
 ```powershell
 python tools/oracle/prepare_bell_voice.py
@@ -95,25 +124,34 @@ python tools/oracle/prepare_bell_voice.py
 python tools/oracle/prepare_bell_voice.py --source "完整采访.wav" --output "试听目录"
 ```
 
-默认读取 `artifacts/oracle-voice-reference/RWTW_ATalkShow.wav`，输出到同目录的 `bell-clips/`。
-原始裁剪保留在 `bell-clips/raw/`；外层的同名 WAV 为实际播放版本，保留双声道及采样率。
-01～03 不处理；04 的前 1.5 秒应用加权声道抵消，在 1.5～1.7 秒平滑回到原音；
+默认读取 `artifacts/oracle-voice-reference/RWTW_ATalkShow.wav`，输出到同目录的 `bell-clips-split/`。
+`raw/` 保留五段原始裁剪，`source-clips/` 保留五段声道处理结果；外层 10 个 WAV 为实际播放版本，
+保留双声道及采样率。旧 `bell-clips/` 保留，便于对照之前的停顿分析和试听。
+原片段 01～03 不做声道处理；04 的前 1.5 秒应用加权声道抵消，在 1.5～1.7 秒平滑回到原音；
 05 沿用已试听的处理：前 0.5 秒完整抵消，在 0.5～0.7 秒平滑回到原音。
-只处理上述开头区间，后面的采样不变。附带来源哈希、时间边界和处理参数的 `manifest.json`。
+然后对 02 按 1.88、3.58 秒切分，04 按 4.18、8.15 秒切分，05 按 3.07 秒切分。
+切点相对各原片段开头；每个新增切口两侧各加 5 ms 淡入/淡出，帧数不变，其余采样保持原处理结果。
+不会在每个短片段开头重新执行主持人抵消。01、03 保持不变。
+附带来源哈希、原片段与新片段时间边界和处理参数的 `manifest.json`。
 `cut_bell_voice.py` 仍是仅裁剪工具；若单独使用，请将输出指定到 `raw/`，避免覆盖处理候选。
 
 | 文件 | 原录音时间（秒） | 时长（秒） |
 | --- | --- | --- |
 | bell_01.wav | 6.00～8.50 | 2.50 |
-| bell_02.wav | 14.50～19.60 | 5.10 |
+| bell_02_01.wav | 14.50～16.38 | 1.88 |
+| bell_02_02.wav | 16.38～18.08 | 1.70 |
+| bell_02_03.wav | 18.08～19.60 | 1.52 |
 | bell_03.wav | 22.23～23.60 | 1.37 |
-| bell_04.wav | 24.50～34.80 | 10.30 |
-| bell_05.wav | 36.50～42.10 | 5.60 |
+| bell_04_01.wav | 24.50～28.68 | 4.18 |
+| bell_04_02.wav | 28.68～32.65 | 3.97 |
+| bell_04_03.wav | 32.65～34.80 | 2.15 |
+| bell_05_01.wav | 36.50～39.57 | 3.07 |
+| bell_05_02.wav | 39.57～42.10 | 2.53 |
 
 第 04 段按试听反馈将结束时间延后 0.3 秒，保留尾音并避开更晚的杂音。
 抵消利用主持人与 Bell 不同的左右声道比例；不使用 AI，也不保证彻底消除全部混响。
-音频保留在本地忽略目录，未提交到仓库。迁移到其他设备时需自行准备上述五个片段，
-或将 `voice_directory` 指向已有片段；启动过程不会重新导出游戏资产。
+自动生成的音频只保留在用户缓存中；离线试听输出仍在本地忽略目录，不提交游戏素材到仓库。
+NumPy 已列为正式依赖，仅首次准备时加载；缓存完整时无需再次导出或执行声道处理。
 
 ## 验证入口
 
@@ -121,6 +159,7 @@ python tools/oracle/prepare_bell_voice.py --source "完整采访.wav" --output "
 python -m unittest tests.interaction.test_drag tests.oracle.test_drag
 python -m unittest tests.oracle.test_drag_reactions
 python -m unittest tests.interaction.test_audio tests.oracle.test_voice_playback
+python -m unittest tests.oracle.test_voice_assets
 python tools/oracle/review_oracle_drag.py
 python tools/oracle/review_oracle_drag_reactions.py
 python tools/oracle/review_oracle_drag.py --native
@@ -128,4 +167,4 @@ python tools/oracle/review_oracle_drag.py --native
 
 普通回放生成 `artifacts/oracle-drag-review.png`。`--native` 会短暂显示 Windows 测试窗口，发送真实鼠标输入验证穿透、捕获、释放和焦点，然后关闭窗口并恢复鼠标位置。
 
-反应回放生成 `artifacts/oracle-drag-reactions.gif` 与 `.png`，并排展示纯惯性、扑腾、抗议；为便于比较，这份回放固定选择手势，正常运行仍按配置随机。
+反应回放生成 `artifacts/oracle-drag-reactions.gif` 与 `.png`，并排展示纯惯性、随机扑腾、固定交替、单手抗议；为便于比较，这份回放固定选择手势，正常运行仍按配置随机。

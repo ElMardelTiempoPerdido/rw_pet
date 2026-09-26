@@ -166,9 +166,9 @@ class AudioConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             clips = bell_voice_paths(OracleConfig(voice_directory='approved'), root/'pet.toml')
-            self.assertEqual(clips['bell_04'], root/'approved'/'bell_04.wav')
+            self.assertEqual(clips['bell_04_02'], root/'approved'/'bell_04_02.wav')
             absolute = bell_voice_paths(OracleConfig(voice_directory=str(root)), root/'other'/'pet.toml')
-            self.assertEqual(absolute['bell_05'], root/'bell_05.wav')
+            self.assertEqual(absolute['bell_05_01'], root/'bell_05_01.wav')
 
 
 if __name__ == '__main__':

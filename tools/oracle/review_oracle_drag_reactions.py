@@ -1,4 +1,4 @@
-"""实际图集下对照自然惯性、扑腾与抗议；不发出鼠标输入或声音。"""
+"""实际图集下对照自然惯性、随机扑腾、固定交替与抗议；不发出鼠标输入或声音。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
@@ -25,11 +25,12 @@ def main():
     QFontDatabase.addApplicationFont('C:/Windows/Fonts/msyh.ttc')
     config = AppConfig.load(ROOT/'config.toml')
     renderer = OracleRenderer(Atlas(extract_atlas(config.game_dir)), config.oracle.colors)
+    kinds = (None, 'flutter', 'alternating', 'protest')
     scenes = []
-    for enabled in (False, True, True):
+    for kind in kinds:
         scene = OracleScene(replace(config.oracle, halo_enabled=False,
             pearl_matrix_enabled=False, pearl_orbits_enabled=False, pearl_fixed_count=0,
-            drag_reactions=DragReactionConfig(enabled=enabled, gesture_probability=0.,
+            drag_reactions=DragReactionConfig(enabled=kind is not None, gesture_probability=0.,
                 eye_open_probability=1., voice_probability=0.)))
         scene.drag.set_enabled(True)
         for _ in range(650):
@@ -41,8 +42,8 @@ def main():
     for tick in range(220):
         for index, scene in enumerate(scenes):
             # 前半段静止抓住，之后快速牵拉，最后松手；手势仅为 QA 固定抽签。
-            if tick in (0, 90) and index:
-                scene.drag_reactions.start_gesture(('flutter', 'protest')[index-1], scene)
+            if tick in (0, 90) and kinds[index] is not None:
+                scene.drag_reactions.start_gesture(kinds[index], scene)
             if 80 <= tick < 165:
                 scene.drag.move(start+Vec2(65*sin((tick-80)*.035), 35*sin((tick-80)*.06)))
             if tick == 165:
@@ -50,7 +51,7 @@ def main():
             scene.step()
         if tick % 2:
             continue
-        frame = QImage(960, 360, QImage.Format.Format_RGBA8888)
+        frame = QImage(320*len(scenes), 360, QImage.Format.Format_RGBA8888)
         frame.fill(QColor('#18212c'))
         painter = QPainter(frame)
         painter.setFont(QFont('Microsoft YaHei', 10))
@@ -64,7 +65,7 @@ def main():
             renderer.draw(painter, scene, cords=False)
             painter.restore()
             painter.setPen(QColor('#e0e5e9'))
-            painter.drawText(index*320+16, 24, ('Natural inertia', 'Flutter', 'Protest')[index]+' / 4x')
+            painter.drawText(index*320+16, 24, ('Natural inertia', 'Flutter', 'Alternating', 'Protest')[index]+' / 4x')
         phase = 'Held still' if tick < 80 else ('Pulled' if tick < 165 else 'Released')
         painter.drawText(16, 350, f'{phase}  {tick/40:.2f}s')
         painter.end()
@@ -75,7 +76,7 @@ def main():
     output = ROOT/'artifacts'
     frames[0].save(output/'oracle-drag-reactions.gif', save_all=True, append_images=frames[1:],
                    duration=50, loop=0)
-    sheet = Image.new('RGB', (960, 360*len(cards)))
+    sheet = Image.new('RGB', (320*len(scenes), 360*len(cards)))
     for i, card in enumerate(cards):
         sheet.paste(card, (0, i*360))
     sheet.save(output/'oracle-drag-reactions.png')

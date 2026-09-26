@@ -16,7 +16,7 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
-voice_directory = 'artifacts/oracle-voice-reference/bell-clips' # 已试听的外层 WAV；相对本配置文件
+voice_directory = 'auto' # 首次从 game_dir 提取和处理，缓存至用户目录；也可填写自定义 WAV 目录
 world_width = 960.0
 world_height = 600.0
 edge_fraction = 0.20
@@ -33,6 +33,7 @@ pearl_satellite_count = 1 # 0～32；原版有 5 颗。固定珠为 0 时不生�
 projection_opacity = 0.5   # 投影不透明度：0 隐藏，0.5 半透明，1 完全不透明
 halo_enabled = true       # 圆环与短条光环；当前不包含墙壁电弧
 halo_scale = 0.8          # 相对原版尺寸；边缘空间不足时自动限制大小
+pixel_mode = 'adaptive'   # adaptive：大倍率精细像素；classic：放大原始像素（人偶/光环）
 
 # 未填写的字段使用 oracle_config.py 中的默认值
 [oracle.colors]
@@ -53,6 +54,7 @@ pearl_secondary = '#ff2c07' # 珍珠辅色：矩阵与环绕珠
 [oracle.drag_reactions]
 enabled = true
 gesture_probability = 0.90  # 抓起及后续间歇机会：触发手势的概率
-flutter_probability = 0.60  # 手势中扑腾的占比，其余为短暂抗议
+flutter_probability = 0.85  # 手势中双手动作占 85%，其余 15% 为单手短暂抗议
+alternating_probability = 0.47 # 双手动作中固定交替占 47%；总计约 40% 交替、45% 随机扑腾
 eye_open_probability = 0.65 # 独立抽签；不改变自主观察时的开眼概率
-voice_probability = 0.55    # 独立语音概率；播放已处理的 01～05 段，不与手势绑定
+voice_probability = 0.55    # 独立语音概率；从已处理并切分的 10 段中选取，不与手势绑定
