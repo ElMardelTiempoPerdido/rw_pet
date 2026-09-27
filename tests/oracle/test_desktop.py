@@ -34,7 +34,7 @@ class OracleDesktopMotionTests(unittest.TestCase):
 
     def test_physical_pixel_scale_and_global_coordinates(self):
         for dpr in (1., 1.25, 1.5, 2.):
-            for scale in (.5, 1., 1.5, 2., 4.):
+            for scale in (1., 1.5, 2.):
                 for x, y, w, h in ((0, 0, 1920, 1040), (-1920, 40, 1280, 680), (40, -1080, 700, 500)):
                     v = OracleDesktopViewport(x, y, w, h, dpr, scale)
                     point = Vec2(84, 60)
@@ -61,7 +61,7 @@ class OracleDesktopMotionTests(unittest.TestCase):
             original_side, fraction = current_anchor(old)
             self.assertFalse(old.pearl.settled)
             for viewport in (OracleDesktopViewport(-1280, 40, 1280, 680, 1.5),
-                             OracleDesktopViewport(0, 0, 300, 250, 1., 4.),
+                             OracleDesktopViewport(0, 0, 300, 250, 1., 2.),
                              OracleDesktopViewport(0, -1000, 1080, 1920, 2.)):
                 new = OracleDesktopMotion(OracleConfig(), viewport, old).scene
                 self.assertEqual(new.anchor.side, original_side)
@@ -103,7 +103,7 @@ class OracleDesktopMotionTests(unittest.TestCase):
             scene.set_target(scene.navigator.planner.corners[2])
             for _ in range(90):
                 motion.step()
-            motion = OracleDesktopMotion(OracleConfig(), OracleDesktopViewport(40, 0, 640, 480, 1, 4), scene)
+            motion = OracleDesktopMotion(OracleConfig(), OracleDesktopViewport(40, 0, 640, 480, 1, 2), scene)
             self.assert_valid(motion.scene)
             self.assertFalse(motion.scene.behavior.enabled)
 
@@ -234,8 +234,8 @@ class OracleDesktopWindowTests(unittest.TestCase):
         w.rebuild_timer.stop()
         self.screen.availableGeometryChanged.emit(QRect())
         self.assertFalse(w.rebuild_timer.isActive())
-        w.change_scale(4.)
-        self.assertTrue(w.scale_actions[4.].isChecked())
+        w.change_scale(2.)
+        self.assertTrue(w.scale_actions[2.].isChecked())
         self.assertTrue(w.clock.paused)
         self.assertAlmostEqual(w.motion.viewport.world_size.x*w.motion.viewport.scale, 900)
 
@@ -262,6 +262,20 @@ class OracleDesktopWindowTests(unittest.TestCase):
         self.assertEqual(scene.config.pixel_mode, 'adaptive')
         debug.reset_scene()
         self.assertEqual(debug.scene.config.pixel_mode, 'adaptive')
+
+    def test_only_three_scale_choices_and_invalid_request_keeps_scene(self):
+        w = self.window
+        self.assertEqual(tuple(w.scale_actions), (1., 1.5, 2.))
+        w.scale_actions[1.5].trigger()
+        self.assertEqual(w.requested_scale, 1.5)
+        scene = w.motion.scene
+        for scale in (.5, 1.25, 3., 4., float('nan')):
+            with self.assertRaises(ValueError):
+                w.change_scale(scale)
+            with self.assertRaises(ValueError):
+                OracleDesktopViewport(0, 0, 1920, 1080, 1., scale)
+            self.assertIs(w.motion.scene, scene)
+            self.assertEqual(w.requested_scale, 1.5)
 
     def test_empty_or_missing_screen_suspends_then_recovers(self):
         w = self.window

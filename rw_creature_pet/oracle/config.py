@@ -4,6 +4,9 @@ from math import isfinite
 import re
 
 
+DISPLAY_SCALES = (1., 1.5, 2.)
+
+
 @dataclass(frozen=True, slots=True)
 class OracleColors:
     # OracleGraphics.SkinColor(IsPastMoon) = (0.13, 0.53, 0.69).
@@ -84,6 +87,8 @@ class OracleConfig:
     physics_backend: str = 'auto'  # 安装 speedups 可选依赖后自动使用 Numba。
     halo_enabled: bool = True
     halo_scale: float = .8  # 原版圆环/短条的整体倍率；窄活动带会再限制上限。
+    halo_arcs_enabled: bool = True
+    halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
     drag_reactions: DragReactionConfig = DragReactionConfig()
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
@@ -95,6 +100,10 @@ class OracleConfig:
             raise ValueError('oracle.voice_directory 必须为非空路径字符串')
         if type(self.halo_enabled) is not bool:
             raise ValueError('oracle.halo_enabled 必须为布尔值')
+        if type(self.halo_arcs_enabled) is not bool:
+            raise ValueError('oracle.halo_arcs_enabled 必须为布尔值')
+        if type(self.halo_arc_max_count) is not int or not 1 <= self.halo_arc_max_count <= 10:
+            raise ValueError('oracle.halo_arc_max_count 必须为 1～10 的整数')
         if (isinstance(self.halo_scale, bool) or not isinstance(self.halo_scale, (int, float))
                 or not isfinite(self.halo_scale) or not .25 <= self.halo_scale <= 1.5):
             raise ValueError('oracle.halo_scale 必须在 0.25～1.5')

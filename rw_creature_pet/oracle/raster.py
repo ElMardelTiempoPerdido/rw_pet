@@ -6,7 +6,7 @@ from PySide6.QtGui import QImage
 
 
 def pixel_density(mode, scale):
-    # 低于 1× 仍缩小原始像素；与桌面倍率上限一致，限制局部画布开销。
+    # 低于 1× 仍缩小原始像素；内部保留画布上限供离屏检查，用户档位为 1/1.5/2。
     return 1. if mode == 'classic' else round(max(1., min(4., scale)), 6)
 
 

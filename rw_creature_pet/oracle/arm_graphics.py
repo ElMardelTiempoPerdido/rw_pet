@@ -176,4 +176,8 @@ def base_outline(base, normal, scale, width=30., height=17., inner_width=20.):
                (-width*.3, -height*.1), (width*.3, -height*.1),
                (width*.5, height), (width*.8, height), (width, height*.75),
                (width, -height*.75), (inner_width*.5, -height))
-    return [origin+side*(x*ds)+normal*(y*ds) for x, y in profile]
+    # ArmBase.InitiateSprites 的三角网格外边界，不是顶点编号 0..11。
+    # 4→7 是靠机械臂的实心横梁；11→6→5→0 才是靠轨道的凹口。
+    # 按编号直接闭合会把两者填反，呈现出上下颠倒的外观。
+    boundary = (0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 6, 5)
+    return [origin+side*(profile[i][0]*ds)+normal*(profile[i][1]*ds) for i in boundary]

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.config import DISPLAY_SCALES
 
 
 def main():
@@ -57,16 +58,17 @@ def main():
         painter.end()
     assert sheet.save(str(ROOT/'artifacts/oracle-bell-head-poses.png'))
 
-    sheet = QImage(880, 1020, QImage.Format.Format_RGBA8888)
+    sheet = QImage(220*len(DISPLAY_SCALES), 1020, QImage.Format.Format_RGBA8888)
     sheet.fill(QColor('#17232e'))
     painter = QPainter(sheet)
     try:
-        # 所有格子显示相同外形大小；放大的是各档已经生成的像素。
+        # 各档像素按 6/4/3 整数倍放大，统一为 6× 外形大小，避免 1.5×
+        # 的检查图再次非整数缩放，使同样粗的像素显示得宽窄不一。
         poses = (('Closed', 0, 0, 0, 0), ('Open', 0, 0, 0, 1),
                  ('Side', 1, 0, 0, 1), ('Look up', .4, -1, 0, 0),
                  ('Tilt', -.5, 0, -25, .5), ('Floating', .4, .3, 90, 0))
         for row, (label, lx, ly, tilt, openness) in enumerate(poses):
-            for column, density in enumerate((1., 1.5, 2., 4.)):
+            for column, density in enumerate(DISPLAY_SCALES):
                 x, y = column*220, row*170
                 painter.setPen(QColor('#e0e5e9'))
                 painter.setFont(QFont(family, 10))
@@ -74,7 +76,7 @@ def main():
                 direction = Vec2(sin(radians(tilt)), -cos(radians(tilt)))
                 painter.save()
                 painter.translate(x+110, y+98)
-                painter.scale(8, 8)
+                painter.scale(6, 6)
                 renderer.draw_head(painter, Vec2(), direction*-14, direction, Vec2(lx, ly),
                                    openness, raster_scale=density)
                 painter.restore()
@@ -90,13 +92,13 @@ def main():
         image.fill(QColor('#17232e'))
         painter = QPainter(image)
         try:
-            for column, density in enumerate((1., 2., 4.)):
+            for column, density in enumerate(DISPLAY_SCALES):
                 painter.setPen(QColor('#e0e5e9'))
                 painter.setFont(QFont(family, 10))
-                painter.drawText(column*240+12, 24, f'Raster {density:g}x / 8x inspection')
+                painter.drawText(column*240+12, 24, f'Raster {density:g}x / 6x inspection')
                 painter.save()
                 painter.translate(column*240+120, 92)
-                painter.scale(8, 8)
+                painter.scale(6, 6)
                 renderer.draw_head(painter, Vec2(), Vec2(0, 9), Vec2(0, -1), look,
                                    raster_scale=density)
                 painter.restore()

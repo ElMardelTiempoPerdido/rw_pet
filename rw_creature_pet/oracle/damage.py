@@ -28,6 +28,10 @@ def visual_bounds(scene):
     if scene.halo_visible:
         halo = scene.halo
         result = result.united(point_bounds((halo.previous_center, halo.center), halo.extent+2))
+        for arc in scene.halo_arcs.arcs:
+            box = arc.region
+            result = result.united(QRectF(box.left-1, box.top-1,
+                                         box.right-box.left+2, box.bottom-box.top+2))
     for group in (scene.pearl_matrix, scene.pearl_orbits, scene.fixed_pearls):
         if group is not None:
             points = (p for alpha in (0., 1.) for p, _, _ in group.samples(alpha))

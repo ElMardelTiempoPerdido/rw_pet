@@ -2,6 +2,7 @@
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 import unittest
+from io import StringIO
 from unittest.mock import patch
 
 from PySide6.QtWidgets import QApplication
@@ -14,6 +15,20 @@ class DesktopEntryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
         cls.app.setQuitOnLastWindowClosed(False)
+
+    def test_oracle_invalid_scale_is_rejected_before_starting_qt_or_loading_assets(self):
+        for scale in ('.5', '1.25', '3', '4', 'nan', 'inf'):
+            with self.subTest(scale=scale), \
+                    patch('sys.argv', ['run_pet.py', '--creature', 'oracle', '--desktop', '--scale', scale]), \
+                    patch('sys.stderr', new_callable=StringIO) as errors, \
+                    patch('rw_creature_pet.app.QApplication') as application, \
+                    patch('rw_creature_pet.app.AppConfig.load') as load:
+                with self.assertRaises(SystemExit) as result:
+                    main()
+                self.assertEqual(result.exception.code, 2)
+                self.assertIn('1、1.5、2', errors.getvalue())
+                application.assert_not_called()
+                load.assert_not_called()
 
     def test_cli_selects_oracle_and_preserves_lizard_activity(self):
         for creature in ('oracle', 'lizard'):

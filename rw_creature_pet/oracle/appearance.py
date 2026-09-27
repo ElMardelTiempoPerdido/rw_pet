@@ -177,6 +177,11 @@ class OracleAppearance:
     CLOTH_SLACK = 9.
     CLOTH_GRAVITY = .45  # 原版 0.9 × room.gravity；桌面常态视觉重力 0.5。
     CLOTH_DAMPING = .90  # 原版 .999；桌宠更快收敛，仍保留起停摆动。
+    WAIST_FOLLOW = .90  # 下身视觉轴跟随衣袍中下段，胸肩仍使用真实身体轴。
+    WAIST_MAX_ANGLE = pi/6
+    WAIST_MAX_SPEED = .035
+    WAIST_SPRING = .10
+    WAIST_DAMPING = .70
     MAIN_CORD_POINTS = 80
     SMALL_CORDS = 14
     SMALL_CORD_POINTS = 20
@@ -191,6 +196,7 @@ class OracleAppearance:
     def __init__(self, scene):
         self.gravity_scale = scene.pose.gravity_scale
         self.sway = self.previous_sway = self.sway_velocity = 0.
+        self.waist_angle = self.previous_waist_angle = self.waist_velocity = 0.
         self.last_body_velocity = scene.body.chunks[0].velocity
         self.upper = scene.body.chunks[0].position
         self.direction = scene.body.direction
@@ -263,8 +269,35 @@ class OracleAppearance:
                 + side*(sign*.3) for sign in (-1, 1)]
 
     def foot_goals(self):
+        direction = self.waist_direction(self.direction)
+        side = perpendicular(direction)
+        return [self.lower + side*(sign*4.) - direction*8.5 for sign in (-1, 1)]
+
+    def waist_direction(self, direction, alpha=1.):
+        angle = self.previous_waist_angle+(self.waist_angle-self.previous_waist_angle)*alpha
+        return rotate(direction, angle)
+
+    def step_waist(self):
+        """只读衣袍中下段的整体朝向，平滑跟随；不反向驱动衣袍或导航。"""
+        n, center = self.CLOTH_DIVS, self.CLOTH_DIVS//2
+        # 避开自由下摆和两侧边缘，平均九点，防止一处褶皱让下身来回摇摆。
+        rows = (round((n-1)*.6), round((n-1)*.7), round((n-1)*.8))
+        samples = [self.cloth[y*n+x].position-self.upper
+                   for y in rows for x in (center-1, center, center+1)]
+        delta = Vec2(sum(p.x for p in samples), sum(p.y for p in samples))*(1/len(samples))
         side = perpendicular(self.direction)
-        return [self.lower + side*(sign*4.) - self.direction*8.5 for sign in (-1, 1)]
+        across = delta.x*side.x+delta.y*side.y
+        down = -(delta.x*self.direction.x+delta.y*self.direction.y)
+        # 强烈折回时仍保留向脚方向，避免中心线穿过胸部后发生翻转。
+        target = atan2(-across, max(6., down))*self.WAIST_FOLLOW
+        target = max(-self.WAIST_MAX_ANGLE, min(self.WAIST_MAX_ANGLE, target))
+        self.previous_waist_angle = self.waist_angle
+        speed = self.waist_velocity*self.WAIST_DAMPING+(target-self.waist_angle)*self.WAIST_SPRING
+        speed = max(-self.WAIST_MAX_SPEED, min(self.WAIST_MAX_SPEED, speed))
+        self.waist_angle = max(-self.WAIST_MAX_ANGLE,
+                              min(self.WAIST_MAX_ANGLE, self.waist_angle+speed))
+        self.waist_velocity = self.waist_angle-self.previous_waist_angle
+        self.lower = self.upper-self.waist_direction(self.direction)*9
 
     def cloth_goals(self):
         side = perpendicular(self.direction)
@@ -381,7 +414,6 @@ class OracleAppearance:
         self.last_body_velocity = upper.velocity
         self.upper = upper.position
         self.direction = rotate(scene.body.direction, self.sway)
-        self.lower = self.upper - self.direction * 9
         self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
         reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
         for index, (hand, force, extra) in enumerate(zip(self.hands, self.hand_forces(), reactions)):
@@ -389,11 +421,12 @@ class OracleAppearance:
             shoulder = hand.shoulder(self.upper, self.direction, index)
             hand.step(self.upper, upper.velocity, force+extra, shoulder=shoulder, weight=weight)
             hand.constrain_swing(self.upper, self.direction, index, upper.velocity, weight)
+        self.step_cloth()
+        self.step_waist()
         for p, goal in zip(self.feet, self.foot_goals()):
             p.follow(goal, spring=.075, damping=.80, slack=5.)
             p.position = self.lower + clamp_length(p.position-self.lower, 10)
             p.velocity = p.position-p.previous_position
-        self.step_cloth()
         self.step_necklace()
         self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
         self._quiet_ticks = (self._quiet_ticks+1 if not reacting and not gravity_changed and self.maximum_speed < .002
@@ -405,6 +438,8 @@ class OracleAppearance:
             self.sleeping = True
             self._sleep_inputs = inputs
             self.previous_sway = self.sway
+            self.previous_waist_angle = self.waist_angle
+            self.waist_velocity = 0.
             for p in self._points:
                 p.previous_position = p.position
                 p.velocity = Vec2()
@@ -415,4 +450,5 @@ class OracleAppearance:
 
     @property
     def maximum_speed(self):
-        return max(p.velocity.length() for p in self.points)
+        # 腰部尚在缓动时不能提前休眠；17.5 为胸部到脚目标的轴向距离。
+        return max(abs(self.waist_velocity)*17.5, max(p.velocity.length() for p in self.points))

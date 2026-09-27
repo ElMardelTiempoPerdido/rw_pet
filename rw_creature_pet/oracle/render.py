@@ -3,14 +3,14 @@ from math import atan2, ceil, cos, degrees, floor, radians, sin
 from functools import lru_cache
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF
+from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF
 
 from ..shared.geometry import Vec2
 from .config import OracleColors
 from .scene import unit
 from .appearance import HangingHand, perpendicular, rotate
 from .arm_graphics import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
-from .damage import body_bounds
+from .damage import body_bounds, point_bounds
 from .raster import local_canvas, painter_density, pixel_density
 
 
@@ -78,16 +78,35 @@ class OracleRenderer:
     FOREHEAD_CENTER_Y = -4.
     # 5×5 圆环和中央横径；两根 1×2 竖条与圆环下缘共用第一格。
     FOREHEAD_PIXELS = ('.###.', '#...#', '#####', '#...#', '.###.', '.#.#.')
-    PHONE_ROD_TOP = -5.
+    # 1.5× 下的像素折点，左半侧整体左移 1px，横径与上下横段加长
+    # 1px，视觉中心随之左移半像素。换回逻辑坐标后再随面部投影。
+    FOREHEAD_STROKE_GRID = 1.5
+    FOREHEAD_STROKES = (
+        ((-2, -3), (1, -3), (3, -1), (3, 1), (1, 3), (-2, 3),
+         (-4, 1), (-4, -1), (-2, -3)),
+        ((-4, 0), (3, 0)), ((-2, 3), (-2, 4)), ((1, 3), (1, 4)),
+    )
+    FACE_MARK_PIXEL_WIDTHS = {1.5: 1.}  # 额头笔画与四个侧点的屏幕像素宽度。
+    PHONE_CORE_INSET = 1.  # 耳壳向脸侧收进，给外侧的两段支架留出空间。
+    PHONE_CORE_WIDTH = 2.  # 略加宽矢量轮廓，让 1.5× / 2× 保留更饱满的耳壳。
+    PHONE_ROD_TOP = -1.  # 可见坠饰从耳壳中部开始，不再伸出耳壳上方。
     PHONE_ROD_BOTTOM = 6.
-    PHONE_ROD_INSET = .55
-    PHONE_ROD_DEPTH = 1.2
     PHONE_BAR_LENGTH = 1.
     PHONE_BAR_SPACING = 2.
+    PHONE_OUTER_BAR_Y = 2.
+    PHONE_OUTER_BAR_LENGTH = 1.
+    PHONE_OUTER_ROD_TOP = -3.
+    PHONE_OUTER_ROD_LENGTH = 3.
+    PHONE_OUTER_ROD_OFFSET = 1.
+    # 特定显示精度下的屏幕像素宽度：(主竖杆，其余短竖杆/横杆)。
+    PHONE_PIXEL_WIDTHS = {1.5: (2., 1.)}
     HEAD_PIXELS = 33
     INNER_NECK_HEAD_GAP = 6.5  # 平领口距头部中心，沿实际颈部方向测量。
     INNER_NECK_HALF = 1.5
     CHEST_TOP_DROP = 1.  # 胸肩上缘降低 1；宽度和下缘保持原来的范围。
+    TORSO_CHEST_HALF = 6.
+    TORSO_HEM_HALF = 7.  # 放松状态两腿外缘最宽处约 ±6.9，内搭覆盖至此。
+    TORSO_HEM_DEPTH = 4.  # 下身中心沿身体轴向脚延伸；省去腿间圆弧底部。
     GOWN_NECK_HALF = .38  # 网格 UV 空间；开口略加宽、变浅，使 V 角稍展开。
     GOWN_NECK_DEPTH = .28
     GOWN_TRIM_HALF = .70  # 相对开口的半宽差 .08→.32，深度差 .04→.16。
@@ -105,6 +124,7 @@ class OracleRenderer:
         self._frame = None
         self._body_key = None
         self._body_pose = ()
+        self._arc_key = None
         self._body_origin = Vec2()
         self._body_frame = None
         self._body_front_frame = None
@@ -429,14 +449,41 @@ class OracleRenderer:
         path.closeSubpath()
         return path
 
-    def draw_inner_robe(self, painter, upper, lower, direction, head):
-        # 内搭直接使用身体原有的胸肩/躯干贴图和颈部线段，不另造固定轮廓。
+    def torso_path(self, upper, lower, direction, lower_direction=None):
+        """胸肩保留原朝向，腰侧平滑弯向下身，平下摆垂直于下身轴。"""
+        lower_direction = direction if lower_direction is None else lower_direction
+        side = perpendicular(direction)
+        hem_side = perpendicular(lower_direction)
+        chest = upper-direction*(self.CHEST_TOP_DROP*.5)
+        height = (16-self.CHEST_TOP_DROP)*.5
+        width = self.TORSO_CHEST_HALF
+        hem = lower-lower_direction*self.TORSO_HEM_DEPTH
+        k = .5522847498307936  # 四分之一椭圆的三次曲线控制点。
+        top = chest+direction*height
+        path = QPainterPath(point(top))
+        path.cubicTo(point(top+side*(width*k)),
+                     point(chest+side*width+direction*(height*k)), point(chest+side*width))
+        # 直立时保持两点连线；弯腰时控制点随上下身轴偏转，让两侧连续过渡。
+        span = (hem-chest).length()/3
+        bend = (direction-lower_direction)*span
+        right, left = hem+hem_side*self.TORSO_HEM_HALF, hem-hem_side*self.TORSO_HEM_HALF
+        shoulder = chest+side*width
+        path.cubicTo(point(shoulder.lerp(right, 1/3)-bend), point(shoulder.lerp(right, 2/3)-bend), point(right))
+        path.lineTo(point(left))
+        shoulder = chest-side*width
+        path.cubicTo(point(shoulder.lerp(left, 2/3)-bend), point(shoulder.lerp(left, 1/3)-bend), point(shoulder))
+        path.cubicTo(point(chest-side*width+direction*(height*k)),
+                     point(top-side*(width*k)), point(top))
+        path.closeSubpath()
+        return path
+
+    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None):
+        # 胸肩沿真实身体轴，下身随衣袍弯曲，仍共用连续轮廓。
         # 领口距头部保持固定距离，随真实头颈伸缩、偏转，并保持平直截面。
         c = self.colors
-        rotation = degrees(atan2(direction.x, -direction.y))
-        self.sprite(painter, 'Circle20', lower, 12, 12, c.inner_robe, rotation)
-        self.sprite(painter, 'Circle20', upper-direction*(self.CHEST_TOP_DROP*.5),
-                    12, 16-self.CHEST_TOP_DROP, c.inner_robe, rotation)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(c.inner_robe))
+        painter.drawPath(self.torso_path(upper, lower, direction, lower_direction))
         self.line(painter, upper, head, c.inner_robe, 2*self.INNER_NECK_HALF)
         neck = unit(head-upper, direction)
         side = perpendicular(neck)
@@ -555,15 +602,21 @@ class OracleRenderer:
         gx, gy, angle = round(gx, 6), round(gy, 6), round(angle, 5)
         openness = max(0., min(1., openness))
         density = pixel_density('adaptive', raster_scale)
-        geometry_key = (gx, gy, openness, self.colors)
+        phone_pixels = self.PHONE_PIXEL_WIDTHS.get(density)
+        phone_widths = phone_pixels or (1., 1.)
+        phone_cosmetic = phone_pixels is not None
+        mark_pixels = self.FACE_MARK_PIXEL_WIDTHS.get(density)
+        geometry_key = (gx, gy, openness, self.colors, phone_widths, phone_cosmetic, mark_pixels)
         if geometry_key != self._head_geometry_key:
             commands = PaintCommands()
-            self.draw_head_parts(commands, gx, gy, openness)
+            self.draw_head_parts(commands, gx, gy, openness,
+                                 phone_widths=phone_widths, phone_cosmetic=phone_cosmetic,
+                                 mark_pixels=mark_pixels)
             self._head_geometry_key, self._head_frame = geometry_key, commands
         key = (geometry_key, angle, density)
         if key != self._head_key:
-            # 在当前显示精度下完成投影、倾斜和遮挡。几何与倍率分离，
-            # 世界平移不重建小图；旋转也只重放已有的面部矢量图形。
+            # 在当前显示精度下完成投影、倾斜和遮挡；只有线宽档位变化
+            # 才因倍率重建几何。世界平移复用小图，旋转重放已有几何。
             pixels = ceil(self.HEAD_PIXELS*density)
             image = QImage(pixels, pixels, QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(Qt.GlobalColor.transparent)
@@ -589,44 +642,53 @@ class OracleRenderer:
         painter.restore()
 
     def phone_segments(self, sign, gx, gy):
-        """耳侧浅深度刚性架：返回投影后的直杆和两根向内的短横杆。"""
-        top, bottom = self.PHONE_ROD_TOP, self.PHONE_ROD_BOTTOM
+        """坠饰及外侧短横杆/平行短竖杆，共享耳侧刚性架的透视。"""
+        bottom = self.PHONE_ROD_BOTTOM
         yaw, pitch = radians(gx*35), radians(gy*20)
         ear = Vec2(sign*(7-2*abs(gx)), 0)
         def project(y, inward=0.):
-            t = (y-top)/(bottom-top)
-            # 竖杆微向内倾，同时底端稍靠前；偏航后两侧倾角不同。
-            x = sign*(.25-self.PHONE_ROD_INSET*t-inward)
-            z = self.PHONE_ROD_DEPTH*(t-.5)
-            depth = -x*sin(yaw)+z*cos(yaw)
-            return ear+Vec2(x*cos(yaw)+z*sin(yaw), y*cos(pitch)-depth*sin(pitch))
+            # 高度不再改变横向位置或深度，两根竖杆始终平行于头部竖轴。
+            x = sign*(.25-inward)
+            depth = -x*sin(yaw)
+            return ear+Vec2(x*cos(yaw), y*cos(pitch)-depth*sin(pitch))
         # 横杆在局部平面垂直于竖杆，而非投影后硬画成屏幕水平线。
-        height = bottom-top
-        rise = (self.PHONE_ROD_INSET*self.PHONE_BAR_LENGTH*height
-                / (height*height+self.PHONE_ROD_INSET**2+self.PHONE_ROD_DEPTH**2))
-        segments = [(project(top), project(bottom))]
+        segments = [(project(self.PHONE_ROD_TOP), project(bottom))]
         for y in (bottom-self.PHONE_BAR_SPACING, bottom):
-            segments.append((project(y), project(y-rise, self.PHONE_BAR_LENGTH)))
+            length = self.PHONE_BAR_LENGTH
+            segments.append((project(y), project(y, length)))
+        # 与下方内侧横杆同一构造，反向伸出；不连接上方短竖杆，保留间隔。
+        y, length = self.PHONE_OUTER_BAR_Y, self.PHONE_OUTER_BAR_LENGTH
+        segments.append((project(y), project(y, -length)))
+        y, offset = self.PHONE_OUTER_ROD_TOP, -self.PHONE_OUTER_ROD_OFFSET
+        segments.append((project(y, offset), project(y+self.PHONE_OUTER_ROD_LENGTH, offset)))
         return segments
 
-    def draw_head_parts(self, painter, gx, gy, openness=0.):
+    def draw_head_parts(self, painter, gx, gy, openness=0., *, phone_widths=(1., 1.),
+                        phone_cosmetic=False, mark_pixels=None):
         c = self.colors
+        phone_pens = tuple(QPen(QColor(c.head_shell), width, Qt.PenStyle.SolidLine,
+                               Qt.PenCapStyle.SquareCap) for width in phone_widths)
+        for pen in phone_pens:
+            # 特定档位直接用局部画布的整数像素宽度，避开缩放浮点尾差；
+            # 画布已包含实际显示精度，不再乘 DPI 或检查放大镜倍率。
+            pen.setCosmetic(phone_cosmetic)
         head_rect = QRectF(-50/9, -50/11-self.HEAD_CROWN_RISE,
                           100/9, 100/11+self.HEAD_CROWN_RISE)
         def phone(sign):
-            ear = Vec2(sign*(7-2*abs(gx)), 0)
-            painter.setPen(QPen(QColor(c.head_shell), 1., Qt.PenStyle.SolidLine,
-                                Qt.PenCapStyle.SquareCap))
-            for start, end in self.phone_segments(sign, gx, gy):
-                painter.drawLine(point(start), point(end))
-            w = 3.5+1.5*abs(gx)
+            ear = Vec2(sign*(7-self.PHONE_CORE_INSET-2*abs(gx)), 0)
+            # 每侧耳机先画耳壳和亮面，坠饰及外侧支架覆盖在其上方。
+            w = self.PHONE_CORE_WIDTH+1.5*abs(gx)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(c.head_shell))
             painter.drawEllipse(QRectF(ear.x-w/2, ear.y-2.75, w, 5.5))
             painter.setBrush(QColor(c.head_highlight))
             painter.drawEllipse(QRectF(ear.x-w*.4, ear.y-2.2, w*.8, 4.4))
-            painter.setBrush(QColor(c.joints))
-            painter.drawRect(QRectF(ear.x+sign*.5-.325, ear.y+.3-1.4, .65, 2.8))
+            segments = self.phone_segments(sign, gx, gy)
+            painter.setPen(phone_pens[0])
+            painter.drawLine(point(segments[0][0]), point(segments[0][1]))
+            painter.setPen(phone_pens[1])
+            for start, end in segments[1:]:
+                painter.drawLine(point(start), point(end))
         # 原版 PhoneSprite 的近侧与转头方向相反；否则转头一侧的耳壳
         # 会盖掉已经向该侧移动的眼睛，而背后的附件反倒浮在脸上。
         near = -1 if gx >= 0 else 1
@@ -653,18 +715,35 @@ class OracleRenderer:
         painter.save()
         painter.setClipPath(face, Qt.ClipOperation.IntersectClip)
         sx, sy = 1-abs(gx)*.25, 1-max(0., gy)*.75
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(c.third_eye))
-        for row, cells in enumerate(self.FOREHEAD_PIXELS):
-            for column, cell in enumerate(cells):
-                if cell == '#':
-                    painter.drawRect(QRectF(mark.x+(column-2.5)*sx,
-                                            mark.y+(row-2.5)*sy, sx, sy))
+        if mark_pixels is None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(c.third_eye))
+            for row, cells in enumerate(self.FOREHEAD_PIXELS):
+                for column, cell in enumerate(cells):
+                    if cell == '#':
+                        painter.drawRect(QRectF(mark.x+(column-2.5)*sx,
+                                                mark.y+(row-2.5)*sy, sx, sy))
+        else:
+            pen = QPen(QColor(c.third_eye), mark_pixels, Qt.PenStyle.SolidLine,
+                       Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.BevelJoin)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for stroke in self.FOREHEAD_STROKES:
+                painter.drawPolyline(QPolygonF([
+                    point(mark+Vec2(x*sx/self.FOREHEAD_STROKE_GRID,
+                                    y*sy/self.FOREHEAD_STROKE_GRID)) for x, y in stroke]))
         for sign in (-1, 1):
             for down in self.FACE_DOT_Y_OFFSETS:
                 dot = mark+Vec2(sign*self.FACE_DOT_HALF_SPACING*sx, down*sy)
-                width, height = self.FACE_DOT_SIZE*sx, self.FACE_DOT_SIZE*sy
-                painter.drawRect(QRectF(dot.x-width/2, dot.y-height/2, width, height))
+                if mark_pixels is None:
+                    width, height = self.FACE_DOT_SIZE*sx, self.FACE_DOT_SIZE*sy
+                    painter.drawRect(QRectF(dot.x-width/2, dot.y-height/2, width, height))
+                else:
+                    if sign < 0:
+                        # 与加宽圆环的左半侧一起移 1px；只在细线档位生效。
+                        dot -= Vec2(sx/self.FOREHEAD_STROKE_GRID, 0)
+                    painter.drawPoint(point(dot))
         painter.restore()
         phone(near)
 
@@ -745,6 +824,7 @@ class OracleRenderer:
             return
         halo = scene.halo
         density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        self.draw_halo_arcs(painter, scene, alpha, density)
         # 光环自己动画；不进入身体/衣袍/线缆帧键。位移和透明度也不使
         # 局部图案失效，重复主视图与放大镜仅合成同一张小图。
         key = (halo, halo.revision, alpha, self.colors.pearl_glyph, density)
@@ -806,6 +886,45 @@ class OracleRenderer:
                                 image.width()/density, image.height()/density), image)
         painter.restore()
 
+    def draw_halo_arcs(self, painter, scene, alpha, density):
+        arcs = scene.halo_arcs
+        if not scene.halo_visible or not scene.config.halo_arcs_enabled or not arcs.arcs:
+            return
+        width = arcs.width_at(alpha)
+        if width <= 0.:
+            return
+        curves = arcs.curves(scene.halo, alpha)
+        if not curves:
+            return
+        key = (curves, density, self.colors.pearl_glyph, width)
+        if key != self._arc_key:
+            bounds = point_bounds((p for curve in curves for p in curve), arcs.LINE_WIDTH)
+            image, target = local_canvas(bounds, density)
+            local = QPainter(image)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                # Qt 的 QPen 在 <1px 时会自动降 alpha，即使关闭抗锯齿也是如此。
+                # 填充真实描边轮廓，让亚像素细线变成硬边缺口，而非透明度淡出。
+                local.setPen(Qt.PenStyle.NoPen)
+                local.setBrush(QColor(self.colors.pearl_glyph))
+                stroker = QPainterPathStroker()
+                stroker.setWidth(width)
+                stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+                for start, a, b, end in curves:
+                    path = QPainterPath(point(start))
+                    path.cubicTo(point(a), point(b), point(end))
+                    local.drawPath(stroker.createStroke(path))
+            finally:
+                local.end()
+            self._arc_key, self._arc_image, self._arc_target = key, image, target
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*scene.config.projection_opacity*arcs.OPACITY)
+        painter.drawImage(self._arc_target, self._arc_image)
+        painter.restore()
+
     def pearl_palette(self):
         if self._pearl_palette_key != self.colors:
             colors = (self.colors.pearl_primary, self.colors.pearl, self.colors.pearl_secondary)
@@ -849,7 +968,8 @@ class OracleRenderer:
         upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
         sway = app.previous_sway+(app.sway-app.previous_sway)*alpha
         direction = rotate(unit(upper-lower), sway)
-        lower = upper-direction*9
+        waist_direction = app.waist_direction(direction, alpha)
+        lower = upper-waist_direction*9
         head = app.head.sample(alpha)
         if arm:
             self.draw_arm(painter, scene, alpha)
@@ -859,7 +979,7 @@ class OracleRenderer:
         if cache_body:
             # 匀速平移时不重建衣袍/袖子网格。只容忍 0.001 的亚像素变化；
             # 参考姿态不跟随容差更新，累计形变仍使缓存失效。
-            pose = [direction.x, direction.y, look.x, look.y]
+            pose = [direction.x, direction.y, waist_direction.x, waist_direction.y, look.x, look.y]
             for p in (app.head, *app.hands, *app.feet, *app.cloth):
                 v = p.sample(alpha)
                 pose.extend((v.x-upper.x, v.y-upper.y))
@@ -891,8 +1011,10 @@ class OracleRenderer:
                            raster_scale=painter_density(painter, scene.config.pixel_mode))
 
     def draw_body(self, painter, scene, alpha, upper, lower, direction, head, look):
-        self.draw_inner_robe(painter, upper, lower, direction, head)
-        self.draw_limbs(painter, scene, alpha, upper, lower, direction, hands=False)
+        waist_direction = scene.appearance.waist_direction(direction, alpha)
+        # 腿根在内搭后方，粉色平下摆完整覆盖近端，露出的双腿保持肤色。
+        self.draw_limbs(painter, scene, alpha, upper, lower, waist_direction, hands=False)
+        self.draw_inner_robe(painter, upper, lower, direction, head, lower_direction=waist_direction)
         opening, trim, gown = self.draw_gown(painter, scene, alpha)
         # 袖根也是外衣的一部分，不能填回已经挖出的领口。下方手腕仍保留
         # 手掌先画、袖口后盖的原有结构；项链随后覆盖上胸衣料。

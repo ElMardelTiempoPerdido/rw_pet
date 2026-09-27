@@ -14,9 +14,13 @@ def main():
     parser.add_argument('--creature', choices=('lizard', 'oracle'), default='lizard', help='调试生物，默认 lizard')
     parser.add_argument("--config", type=Path, help="TOML 配置路径；默认读取当前目录 config.toml")
     parser.add_argument('--desktop', action='store_true', help='透明穿透桌面模式，右键托盘控制')
-    parser.add_argument('--scale', type=float, default=1.0, help='桌宠大小倍率，默认 1')
+    parser.add_argument('--scale', type=float, default=2.0, help='桌面大小倍率，默认 2；Oracle 支持 1 / 1.5 / 2')
     parser.add_argument('--activity', choices=('floor', 'wall'), default='floor', help='蜥蜴桌面活动模式')
     args = parser.parse_args()
+    if args.creature == 'oracle':
+        from .oracle.config import DISPLAY_SCALES
+        if args.scale not in DISPLAY_SCALES:
+            parser.error('Oracle 的 --scale 仅支持 1、1.5、2')
     path = args.config
     if path is None and Path("config.toml").is_file():
         path = Path("config.toml")

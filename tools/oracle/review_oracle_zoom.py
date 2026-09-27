@@ -44,7 +44,7 @@ def main():
     window.show()
     rows = []
     try:
-        for scale in (1., 2., 4.):
+        for scale in (1., 1.5, 2.):
             window.scale_input.setCurrentIndex(window.scale_input.findData(scale))
             window.focus_button.click()
             for size in ((1220, 830), (1820, 1030)):

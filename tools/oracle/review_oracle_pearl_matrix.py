@@ -113,7 +113,8 @@ def main():
     window.asset_message = '本机原版图集与缓存字形 · 珍珠矩阵'
     window.assets.setText(window.asset_message)
     window.zoom_box.setChecked(False)
-    window.scale_input.setCurrentIndex(window.scale_input.findData(None))
+    window.scale_input.setCurrentIndex(window.scale_input.findData(1.))
+    window.focus_button.click()
     window.set_paused(True)
     window.show()
     app.processEvents()

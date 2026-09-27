@@ -15,6 +15,7 @@ from .voice_assets import make_bell_voice_player
 from .input import PuppetHitMap
 from ..shared.geometry import Vec2
 from .scene import OracleScene, RailSide
+from .config import DISPLAY_SCALES
 from .glyphs import load_pearl_glyphs
 from .navigation import CurveRoute
 from .render import OracleRenderer
@@ -37,8 +38,8 @@ class OracleDesktopViewport:
             raise ValueError('桌面坐标和缩放必须为有限数值')
         if self.width <= 0 or self.height <= 0 or self.dpr <= 0:
             raise ValueError('桌面工作区和 DPI 倍率必须大于零')
-        if not .5 <= self.requested_scale <= 4:
-            raise ValueError('桌宠缩放必须为 0.5～4')
+        if self.requested_scale not in DISPLAY_SCALES:
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
 
     @property
     def physical_scale(self):
@@ -83,6 +84,8 @@ class OracleDesktopMotion:
                                pearl_matrix_enabled=previous.pearl_matrix_enabled,
                                pearl_orbits_enabled=previous.pearl_orbits_enabled,
                                halo_enabled=previous.config.halo_enabled,
+                               halo_arcs_enabled=previous.config.halo_arcs_enabled,
+                               halo_arc_max_count=previous.config.halo_arc_max_count,
                                pixel_mode=previous.config.pixel_mode,
                                pearl_matrix_count=previous.config.pearl_matrix_count,
                                pearl_inner_count=previous.config.pearl_inner_count,
@@ -114,6 +117,7 @@ class OracleDesktopMotion:
             for name in ('random', 'eye_random', 'voice_random'):
                 getattr(self.scene.drag_reactions, name).setstate(getattr(previous.drag_reactions, name).getstate())
             self.scene.halo.random.setstate(previous.halo.random.getstate())
+            self.scene.halo_arcs.inherit_cooldown(previous.halo_arcs)
             self.scene.behavior.completed_cycles = previous.behavior.completed_cycles
             self.scene.behavior.cross_cooldown = previous.behavior.cross_cooldown
             self.scene.behavior.drift_cooldown = previous.behavior.drift_cooldown
@@ -130,14 +134,14 @@ class OracleDesktopWindow(QWidget):
 
     def __init__(self, config, scale=1., config_path=None, *, renderer=None):
         super().__init__()
-        if not isfinite(scale) or not .5 <= scale <= 4:
-            raise ValueError('桌宠缩放必须为 0.5～4')
+        if scale not in DISPLAY_SCALES:
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
         if not QSystemTrayIcon.isSystemTrayAvailable():
             raise RuntimeError('系统托盘不可用，无法提供桌宠退出入口')
         self.config, self.config_path = config, config_path
         self.voice_player = make_bell_voice_player(config, config_path, self, initialize=renderer is None)
         self.requested_scale = scale
-        self.asset_message = 'Bell · 原版主图集与珍珠字形缓存'
+        self.asset_message = ''
         if renderer is None:
             atlas = Atlas(extract_atlas(config.game_dir))
             renderer = OracleRenderer(atlas, config.oracle.colors)
@@ -160,6 +164,7 @@ class OracleDesktopWindow(QWidget):
         self._closing = False
         self._screen_valid = False
         self.debug_window = None
+        self.action_toolbar = None
         self.drag_input = DragInputWindow(self)
         self.drag_hit = PuppetHitMap()
         self.rebuild_timer = QTimer(self)
@@ -201,7 +206,7 @@ class OracleDesktopWindow(QWidget):
         self.pause_action = self.menu.addAction('暂停')
         self.pause_action.setCheckable(True)
         self.pause_action.toggled.connect(self.set_paused)
-        self.drag_action = self.menu.addAction('允许拖动人偶')
+        self.drag_action = self.menu.addAction('允许鼠标拖动')
         self.drag_action.setCheckable(True)
         self.drag_action.setChecked(self.config.interaction.drag_enabled)
         self.drag_action.toggled.connect(self.set_drag_enabled)
@@ -221,25 +226,25 @@ class OracleDesktopWindow(QWidget):
         self.voice_status = audio_menu.addAction(self.voice_player.status)
         self.voice_status.setEnabled(False)
         self.voice_player.status_changed.connect(self.set_voice_status)
-        self.matrix_action = self.menu.addAction('珍珠矩阵')
+        self.matrix_action = self.menu.addAction('显示矩阵珍珠')
         self.matrix_action.setCheckable(True)
         self.matrix_action.setChecked(self.config.oracle.pearl_matrix_enabled)
         self.matrix_action.toggled.connect(self.set_pearl_matrix)
-        self.orbits_action = self.menu.addAction('环绕珍珠（内圈 / 外圈）')
+        self.orbits_action = self.menu.addAction('显示环绕珍珠')
         self.orbits_action.setCheckable(True)
         self.orbits_action.setChecked(self.config.oracle.pearl_orbits_enabled)
         self.orbits_action.toggled.connect(self.set_pearl_orbits)
-        sizes = self.menu.addMenu('大小（屏幕像素倍率）')
+        sizes = self.menu.addMenu('缩放比例')
         group = QActionGroup(sizes)
         self.scale_actions = {}
-        for factor in sorted({.5, 1., 1.5, 2., 3., 4., self.requested_scale}):
+        for factor in DISPLAY_SCALES:
             action = sizes.addAction(f'{factor:g}×')
             action.setCheckable(True)
             action.setChecked(factor == self.requested_scale)
             group.addAction(action)
             action.triggered.connect(lambda checked=False, value=factor: self.change_scale(value))
             self.scale_actions[factor] = action
-        pixels = self.menu.addMenu('像素样式（人偶 / 光环）')
+        pixels = self.menu.addMenu('像素化计算方式')
         pixel_group = QActionGroup(pixels)
         self.pixel_mode_actions = {}
         for label, mode in (('精细像素', 'adaptive'), ('原始像素', 'classic')):
@@ -250,6 +255,9 @@ class OracleDesktopWindow(QWidget):
             action.triggered.connect(lambda checked=False, value=mode: self.set_pixel_mode(value))
             self.pixel_mode_actions[mode] = action
         self.menu.addSeparator()
+        self.toolbar_action = self.menu.addAction('显示行动工具栏')
+        self.toolbar_action.setCheckable(True)
+        self.toolbar_action.toggled.connect(self.set_toolbar_visible)
         self.debug_action = self.menu.addAction('打开调试窗口…', self.open_debug)
         self.reset_action = self.menu.addAction('重置到边缘', self.reset_position)
         self.menu.addSeparator()
@@ -335,8 +343,10 @@ class OracleDesktopWindow(QWidget):
             self._next_render_time = 0.
             self.update()
         self.sync_pause()
+        if self.action_toolbar is not None and self.action_toolbar.isVisible():
+            self.action_toolbar.fit_workarea(rect)
         actual = self.motion.viewport.physical_scale
-        self.tray.setToolTip(f'Bell · {actual:g}× · 右键暂停、调试或退出\n{self.asset_message}')
+        self.tray.setToolTip(f'当前缩放 {actual:g}×')
         if self.debug_window is None:
             self.show()
 
@@ -347,8 +357,8 @@ class OracleDesktopWindow(QWidget):
         return super().event(event)
 
     def change_scale(self, scale):
-        if not isfinite(scale) or not .5 <= scale <= 4:
-            raise ValueError('桌宠缩放必须为 0.5～4')
+        if scale not in DISPLAY_SCALES:
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
         self.requested_scale = scale
         if scale in self.scale_actions:
             self.scale_actions[scale].setChecked(True)
@@ -370,6 +380,7 @@ class OracleDesktopWindow(QWidget):
             self.motion.scene.set_pearl_matrix(enabled)
             self._last_revision = None
             self.update()
+        self.sync_toolbar()
 
     def set_pearl_orbits(self, enabled):
         if self.motion is not None:
@@ -384,6 +395,62 @@ class OracleDesktopWindow(QWidget):
         if self.clock.paused:
             self.voice_player.stop()
             self.drag_input.suspend()
+        self.sync_toolbar()
+
+    def set_toolbar_visible(self, visible):
+        if visible:
+            initial = self.action_toolbar is None
+            if initial:
+                from .toolbar import OracleActionToolbar
+                self.action_toolbar = OracleActionToolbar()
+                self.action_toolbar.requested.connect(self.trigger_toolbar_action)
+                self.action_toolbar.closed.connect(lambda: self.toolbar_action.setChecked(False))
+            self.action_toolbar.show()
+            self.sync_toolbar()
+            if self.screen is not None and self._screen_valid:
+                self.action_toolbar.fit_workarea(self.screen.availableGeometry(), initial=initial)
+            self.action_toolbar.raise_()
+        elif self.action_toolbar is not None:
+            self.action_toolbar.hide()
+
+    def sync_toolbar(self):
+        if self.action_toolbar is None or not self.action_toolbar.isVisible():
+            return
+        blocked = ('工作区暂不可用' if self.motion is None or not self._screen_valid else
+                   '调试窗口打开中，桌面人偶已暂停' if self.debug_window is not None else
+                   '桌宠已暂停，可从托盘菜单继续' if self.clock.paused else '')
+        self.action_toolbar.sync(self.motion.scene if self.motion else None, blocked)
+
+    def trigger_toolbar_action(self, action):
+        self.sync_toolbar()
+        toolbar = self.action_toolbar
+        if toolbar is None or action not in toolbar.buttons or not toolbar.buttons[action].isEnabled():
+            return
+        scene = self.motion.scene  # 每次读取当前场景，工作区/缩放重建后不会操作旧人偶。
+        autonomous = scene.behavior.enabled
+        if action == 'drift':
+            scene.drift()
+            message = '已开始反重力漫游'
+        elif action == 'matrix':
+            message = '已召近矩阵珍珠进行观察' if scene.observe_matrix_pearl() else '目前没有可抽取的矩阵珍珠'
+        elif action == 'pulse':
+            scene.pulse_halo()
+            message = '已触发光环扩张'
+        elif action == 'flash':
+            scene.halo.flash_ring(2)
+            message = '已触发外圈闪烁'
+        elif action == 'fill':
+            scene.halo.pulse_fill()
+            message = '已触发实心化'
+        else:
+            count = scene.trigger_halo_arcs()
+            message = f'已触发 {count} 条电弧' if count else '附近没有符合距离与范围限制的端点'
+        if autonomous and action in ('drift', 'matrix'):
+            scene.set_autonomous(True)
+        toolbar.feedback(message)
+        self._last_revision = None
+        self.update()
+        self.sync_toolbar()
 
     def set_drag_enabled(self, enabled):
         if self.motion is not None:
@@ -419,6 +486,7 @@ class OracleDesktopWindow(QWidget):
         self.last_time = now
         channel = self.motion.scene.drag_reactions.voice if self.motion is not None else None
         self.voice_player.sync(channel, paused=self.clock.paused or self._closing)
+        self.sync_toolbar()
         if self.motion is None or self.clock.paused or self.debug_window is not None or not self._screen_valid:
             return
         s = self.motion.scene
@@ -513,6 +581,8 @@ class OracleDesktopWindow(QWidget):
                 pass
         if self.debug_window is not None:
             self.debug_window.close()
+        if self.action_toolbar is not None:
+            self.action_toolbar.close()
         self.tray.hide()
 
     def quit_pet(self):

@@ -11,7 +11,7 @@ from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..config import AppConfig
 from ..shared.geometry import Vec2
 from .scene import OracleScene, RailSide
-from .config import OracleColors
+from .config import DISPLAY_SCALES, OracleColors
 from .glyphs import load_pearl_glyphs
 from .render import OracleRenderer, point
 from .input import PuppetHitMap
@@ -41,7 +41,7 @@ class OracleCanvas(QWidget):
         self.skeleton = False
         self.magnifier = True
         self.show_path = True
-        self.view_scale = 1.  # 屏幕物理像素 / 游戏单位；None 表示适应窗口。
+        self.view_scale = 1.  # 屏幕物理像素 / 游戏单位。
         self.view_center = None
         self._pan_position = None
         self.drag_hit = PuppetHitMap()
@@ -52,18 +52,16 @@ class OracleCanvas(QWidget):
     def view_transform(self):
         world = self.scene.world
         dpr = self.devicePixelRatioF()
-        if self.view_scale is None:
-            scale = min((self.width() - 28) / world.width, (self.height() - 28) / world.height)
-            center = Vec2(world.width/2, world.height/2)
-        else:
-            # Qt 绘制坐标是逻辑像素；抵消系统缩放后，1× 才是实际屏幕的 1px。
-            scale = self.view_scale/dpr
-            center = self.view_center or Vec2(world.width/2, world.height/2)
+        # Qt 绘制坐标是逻辑像素；抵消系统缩放后，1× 才是实际屏幕的 1px。
+        scale = self.view_scale/dpr
+        center = self.view_center or Vec2(world.width/2, world.height/2)
         offset = Vec2(self.width()/2-center.x*scale, self.height()/2-center.y*scale)
         # 相机落在物理像素边界，窗口尺寸改变不引入额外半像素位移。
         return scale, Vec2(round(offset.x*dpr)/dpr, round(offset.y*dpr)/dpr)
 
     def set_view_scale(self, scale):
+        if scale not in DISPLAY_SCALES:
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
         self.view_scale = scale
         self.view_center = None
         self._pan_position = None
@@ -90,9 +88,8 @@ class OracleCanvas(QWidget):
             return
         position = Vec2(event.position().x(), event.position().y())
         if event.button() == Qt.MouseButton.MiddleButton:
-            if self.view_scale is not None:
-                self._pan_position = position
-                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self._pan_position = position
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
             return
         pos = self.view_to_world(position)
@@ -264,8 +261,7 @@ class OracleCanvas(QWidget):
                     painter.drawPath(self._pearl_path)
             painter.restore()
             painter.setPen(QColor('#8fa4b5'))
-            mode = '适应窗口' if self.view_scale is None else '固定比例'
-            painter.drawText(QPointF(14, 23), f'{mode} · {scale*self.devicePixelRatioF():g}×（屏幕像素）')
+            painter.drawText(QPointF(14, 23), f'固定比例 · {scale*self.devicePixelRatioF():g}×（屏幕像素）')
             painter.drawText(QPointF(26, self.height() - 24), '绿色：边缘活动带   灰色十字：珍珠悬浮点   虚线框：珍珠跟随范围')
             if self.magnifier:
                 rect = self.magnifier_rect()
@@ -351,9 +347,9 @@ class OracleDebugWindow(QMainWindow):
         toolbar.addWidget(self.drag_box)
         toolbar.addWidget(QLabel('预览比例'))
         self.scale_input = QComboBox()
-        for text, value in (('固定 1×', 1.), ('固定 2×', 2.), ('固定 4×', 4.), ('适应窗口', None)):
-            self.scale_input.addItem(text, value)
-        self.scale_input.setToolTip('固定倍率按屏幕像素计算，不随窗口大小或系统 DPI 缩放；适应窗口显示全景')
+        for value in DISPLAY_SCALES:
+            self.scale_input.addItem(f'固定 {value:g}×', value)
+        self.scale_input.setToolTip('倍率按屏幕像素计算，不随窗口大小或系统 DPI 缩放；中键拖动可平移视图')
         self.scale_input.currentIndexChanged.connect(self.set_view_scale)
         toolbar.addWidget(self.scale_input)
         self.focus_button = QPushButton('定位人偶')
@@ -517,6 +513,10 @@ class OracleDebugWindow(QMainWindow):
         self.halo_fill_button.setToolTip('强制进入实心目标并重选尺寸；保持时间与自然事件一样随机，退出时由中央挖空。暂停时可单步查看。')
         self.halo_fill_button.clicked.connect(self.fill_halo)
         halo_row.addWidget(self.halo_fill_button)
+        self.halo_arc_button = QPushButton('触发电弧')
+        self.halo_arc_button.setToolTip('跳过自动等待，随机生成电弧；距离、边缘范围和邻边数量仍受限制。')
+        self.halo_arc_button.clicked.connect(self.trigger_halo_arcs)
+        halo_row.addWidget(self.halo_arc_button)
         halo_row.addWidget(QLabel('与珍珠投影共用颜色和透明度；空间不足时限制尺寸'))
         halo_row.addStretch()
         layout.addLayout(halo_row)
@@ -607,9 +607,7 @@ class OracleDebugWindow(QMainWindow):
     def set_view_scale(self, index):
         scale = self.scale_input.currentData()
         self.canvas.set_view_scale(scale)
-        self.focus_button.setEnabled(scale is not None)
-        if scale is not None:
-            self.canvas.center_on_pet()
+        self.canvas.center_on_pet()
 
     def set_pixel_mode(self, index):
         self.scene.config = replace(self.scene.config, pixel_mode=self.pixel_mode_input.currentData())
@@ -696,6 +694,11 @@ class OracleDebugWindow(QMainWindow):
         self.scene.halo.pulse_fill()
         self.refresh()
 
+    def trigger_halo_arcs(self):
+        count = self.scene.trigger_halo_arcs()
+        self.halo_arc_button.setToolTip(f'已触发 {count} 条电弧' if count else '附近没有符合距离与范围限制的端点')
+        self.refresh()
+
     def observe_pearl(self, mode):
         self.scene.observe_pearl(mode)
         self.refresh()
@@ -748,6 +751,8 @@ class OracleDebugWindow(QMainWindow):
         self.halo_pulse_button.setEnabled(scene.halo_visible)
         self.halo_flash_button.setEnabled(scene.halo_visible)
         self.halo_fill_button.setEnabled(scene.halo_visible)
+        self.halo_arc_button.setEnabled(scene.halo_visible and scene.config.halo_arcs_enabled
+                                        and not scene.halo_arcs.arcs)
         self.matrix_pearl_button.setEnabled(scene.pearl_matrix is not None)
         available = bool(scene.fixed_pearls.roots) or scene.pearl_matrix is not None
         self.look_pearl_button.setEnabled(available)

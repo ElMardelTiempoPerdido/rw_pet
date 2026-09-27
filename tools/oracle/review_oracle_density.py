@@ -19,6 +19,7 @@ from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
 from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
+from rw_creature_pet.oracle.config import DISPLAY_SCALES
 
 
 def paint(renderer, scene, scale, origin=(0, 0), size=(960, 600), halo_only=False):
@@ -62,7 +63,7 @@ def main(*, benchmark=True):
         origin = (floor(center.x)-60, floor(center.y)-32)
         if part == 'halo':
             origin = (floor(center.x)-60, floor(center.y)-60)
-        for row, scale in enumerate((1, 2, 4)):
+        for row, scale in enumerate(DISPLAY_SCALES):
             for column, mode in enumerate(('classic', 'adaptive')):
                 scene.config = replace(scene.config, pixel_mode=mode)
                 image = paint(renderer(), scene, scale, origin, size, part == 'halo')
@@ -77,7 +78,7 @@ def main(*, benchmark=True):
     if not benchmark:
         return
     metrics = {}
-    for scale in (1, 2, 4):
+    for scale in DISPLAY_SCALES:
         for mode in ('classic', 'adaptive'):
             scene = OracleScene(replace(config.oracle, pixel_mode=mode))
             scene.start_lap()

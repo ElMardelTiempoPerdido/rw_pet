@@ -88,8 +88,9 @@ class OracleHeadRenderTests(unittest.TestCase):
         for gx in (-1., 1.):
             image = self.paint(renderer, density=4, scale=4, gaze=(gx, 0))
             near = -1 if gx > 0 else 1
-            front = image.pixelColor(round((64+near*5)*4), round((64+.8)*4))
-            back = image.pixelColor(round((64-near*5)*4), round((64+.8)*4))
+            # 新耳壳向内收 1；在亮面下端采样。
+            front = image.pixelColor(round((64+near*4)*4), round((64+1.8)*4))
+            back = image.pixelColor(round((64-near*4)*4), round((64+1.8)*4))
             self.assertEqual(front, QColor(renderer.colors.head_highlight))
             self.assertEqual(back, QColor(renderer.colors.skin))
 

@@ -14,6 +14,7 @@ from .appearance import OracleAppearance
 from .behavior import Activity, OracleBehavior
 from .eyes import OracleEyes
 from .halo import OracleHalo
+from .halo_arcs import HaloArcs
 from .pearl_matrix import PearlMatrix
 from .pearl_orbits import PearlOrbits
 from .pearl_fixed import FixedPearls
@@ -328,11 +329,14 @@ class OracleScene:
         self.ticks = 0
         self.appearance = OracleAppearance(self)
         self.halo = OracleHalo(self.world, self.orbit_center, self.config.halo_scale)
+        self.halo_arcs = HaloArcs(self.world, self.config.halo_arc_max_count)
         self.drag = OracleDrag(self, drag_enabled)
 
     def set_halo_enabled(self, enabled):
         was_enabled = self.config.halo_enabled
         self.config = replace(self.config, halo_enabled=enabled)
+        if not enabled:
+            self.halo_arcs.clear()
         if enabled and not was_enabled:
             self.halo.center = self.halo.previous_center = self.halo.region.clamp(self.orbit_center)
 
@@ -342,13 +346,18 @@ class OracleScene:
     def pulse_halo(self, scale=1.25, hold_seconds=.8):
         self.halo.pulse(scale, hold_seconds)
 
+    def trigger_halo_arcs(self):
+        if not self.halo_visible or not self.config.halo_arcs_enabled:
+            return 0
+        return self.halo_arcs.trigger(self.halo, manual=True)
+
     @property
     def halo_visible(self):
         return self.config.halo_enabled and self.config.projection_opacity > 0
 
     @property
     def halo_visual_revision(self):
-        return (self.halo, self.halo.revision) if self.halo_visible else None
+        return (self.halo, self.halo.revision, self.halo_arcs.revision) if self.halo_visible else None
 
     def set_anchor(self, side, fraction):
         if not isfinite(fraction) or not 0 <= fraction <= 1:
@@ -678,4 +687,5 @@ class OracleScene:
                 self.halo.step(preferred, region=self.drag.halo_region)
             else:
                 self.halo.step(self.orbit_center)
+        self.halo_arcs.step(self.halo, self.halo_visible and self.config.halo_arcs_enabled)
         self.ticks += 1
