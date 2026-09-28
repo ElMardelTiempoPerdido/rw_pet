@@ -12,6 +12,7 @@ from .appearance import HangingHand, perpendicular, rotate
 from .arm_graphics import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
 from .damage import body_bounds, point_bounds
 from .raster import local_canvas, painter_density, pixel_density
+from .glow import GlowLayer
 
 
 def point(v):
@@ -140,6 +141,10 @@ class OracleRenderer:
         self._halo_image = None
         self._gown_colors_key = None
         self._gown_colors = ()
+        self._body_glow = GlowLayer()
+        self._head_glow = GlowLayer()
+        self._pearl_glow = GlowLayer()
+        self._pearl_glow_source_key = None
         if atlas is not None:
             for name in self.SPRITES:
                 atlas.sprite(name)
@@ -638,7 +643,8 @@ class OracleRenderer:
         if pixelated:
             # 与躯干图层使用同一世界像素网格；只对最终图像落点取整。
             x, y = floor(x*density+.5)/density, floor(y*density+.5)/density
-        painter.drawImage(QRectF(x, y, size, size), self._head_image)
+        self._head_target = QRectF(x, y, size, size)
+        painter.drawImage(self._head_target, self._head_image)
         painter.restore()
 
     def phone_segments(self, sign, gx, gy):
@@ -750,11 +756,8 @@ class OracleRenderer:
     def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True,
              raster_scale=None):
         density = painter_density(painter, scene.config.pixel_mode, raster_scale)
-        self.draw_halo(painter, scene, alpha, raster_scale=density)
-        # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
-        self.draw_pearl(painter, scene, alpha)
         app = scene.appearance
-        eye_alpha = alpha
+        eye_alpha = pearl_alpha = alpha
         if app.sleeping:
             alpha = 1.
         key = (app, app.revision, alpha, self.colors, self.atlas, cords)
@@ -763,6 +766,14 @@ class OracleRenderer:
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
                                include_head=False, halo=False)
             self._frame_key, self._frame = key, commands
+        # 先准备实体，不改变原有合成顺序；发光只读取这些实体层的 alpha。
+        head = PaintCommands()
+        self.draw_scene_head(head, scene, alpha, eye_alpha, pixelated=pixelated, raster_scale=density)
+        if scene.config.glow_enabled:
+            self.draw_glow(painter, scene, pearl_alpha, density)
+        self.draw_halo(painter, scene, pearl_alpha, raster_scale=density)
+        # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
+        self.draw_pearl(painter, scene, pearl_alpha)
         # 几何帧与显示倍率无关；倍率只影响局部光栅缓存。放大镜可指定
         # 主视图的 raster_scale，查看主视图已有的像素而不是重新细分。
         # 非像素路径仅供几何缓存的回归对照；正常入口默认启用像素绘制。
@@ -771,12 +782,11 @@ class OracleRenderer:
         else:
             self._frame.replay(painter)
         # 开合只刷新头部小图；身体休眠时不重建衣袍、机械臂或长线缆指令。
-        self.draw_scene_head(painter, scene, alpha, eye_alpha, pixelated=pixelated,
-                             raster_scale=density)
+        head.replay(painter)
         if skeleton:
             self.draw_skeleton(painter, scene, alpha)
 
-    def draw_pixel_layer(self, painter, scene, density=1.):
+    def prepare_pixel_layer(self, scene, density=1.):
         """按显示精度绘制局部透明画布，保留硬像素边缘。"""
         key = (self._frame_key, density)
         if key != self._raster_key:
@@ -794,10 +804,41 @@ class OracleRenderer:
             self._raster_image = image
             self._raster_target = target
             self._raster_key = key
+
+    def draw_pixel_layer(self, painter, scene, density=1.):
+        self.prepare_pixel_layer(scene, density)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.drawImage(self._raster_target, self._raster_image)
         painter.restore()
+
+    def draw_glow(self, painter, scene, alpha, density):
+        config = scene.config
+        color, radius = config.glow_color, config.glow_radius
+        self.prepare_pixel_layer(scene, density)
+        self._body_glow.prepare(self._raster_image, self._raster_key, color, radius, density)
+        self._head_glow.prepare(self._head_image, self._head_key, color, radius, density)
+        # 所有珍珠复用一枚实体光斑，轨道/卫星移动只需平移，不模糊整块屏幕。
+        key = (self.atlas, density)
+        if key != self._pearl_glow_source_key:
+            source, target = local_canvas(QRectF(-5, -5, 10, 10), density)
+            local = QPainter(source)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                self.draw_pearl_at(local, Vec2(), 0, None, 0)
+            finally:
+                local.end()
+            self._pearl_glow_source = source
+            self._pearl_glow_source_target = target
+            self._pearl_glow_source_key = key
+        self._pearl_glow.prepare(self._pearl_glow_source, key, color, radius, density)
+        for group in (scene.pearl_matrix, scene.pearl_orbits, scene.fixed_pearls):
+            if group is not None:
+                for position, _, _ in group.samples(alpha):
+                    self._pearl_glow.draw(painter, self._pearl_glow_source_target.translated(point(position)))
+        self._body_glow.draw(painter, self._raster_target)
+        self._head_glow.draw(painter, self._head_target)
 
     def draw_pearl(self, painter, scene, alpha):
         glyph_color = None

@@ -54,7 +54,7 @@ class OracleToolbarTests(unittest.TestCase):
     def test_six_buttons_act_on_scene_without_disabling_autonomy(self):
         w, s = self.window, self.window.motion.scene
         self.assertFalse(w.action_toolbar.buttons['matrix'].isEnabled())
-        w.matrix_action.trigger()
+        w.set_pearl_matrix(not w.config.oracle.pearl_matrix_enabled)
         self.click('drift')
         self.assertTrue(s.behavior.drift_active)
         self.assertTrue(s.behavior.enabled)

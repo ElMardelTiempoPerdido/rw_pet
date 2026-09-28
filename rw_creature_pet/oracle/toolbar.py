@@ -7,12 +7,12 @@ class OracleActionToolbar(QWidget):
     requested = Signal(str)
     closed = Signal()
     ACTIONS = (('drift', '反重力漫游'), ('matrix', '抽取矩阵珍珠'), ('pulse', '光环扩张'),
-               ('flash', '外圈闪烁'), ('fill', '实心化'), ('arcs', '触发电弧'))
+               ('flash', '光环外圈闪烁'), ('fill', '光环实心化'), ('arcs', '触发电弧'))
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint
                          | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
-        self.setWindowTitle('Bell · 行动工具栏')
+        self.setWindowTitle('古人调试模拟器')
         layout = QGridLayout(self)
         layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
         self.buttons = {}
@@ -43,7 +43,7 @@ class OracleActionToolbar(QWidget):
             if not reason and name in ('drift', 'matrix') and drag:
                 reason = '拖动结束后可用'
             if not reason and name == 'matrix' and not matrix:
-                reason = '请先在托盘菜单开启矩阵珍珠（数量需大于 0）'
+                reason = '请先在设置菜单的“珍珠设置”中开启矩阵珍珠（数量需大于 0）'
             if not reason and name in ('pulse', 'flash', 'fill', 'arcs') and not halo:
                 reason = '光环关闭或投影透明度为 0'
             if not reason and name == 'arcs':

@@ -9,6 +9,7 @@ from heapq import heappop, heappush
 from math import atan2, ceil, cos, pi, sin, sqrt, tan
 
 from ..shared.geometry import Bounds, Vec2
+from .config import EDGE_NAMES
 
 
 def normalized(v, fallback=Vec2(1, 0)):
@@ -33,12 +34,17 @@ class EdgeRegion:
             self.hole = Bounds(min(self.hole.left, depth), min(self.hole.top, depth),
                                max(self.hole.right, world.width - depth),
                                max(self.hole.bottom, world.height - depth))
-        self.boxes = (
+        self.set_boxes(world, (
             Bounds(pad, pad, world.width - pad, self.hole.top),
             Bounds(self.hole.right, pad, world.width - pad, world.height - pad),
             Bounds(pad, self.hole.bottom, world.width - pad, world.height - pad),
             Bounds(pad, pad, self.hole.left, world.height - pad),
-        )
+        ))
+
+    def set_boxes(self, world, boxes):
+        self.allowed_edges = tuple(i for i, name in enumerate(EDGE_NAMES) if name in world.allowed_edges)
+        self.edge_boxes = tuple(boxes)  # 保留方位索引：上 / 右 / 下 / 左。
+        self.boxes = tuple(self.edge_boxes[i] for i in self.allowed_edges)
 
     def contains(self, p, tolerance=1e-6):
         return any(box.contains(p, tolerance) for box in self.boxes)
@@ -49,6 +55,28 @@ class EdgeRegion:
     def segment_safe(self, a, b):
         if not (self.contains(a) and self.contains(b)):
             return False
+        if len(self.boxes) < 4:
+            # 不仅避开中央孔洞，整段也必须被允许走廊的并集覆盖。
+            intervals = []
+            for box in self.boxes:
+                lo, hi = 0., 1.
+                for start, delta, lower, upper in ((a.x, b.x-a.x, box.left-1e-7, box.right+1e-7),
+                                                  (a.y, b.y-a.y, box.top-1e-7, box.bottom+1e-7)):
+                    if abs(delta) < 1e-12:
+                        if not lower <= start <= upper:
+                            hi = -1.
+                            break
+                    else:
+                        u, v = sorted(((lower-start)/delta, (upper-start)/delta))
+                        lo, hi = max(lo, u), min(hi, v)
+                if lo <= hi:
+                    intervals.append((lo, hi))
+            end = 0.
+            for lo, hi in sorted(intervals):
+                if lo > end+1e-7:
+                    return False
+                end = max(end, hi)
+            return end >= 1.-1e-7
         # Liang–Barsky：与中央开矩形相交才算越界；切于边界的线允许通过。
         lo, hi = 0., 1.
         for start, delta, lower, upper in ((a.x, b.x - a.x, self.hole.left + 1e-7, self.hole.right - 1e-7),
@@ -132,6 +160,17 @@ class RoundedRail:
             RailPiece(Vec2(l, b - d), Vec2(l, t + d), b - t - 2*d),
             RailPiece(Vec2(l, t + d), Vec2(l + d, t), pi*d/2, Vec2(l + d, t + d), pi),
         )
+        allowed = {i for i, name in enumerate(EDGE_NAMES) if name in world.allowed_edges}
+        self.closed = len(allowed) == 4
+        if not self.closed:
+            first = next(i for i in allowed if (i-1) % 4 not in allowed)
+            edges = [(first+i) % 4 for i in range(len(allowed))]
+            pieces = []
+            for edge in edges:
+                pieces.append(self.pieces[2*edge])
+                if (edge+1) % 4 in allowed:
+                    pieces.append(self.pieces[2*edge+1])
+            self.pieces = tuple(pieces)
         self.ends = []
         total = 0.
         for piece in self.pieces:
@@ -140,7 +179,7 @@ class RoundedRail:
         self.length = total
 
     def sample(self, s):
-        s %= self.length
+        s = s % self.length if self.closed else max(0., min(self.length, s))
         i = min(len(self.pieces) - 1, bisect_right(self.ends, s))
         return self.pieces[i].sample(s - (self.ends[i - 1] if i else 0), self.radius)
 
@@ -149,6 +188,8 @@ class RoundedRail:
         return Vec2(-tangent.y, tangent.x)
 
     def delta(self, start, end):
+        if not self.closed:
+            return end-start
         return (end - start + self.length / 2) % self.length - self.length / 2
 
     def project(self, point, reference=None):
@@ -274,9 +315,23 @@ class EdgePlanner:
         raise ValueError('无法在边缘区域内连接目标')
 
     def lap(self, start, clockwise=True):
+        if len(self.region.allowed_edges) < 4:
+            # 开放轨道无法绕完整一圈；调试巡回按允许边依次访问后原路返回。
+            first = next(i for i in self.region.allowed_edges if (i-1) % 4 not in self.region.allowed_edges)
+            edges = [(first+i) % 4 for i in range(len(self.region.allowed_edges))]
+            if not clockwise:
+                edges.reverse()
+            targets = [self.corners[i].lerp(self.corners[(i+1) % 4], .5) for i in edges]
+            curves, cursor = [], start
+            for target in [*targets, *targets[-2::-1], start]:
+                route = self.plan(cursor, target)
+                curves.extend(route.curves)
+                cursor = target
+            return CurveRoute(curves, start)
         # 找到所在边；角落平局优先与当前点最近的下一角，沿指定方向通过四个角。
         choices = []
-        for edge, box in enumerate(self.region.boxes):
+        for edge in self.region.allowed_edges:
+            box = self.region.edge_boxes[edge]
             if box.contains(start):
                 next_corner = (edge + 1) % 4 if clockwise else edge
                 choices.append(((self.corners[next_corner] - start).length(), next_corner))
@@ -289,7 +344,9 @@ class EdgePlanner:
         """自主跨边只经过两边共用的一个角，不允许规划器改走另一侧长路。"""
         if (target_edge-source_edge) % 4 not in (1, 3):
             raise ValueError('跨边目标必须是当前边的相邻边')
-        source, destination = self.region.boxes[source_edge], self.region.boxes[target_edge]
+        if source_edge not in self.region.allowed_edges or target_edge not in self.region.allowed_edges:
+            raise ValueError('跨边路径不能经过未允许的边缘')
+        source, destination = self.region.edge_boxes[source_edge], self.region.edge_boxes[target_edge]
         if not source.contains(start) or not destination.contains(target):
             raise ValueError('跨边路径端点必须位于指定的边')
         corner = target_edge if (target_edge-source_edge) % 4 == 1 else source_edge
@@ -421,6 +478,10 @@ class SlidingBase:
                 target_speed = sign * min(corner_limit, sqrt(2 * .065 * (abs(error) - stop)))
         self.velocity = approach(self.velocity, target_speed, .065)
         candidate_s = self.s + self.velocity
+        if not self.rail.closed:
+            candidate_s = max(0., min(self.rail.length, candidate_s))
+            if candidate_s in (0., self.rail.length):
+                self.velocity = 0.
         if (self.rail.sample(candidate_s)[0] - body).length() > reach - 4:
             # 不能为追赶远处路径而把已经支撑着的人偶拉出可达范围。
             self.velocity = 0.

@@ -38,4 +38,7 @@ def visual_bounds(scene):
             bounds = point_bounds(points, 20.)  # 含 15px 字形及珍珠高光。
             if not bounds.isEmpty():
                 result = result.united(bounds)
+    if scene.config.glow_enabled:
+        margin = scene.config.glow_radius+3
+        result = result.adjusted(-margin, -margin, margin, margin)
     return result

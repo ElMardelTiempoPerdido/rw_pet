@@ -21,10 +21,10 @@ class ExtractedPearlRegion(EdgeRegion):
         # 可见范围为左 4、上 15、右 15、下 4，再留一个像素取整余量。
         self.outer = Bounds(5, 16, w-16, h-5)
         self.hole = Bounds(inner.left-16, inner.top-5, inner.right+5, inner.bottom+16)
-        self.boxes = (Bounds(5, 16, w-16, self.hole.top),
+        self.set_boxes(world, (Bounds(5, 16, w-16, self.hole.top),
                       Bounds(self.hole.right, 16, w-16, h-5),
                       Bounds(5, self.hole.bottom, w-16, h-5),
-                      Bounds(5, 16, self.hole.left, h-5))
+                      Bounds(5, 16, self.hole.left, h-5)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,18 +142,29 @@ class PearlMatrix:
         boxes = self._follow_boxes(center)
         anchor = self.anchor
         self._replan_ticks = max(0, self._replan_ticks-1)
+        anchor.home = self._home_in_boxes(boxes)
+        if anchor.target != anchor.home and self._replan_ticks == 0:
+            anchor._set_target(anchor.home, catch_up=True)
+            self._replan_ticks = anchor.REPLAN_TICKS
+        anchor.step()
+        self._step_extracted()
+
+    def home_for(self, center):
+        """预测人偶到达候选点后整组的悬浮点，不改动锚点、路径或跟随框。"""
+        boxes = group_follow_boxes(center, self.body_region, self.region,
+                                   self.width, self.height, self.half_size)
+        return self._home_in_boxes(boxes)
+
+    def _home_in_boxes(self, boxes):
+        anchor = self.anchor
         if not any(box.contains(anchor.home) for box in boxes):
             candidates = []
             for box in boxes:
                 dx = min(self.FOLLOW_INSET, (box.right-box.left)*.25)
                 dy = min(self.FOLLOW_INSET, (box.bottom-box.top)*.25)
                 candidates.append(Bounds(box.left+dx, box.top+dy, box.right-dx, box.bottom-dy).clamp(anchor.home))
-            anchor.home = min(candidates, key=lambda p: (p-anchor.home).length())
-        if anchor.target != anchor.home and self._replan_ticks == 0:
-            anchor._set_target(anchor.home, catch_up=True)
-            self._replan_ticks = anchor.REPLAN_TICKS
-        anchor.step()
-        self._step_extracted()
+            return min(candidates, key=lambda p: (p-anchor.home).length())
+        return anchor.home
 
     def samples(self, alpha=1.):
         center = self.anchor.sample(alpha)

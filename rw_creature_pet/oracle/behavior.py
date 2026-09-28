@@ -195,10 +195,10 @@ class OracleBehavior:
             self.edge = ('top', 'right', 'bottom', 'left').index(scene.anchor.side.value)
             return self.edge
         p = scene.body.chunks[0].position
-        boxes = scene.navigator.region.boxes
-        if self.edge is None or not boxes[self.edge].contains(p):
+        boxes = scene.navigator.region.edge_boxes
+        if self.edge not in scene.navigator.region.allowed_edges or not boxes[self.edge].contains(p):
             distances = (p.y, scene.world.width-p.x, scene.world.height-p.y, p.x)
-            self.edge = min((i for i, box in enumerate(boxes) if box.contains(p)), key=lambda i: distances[i])
+            self.edge = min((i for i in scene.navigator.region.allowed_edges if boxes[i].contains(p)), key=lambda i: distances[i])
         return self.edge
 
     def choose_activity(self, scene):
@@ -218,15 +218,23 @@ class OracleBehavior:
             return Activity.IDLE
         return Activity.ROAM if value < .75 else Activity.NOTICE
 
+    def matrix_clear(self, scene, point):
+        """只筛选自主目的地；矩阵当前中心和跟随后的悬浮点都要留出间距。"""
+        matrix, radius = scene.pearl_matrix, scene.config.pearl_matrix_avoid_radius
+        if matrix is None or radius == 0:
+            return True
+        return ((point-matrix.anchor.position).length() >= radius
+                and (point-matrix.home_for(point)).length() >= radius)
+
     def short_point(self, scene, distance_range=None):
         edge = self.current_edge(scene)
         region = scene.navigator.region if scene.navigator else scene.body_region
-        box, start = region.boxes[edge], scene.body.chunks[0].position
+        box, start = region.edge_boxes[edge], scene.body.chunks[0].position
         for _ in range(16):
             angle = self.random.uniform(0, 2*pi)
             distance = self.random.uniform(*(distance_range or self.ROAM_DISTANCE))
             point = scene.project_target(box.clamp(start+Vec2(cos(angle), sin(angle))*distance))
-            if box.contains(point) and (point-start).length() >= 30:
+            if box.contains(point) and (point-start).length() >= 30 and self.matrix_clear(scene, point):
                 return point
         return None
 
@@ -237,20 +245,24 @@ class OracleBehavior:
         neighbors = ((source-1) % 4, (source+1) % 4)
         if target_edge is not None and target_edge not in neighbors:
             raise ValueError('只能自主移动到当前边的两条相邻边')
+        allowed = scene.navigator.region.allowed_edges
+        if target_edge is not None and target_edge not in allowed:
+            return None
+        neighbors = tuple(edge for edge in neighbors if edge in allowed)
         planner, start = scene.navigator.planner, scene.body.chunks[0].position
-        source_box = planner.region.boxes[source]
+        source_box = planner.region.edge_boxes[source]
         candidates = []
         for edge in neighbors if target_edge is None else (target_edge,):
             clockwise = (edge-source) % 4 == 1
             joint = edge if clockwise else source
             other = (edge+1) % 4 if clockwise else edge
-            box = planner.region.boxes[edge]
+            box = planner.region.edge_boxes[edge]
             for _ in range(12):
                 point = planner.corners[joint].lerp(planner.corners[other], self.random.uniform(.18, .38))
                 depth = self.random.uniform(.35, .65)
                 point = (Vec2(box.left+(box.right-box.left)*depth, point.y) if edge % 2 else
                          Vec2(point.x, box.top+(box.bottom-box.top)*depth))
-                if not source_box.contains(point):
+                if not source_box.contains(point) and self.matrix_clear(scene, point):
                     route = planner.adjacent(start, point, source, edge, scene.body.chunks[0].velocity)
                     candidates.append((edge, point, route))
                     break
@@ -370,7 +382,7 @@ class OracleBehavior:
             upper = scene.body.chunks[0]
             route = scene.navigator.planner.round_polyline(
                 [upper.position, point], upper.velocity,
-                box=scene.navigator.region.boxes[self.drift_edge])
+                box=scene.navigator.region.edge_boxes[self.drift_edge])
         scene._move_to(point, route=route, speed=self.travel_speed(
             scene, Activity.APPROACH if observing else Activity.DRIFT))
         self.drift_join_checked = False
@@ -384,7 +396,7 @@ class OracleBehavior:
     def drift_point(self, scene, start, forward=None):
         """沿当前边漫游并改变深度；目标离走廊外沿留余量，便于继续转弯。"""
         region = scene.navigator.region if scene.navigator else scene.body_region
-        box = region.boxes[self.drift_edge]
+        box = region.edge_boxes[self.drift_edge]
         vertical = self.drift_edge % 2
         component = (forward.y if vertical else forward.x) if forward is not None else self.random.choice((-1, 1))
         sign = 1 if component >= 0 else -1
@@ -395,7 +407,7 @@ class OracleBehavior:
             candidate = (Vec2(box.left+(box.right-box.left)*depth, start.y+direction*distance) if vertical else
                          Vec2(start.x+direction*distance, box.top+(box.bottom-box.top)*depth))
             point = scene.project_target(box.clamp(candidate))
-            if box.contains(point) and (point-start).length() >= 30:
+            if box.contains(point) and (point-start).length() >= 30 and self.matrix_clear(scene, point):
                 return point
         return None
 
@@ -418,7 +430,7 @@ class OracleBehavior:
         if self.drift_ticks+remaining/max(.3, navigator.speed) < self.drift_bout_until:
             end = navigator.route.curves[-1]
             point = self.drift_point(scene, end.d, end.d-end.c)
-            if point is not None and navigator.extend_to(point, navigator.region.boxes[self.drift_edge]):
+            if point is not None and navigator.extend_to(point, navigator.region.edge_boxes[self.drift_edge]):
                 scene.requested_target = scene.target = point
                 scene.travel_speed = self.travel_speed(scene, Activity.DRIFT)
                 self.drift_join_checked = False
@@ -458,8 +470,8 @@ class OracleBehavior:
     def approach_point(self, scene):
         pearl, body = scene.observed_pearl.position, scene.body.chunks[0].position
         region = scene.navigator.region if scene.navigator else scene.body_region
-        local = (region.boxes[self.drift_edge] if self.drift_active else
-                 region.boxes[self.current_edge(scene)] if self.enabled or self.mode == 'orbit' else None)
+        local = (region.edge_boxes[self.drift_edge] if self.drift_active else
+                 region.edge_boxes[self.current_edge(scene)] if self.enabled or self.mode == 'orbit' else None)
         candidates = []
         for i in range(16):
             angle = i*pi/8
@@ -468,7 +480,8 @@ class OracleBehavior:
             if local and (not local.contains(p) or (p-body).length() > self.MAX_LOCAL_APPROACH):
                 continue
             separation = (p-pearl).length()
-            if 32 <= separation <= 65 and scene.arm_region.segment_safe(p, pearl):
+            if (32 <= separation <= 65 and scene.arm_region.segment_safe(p, pearl)
+                    and self.matrix_clear(scene, p)):
                 # 倾向当前位置附近，给头部留出独立观察距离，不反复绕珠改道。
                 score = (p-body).length()+abs(separation-self.OBSERVE_DISTANCE)*3
                 candidates.append((score, p))
@@ -477,7 +490,7 @@ class OracleBehavior:
             available = []
             for score, point in sorted(candidates, key=lambda item: item[0])[:5]:
                 route = scene.navigator.planner.local_arc(point, pearl, local, self.orbit_sign)
-                if route is not None:
+                if route is not None and self.matrix_clear(scene, route.curves[-1].d):
                     available.append((score-min(70., route.length)*.6, point))
             if available:
                 return min(available, key=lambda item: item[0])[1]
@@ -487,10 +500,10 @@ class OracleBehavior:
         if not scene.navigator:
             return False  # 固定底座调试保留原地观察，不用直线冒充圆弧。
         edge = self.drift_edge if self.drift_active else self.current_edge(scene)
-        box = scene.navigator.region.boxes[edge]
+        box = scene.navigator.region.edge_boxes[edge]
         route = scene.navigator.planner.local_arc(scene.body.chunks[0].position,
                                                   scene.observed_pearl.position, box, self.orbit_sign)
-        if route is None:
+        if route is None or not self.matrix_clear(scene, route.curves[-1].d):
             return False
         scene._move_to(route.curves[-1].d, route=route, speed=self.travel_speed(scene, Activity.ORBIT))
         self.enter(Activity.ORBIT, self.movement_budget(scene))
@@ -513,12 +526,17 @@ class OracleBehavior:
         self.finish_drift_crossing(scene)
         edge = self.drift_edge if self.drift_active else self.current_edge(scene)
         region = scene.navigator.region if scene.navigator else scene.body_region
-        box, start = region.boxes[edge], scene.body.chunks[0].position
+        box, start = region.edge_boxes[edge], scene.body.chunks[0].position
         # 只稍微向当前走廊中间收拢，不去屏幕中央，也不跨边找固定房间坐标。
         offset = ((box.left+box.right)/2-start.x if edge % 2 else
                   (box.top+box.bottom)/2-start.y)
         offset = max(-24., min(24., offset))
         point = scene.project_target(start+(Vec2(offset, 0) if edge % 2 else Vec2(0, offset)))
+        if not self.matrix_clear(scene, point):
+            point = self.short_point(scene)
+            if point is None:
+                self.resume_or_idle(scene)
+                return
         route = scene.navigator.planner.round_polyline([start, point], scene.body.chunks[0].velocity,
                                                        box=box) if scene.navigator else None
         scene._move_to(point, route=route, speed=scene.config.drift_speed*.75)
@@ -568,6 +586,12 @@ class OracleBehavior:
                 self.state_ticks = 0  # 停留时间从身体真正停稳、姿态收敛后开始。
                 return
             if not scene.observation_pearls_settled or self.state_ticks < self.duration:
+                return
+            # 矩阵迁移或手动拖动可能留下重合；下次常规决策时尝试同边让开。
+            # 无可达空位则继续停留，不逐帧重抽，也不改变低概率跨边规则。
+            if not self.matrix_clear(scene, scene.body.chunks[0].position):
+                if not self.start_roam(scene):
+                    self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
                 return
             activity = self.choose_activity(scene)
             if activity == Activity.NOTICE:

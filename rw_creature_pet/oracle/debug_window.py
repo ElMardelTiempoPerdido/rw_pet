@@ -112,8 +112,13 @@ class OracleCanvas(QWidget):
 
     def mouseMoveEvent(self, event):
         if self.scene.drag.active:
-            position = Vec2(event.position().x(), event.position().y())
-            self.scene.drag.move(self.view_to_world(position))
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                position = Vec2(event.position().x(), event.position().y())
+                self.scene.drag.move(self.view_to_world(position))
+            else:
+                self.scene.drag.release(cancel=True)
+                self.releaseMouse()
+                self.unsetCursor()
             event.accept()
         elif self._pan_position is not None:
             position = Vec2(event.position().x(), event.position().y())
@@ -261,7 +266,7 @@ class OracleCanvas(QWidget):
                     painter.drawPath(self._pearl_path)
             painter.restore()
             painter.setPen(QColor('#8fa4b5'))
-            painter.drawText(QPointF(14, 23), f'固定比例 · {scale*self.devicePixelRatioF():g}×（屏幕像素）')
+            painter.drawText(QPointF(14, 23), f'固定比例 / {scale*self.devicePixelRatioF():g}×（屏幕像素）')
             painter.drawText(QPointF(26, self.height() - 24), '绿色：边缘活动带   灰色十字：珍珠悬浮点   虚线框：珍珠跟随范围')
             if self.magnifier:
                 rect = self.magnifier_rect()
@@ -281,7 +286,7 @@ class OracleCanvas(QWidget):
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(rect)
                 painter.setPen(QColor('#bfceda'))
-                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22), '人偶局部 · 4× · 主视图像素')
+                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22), '人偶局部 / 4× / 主视图像素')
         finally:
             painter.end()
 
@@ -305,19 +310,19 @@ class OracleDebugWindow(QMainWindow):
             try:
                 atlas = Atlas(extract_atlas(config.game_dir))
                 self.renderer = OracleRenderer(atlas, config.oracle.colors)
-                self.asset_message = '已加载本机原版主图集 · Bell'
+                self.asset_message = '已加载本机原版主图集'
                 try:
                     self.renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)
-                    self.asset_message += ' · 珍珠使用原版字形裁图缓存'
+                    self.asset_message += ' / 珍珠使用原版字形裁图缓存'
                 except (AtlasError, OSError, ValueError) as exc:
-                    self.asset_message += f' · 珍珠字形不可用：{exc}'
+                    self.asset_message += f' / 珍珠字形不可用：{exc}'
             except (AtlasError, OSError, ValueError) as exc:
                 self.asset_message = f'图集不可用，使用几何预览：{exc}'
                 self.renderer = OracleRenderer(colors=config.oracle.colors)
         else:
             self.renderer = OracleRenderer(colors=config.oracle.colors)
         self.canvas = OracleCanvas(self.scene, self.clock, self.renderer)
-        self.setWindowTitle('Oracle · Bell — 漂浮与珍珠观察')
+        self.setWindowTitle('测试')
         self.resize(1220, 830)
         root, layout = QWidget(), QVBoxLayout()
         root.setLayout(layout)
@@ -386,7 +391,8 @@ class OracleDebugWindow(QMainWindow):
         controls.addWidget(QLabel('初始底座'))
         self.side_input = QComboBox()
         for text, value in (('上边', 'top'), ('右边', 'right'), ('下边', 'bottom'), ('左边', 'left')):
-            self.side_input.addItem(text, value)
+            if value in config.oracle.allowed_edges:
+                self.side_input.addItem(text, value)
         self.side_input.setCurrentIndex(self.side_input.findData(config.oracle.base_side))
         controls.addWidget(self.side_input)
         self.base_input = QDoubleSpinBox()
@@ -401,7 +407,7 @@ class OracleDebugWindow(QMainWindow):
         self.tilt_input = QDoubleSpinBox()
         self.tilt_input.setRange(-25, 25)
         self.tilt_input.setSuffix('°')
-        self.tilt_input.setToolTip('普通行动在停留姿态附近轻微侧倾；失重时朝向由运动和观察牵引改变，结束后保留姿态。')
+        self.tilt_input.setToolTip('普通行动在停留姿态附近轻微侧倾；失重时朝向由运动和观察牵引改变，结束后保留姿态')
         self.tilt_input.valueChanged.connect(self.scene.set_tilt)
         controls.addWidget(self.tilt_input)
         self.look_pearl_button = QPushButton('靠近观察一次')
@@ -430,16 +436,16 @@ class OracleDebugWindow(QMainWindow):
         navigation.addWidget(self.path_box)
         self.matrix_box = QCheckBox('珍珠矩阵')
         self.matrix_box.setChecked(self.scene.pearl_matrix_enabled)
-        self.matrix_box.setToolTip('珍珠随人偶整组迁移，允许抽出一颗观察后回到原槽位。数量可在下方预览，0 表示不创建。')
+        self.matrix_box.setToolTip('珍珠随人偶整组迁移，允许抽出一颗观察后回到原槽位。数量可在下方预览，0 表示不创建')
         self.matrix_box.toggled.connect(self.set_pearl_matrix)
         navigation.addWidget(self.matrix_box)
         self.orbit_pearl_button = QPushButton('绕珠观察一次')
-        self.orbit_pearl_button.setToolTip('先靠近，再沿当前边内的局部圆弧观察；空间不足时保持原地观察。')
+        self.orbit_pearl_button.setToolTip('先靠近，再沿当前边内的局部圆弧观察；空间不足时保持原地观察')
         self.orbit_pearl_button.clicked.connect(lambda: self.observe_pearl('orbit'))
         self.orbit_pearl_button.setEnabled(self.scene.sliding_base)
         navigation.addWidget(self.orbit_pearl_button)
         self.meditate_button = QPushButton('冥想一次')
-        self.meditate_button.setToolTip('向当前走廊中间稍微收拢，闭眼低头；停稳后保持 30～60 秒，外观可休眠。')
+        self.meditate_button.setToolTip('向当前走廊中间稍微收拢，闭眼低头；停稳后保持 30～60 秒，外观可休眠')
         self.meditate_button.clicked.connect(self.meditate)
         navigation.addWidget(self.meditate_button)
         navigation.addStretch()
@@ -448,7 +454,7 @@ class OracleDebugWindow(QMainWindow):
         layout.addLayout(navigation)
         behavior_row = QHBoxLayout()
         self.autonomous_box = QCheckBox('自主行为')
-        self.autonomous_box.setToolTip('停留、冥想、同边短途、低概率反重力漫游与邻边移动、珍珠观察独立选择；手动操作接管后停止循环。')
+        self.autonomous_box.setToolTip('停留、冥想、同边短途、低概率反重力漫游与邻边移动、珍珠观察独立选择；手动操作接管后停止循环')
         self.autonomous_box.toggled.connect(self.set_autonomous)
         behavior_row.addWidget(self.autonomous_box)
         self.short_roam_button = QPushButton('短途漂浮一次')
@@ -456,11 +462,11 @@ class OracleDebugWindow(QMainWindow):
         behavior_row.addWidget(self.short_roam_button)
         self.drift_button = QPushButton('反重力漫游一次')
         self.drift_button.setToolTip(f'沿边自由漂浮约 {config.oracle.antigravity_duration_seconds:g} 秒'
-                                    '（每次浮动 ±10%），期间可以观察珍珠、低概率移到邻边；结束后平滑恢复直立。')
+                                    '（每次浮动 ±10%），期间可以观察珍珠、低概率移到邻边；结束后平滑恢复直立')
         self.drift_button.clicked.connect(self.drift)
         behavior_row.addWidget(self.drift_button)
         self.cross_edge_button = QPushButton('移到邻边一次')
-        self.cross_edge_button.setToolTip('只移到当前边的两条相邻边之一，最多经过一个角；此按钮不受随机概率与冷却限制。')
+        self.cross_edge_button.setToolTip('只移到当前边的两条相邻边之一，最多经过一个角；此按钮不受随机概率与冷却限制')
         self.cross_edge_button.clicked.connect(lambda: self.roam(True))
         self.cross_edge_button.setEnabled(self.scene.sliding_base)
         behavior_row.addWidget(self.cross_edge_button)
@@ -468,7 +474,7 @@ class OracleDebugWindow(QMainWindow):
         self.recall_pearl_button.clicked.connect(lambda: self.observe_pearl('recall'))
         behavior_row.addWidget(self.recall_pearl_button)
         self.matrix_pearl_button = QPushButton('抽取矩阵珠一次')
-        self.matrix_pearl_button.setToolTip('随机选一颗矩阵珍珠召近观察，保留空位，结束后送回；重复点击仍使用已抽出的珠子。')
+        self.matrix_pearl_button.setToolTip('随机选一颗矩阵珍珠召近观察，保留空位，结束后送回；重复点击仍使用已抽出的珠子')
         self.matrix_pearl_button.clicked.connect(self.observe_matrix_pearl)
         behavior_row.addWidget(self.matrix_pearl_button)
         self.return_pearl_button = QPushButton('结束观察并送回')
@@ -490,11 +496,11 @@ class OracleDebugWindow(QMainWindow):
             control.setRange(0, maximum)
             control.setValue(getattr(self.scene.config, f'pearl_{key}_count'))
             control.setKeyboardTracking(False)
-            control.setToolTip('0 隐藏这一类；卫星需要至少一颗固定母珠。颜色按比例分配，仅预览，永久修改请写入 TOML。')
+            control.setToolTip('0 隐藏此类；卫星需要至少一颗固定母珠，颜色按比例分配')
             control.valueChanged.connect(lambda value, key=key: self.set_pearl_count(key, value))
             pearl_row.addWidget(control)
             self.pearl_count_inputs[key] = control
-        pearl_row.addWidget(QLabel('数量仅本次预览；0 隐藏对应一类，永久配置见 TOML'))
+        pearl_row.addWidget(QLabel('0 隐藏此类'))
         pearl_row.addStretch()
         layout.addLayout(pearl_row)
         halo_row = QHBoxLayout()
@@ -503,29 +509,29 @@ class OracleDebugWindow(QMainWindow):
         self.halo_box.toggled.connect(self.set_halo_enabled)
         halo_row.addWidget(self.halo_box)
         self.halo_pulse_button = QPushButton('光环扩张一次')
-        self.halo_pulse_button.setToolTip('预览平滑扩张与恢复；保持当前自主行为，暂停时可用单步查看。')
+        self.halo_pulse_button.setToolTip('预览平滑扩张与恢复 保持当前自主行为，暂停时可用单步查看')
         self.halo_pulse_button.clicked.connect(self.pulse_halo)
         halo_row.addWidget(self.halo_pulse_button)
         self.halo_flash_button = QPushButton('外圈闪烁一次')
         self.halo_flash_button.clicked.connect(self.flash_halo)
         halo_row.addWidget(self.halo_flash_button)
         self.halo_fill_button = QPushButton('实心化一次')
-        self.halo_fill_button.setToolTip('强制进入实心目标并重选尺寸；保持时间与自然事件一样随机，退出时由中央挖空。暂停时可单步查看。')
+        self.halo_fill_button.setToolTip('强制进入实心目标并重选尺寸 保持时间与自然事件一样随机，退出时由中央挖空。暂停时可单步查看')
         self.halo_fill_button.clicked.connect(self.fill_halo)
         halo_row.addWidget(self.halo_fill_button)
         self.halo_arc_button = QPushButton('触发电弧')
-        self.halo_arc_button.setToolTip('跳过自动等待，随机生成电弧；距离、边缘范围和邻边数量仍受限制。')
+        self.halo_arc_button.setToolTip('跳过自动等待，随机生成电弧 距离、边缘范围和邻边数量仍受限制')
         self.halo_arc_button.clicked.connect(self.trigger_halo_arcs)
         halo_row.addWidget(self.halo_arc_button)
-        halo_row.addWidget(QLabel('与珍珠投影共用颜色和透明度；空间不足时限制尺寸'))
+        halo_row.addWidget(QLabel('与珍珠投影共用颜色和透明度 空间不足时限制尺寸'))
         halo_row.addStretch()
         layout.addLayout(halo_row)
-        hint = QLabel('左键：指定移动目标　右键：独立观察（均接管自主行为）　中键拖动：平移视图；放大镜内不设置目标')
+        hint = QLabel('左键：指定移动目标　右键：独立观察（均接管自主行为）　中键拖动：平移视图 放大镜内不设置目标')
         hint.setWordWrap(True)
         layout.addWidget(hint)
         body = QHBoxLayout()
         body.addWidget(self.canvas, 1)
-        panel = QGroupBox('外观调色 · 点击色块预览')
+        panel = QGroupBox('外观调色 / 点击色块预览')
         panel.setFixedWidth(240)
         palette_layout = QVBoxLayout(panel)
         grid = QGridLayout()
@@ -544,9 +550,9 @@ class OracleDebugWindow(QMainWindow):
         self.default_button.clicked.connect(lambda: self.set_colors(OracleColors()))
         palette_layout.addWidget(self.reload_button)
         palette_layout.addWidget(self.default_button)
-        note = QLabel('色块修改仅影响当前预览。\n永久修改：config.toml\n[oracle.colors]\n\n以完好 Moon 为基础的 Bell。\n衣袍、念珠与连接线随移动摆动，停止后逐渐收敛。')
-        note.setWordWrap(True)
-        palette_layout.addWidget(note)
+        # note = QLabel('色块修改仅影响当前预览')
+        # note.setWordWrap(True)
+        # palette_layout.addWidget(note)
         palette_layout.addStretch()
         body.addWidget(panel)
         layout.addLayout(body, 1)
@@ -592,7 +598,7 @@ class OracleDebugWindow(QMainWindow):
         try:
             colors = AppConfig.load(self.config_path).oracle.colors if self.config_path else self.config.oracle.colors
             self.set_colors(colors)
-            self.assets.setText(self.asset_message + ' · 已重新读取颜色')
+            self.assets.setText(self.asset_message + ' / 已重新读取颜色')
         except (OSError, ValueError, TypeError) as exc:
             self.assets.setText(f'颜色读取失败，保留当前预览：{exc}')
 
@@ -793,24 +799,24 @@ class OracleDebugWindow(QMainWindow):
         if scene.drag.controlling:
             state = '鼠标拖拽' if scene.drag.active else '松手返回活动带'
             reactions = scene.drag_reactions
-            state += f' · {reactions.label}'
+            state += f' / {reactions.label}'
             if reactions.voice.last_cue is not None:
-                state += f' · 语音请求 {reactions.voice.last_cue.clip_id}（{reactions.voice.request_count} 次）'
+                state += f' / 语音请求 {reactions.voice.last_cue.clip_id}（{reactions.voice.request_count} 次）'
         if scene.behavior.matrix_observation:
-            state += f' · 矩阵 {scene.behavior.last_matrix_slot}'
+            state += f' / 矩阵 {scene.behavior.last_matrix_slot}'
         if scene.behavior.drift_active:
-            state += ' · 恢复重力' if scene.behavior.drift_recovering else ' · 失重'
-        state += f' · 已观察 {scene.behavior.completed_cycles} 次'
+            state += ' / 恢复重力' if scene.behavior.drift_recovering else ' / 失重'
+        state += f' / 已观察 {scene.behavior.completed_cycles} 次'
         body_angle = (scene.tilt_degrees+scene.pose.angle+180.) % 360.-180.
-        state += f' · 躯干角度 {body_angle:+.1f}°'
+        state += f' / 躯干角度 {body_angle:+.1f}°'
         navigation = ''
         if scene.navigator:
             nav = scene.navigator
             base_state = '滑动' if abs(nav.base.velocity) > .01 else '停留'
             navigation = f'　底座{base_state} {nav.base.velocity:.2f} / tick'
             if nav.waiting_for_base:
-                navigation += ' · 等待底座'
-        self.status.setText(f'{"暂停" if self.clock.paused else "运行"} · {state} · tick {scene.ticks} · 40 Hz'
+                navigation += ' / 等待底座'
+        self.status.setText(f'{"暂停" if self.clock.paused else "运行"} / {state} / tick {scene.ticks} / 40 Hz'
                             f'　上身 ({upper.position.x:.1f}, {upper.position.y:.1f})'
                             f'　速度 {upper.velocity.length():.3f} / tick'
                             f'　关节误差 {scene.arm.constraint_error:.3f}'

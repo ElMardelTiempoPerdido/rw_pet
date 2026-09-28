@@ -174,11 +174,11 @@ class OracleDesktopWindowTests(unittest.TestCase):
         image = w.grab().toImage()
         self.assertEqual(image.pixelColor(image.width()//2, image.height()//2).alpha(), 0)
 
-    def test_matrix_tray_toggle_preserves_behavior_pause_and_survives_rebuild(self):
+    def test_matrix_configuration_preserves_behavior_pause_and_survives_rebuild(self):
         w = self.window
         w.set_paused(True)
         behavior, pearl = w.motion.scene.behavior, w.motion.scene.pearl
-        w.matrix_action.trigger()
+        w.set_pearl_matrix(not w.config.oracle.pearl_matrix_enabled)
         self.assertIsNotNone(w.motion.scene.pearl_matrix)
         self.assertIs(w.motion.scene.behavior, behavior)
         self.assertIs(w.motion.scene.pearl, pearl)
@@ -190,14 +190,14 @@ class OracleDesktopWindowTests(unittest.TestCase):
         self.assertIsNotNone(w.motion.scene.pearl_matrix)
         w.open_debug()
         self.assertTrue(w.debug_window.matrix_box.isChecked())
-        w.matrix_action.trigger()
+        w.set_pearl_matrix(not w.config.oracle.pearl_matrix_enabled)
         self.assertIsNone(w.motion.scene.pearl_matrix)
 
-    def test_orbits_tray_toggle_pause_resize_and_debug(self):
+    def test_orbits_configuration_pause_resize_and_debug(self):
         w = self.window
         w.set_paused(True)
         before = w.motion.scene.behavior, w.motion.scene.pearl
-        w.orbits_action.trigger()
+        w.set_pearl_orbits(not w.config.oracle.pearl_orbits_enabled)
         self.assertIsNotNone(w.motion.scene.pearl_orbits)
         self.assertEqual(before, (w.motion.scene.behavior, w.motion.scene.pearl))
         self.assertTrue(w.clock.paused)
@@ -207,7 +207,7 @@ class OracleDesktopWindowTests(unittest.TestCase):
         self.assertIsNotNone(w.motion.scene.pearl_orbits)
         w.open_debug()
         self.assertTrue(w.debug_window.orbits_box.isChecked())
-        w.orbits_action.trigger()
+        w.set_pearl_orbits(not w.config.oracle.pearl_orbits_enabled)
         self.assertIsNone(w.motion.scene.pearl_orbits)
 
     def test_workarea_signals_coalesce_origin_only_preserves_scene_and_old_screen_disconnects(self):
@@ -243,7 +243,7 @@ class OracleDesktopWindowTests(unittest.TestCase):
         w = self.window
         w.set_paused(True)
         scene, body = w.motion.scene, w.motion.scene.body
-        w.pixel_mode_actions['classic'].trigger()
+        w.set_pixel_mode('classic')  # 用户已隐藏托盘中的像素模式菜单，底层配置功能仍可用。
         self.assertIs(w.motion.scene, scene)
         self.assertIs(w.motion.scene.body, body)
         self.assertTrue(w.clock.paused)

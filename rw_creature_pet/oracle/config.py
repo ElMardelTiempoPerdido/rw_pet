@@ -5,6 +5,22 @@ import re
 
 
 DISPLAY_SCALES = (1., 1.5, 2.)
+EDGE_NAMES = ('top', 'right', 'bottom', 'left')
+
+
+def validate_edges(edges, base_side):
+    if not isinstance(edges, (tuple, list)) or any(edge not in EDGE_NAMES for edge in edges):
+        raise ValueError('允许活动的边缘必须为 top / right / bottom / left')
+    if not edges:
+        raise ValueError('请至少选择一条允许活动的边缘。')
+    if len(set(edges)) != len(edges):
+        raise ValueError('允许活动的边缘不能重复。')
+    indices = {EDGE_NAMES.index(edge) for edge in edges}
+    if len(indices) == 2 and all((i+1) % 4 not in indices for i in indices):
+        raise ValueError('所选边缘必须连续：不能只选顶部和底部，或只选左侧和右侧。')
+    if base_side not in edges:
+        raise ValueError('启动时的位置必须包含在允许活动的边缘中。')
+    return tuple(edge for edge in EDGE_NAMES if edge in edges)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +79,7 @@ class OracleConfig:
     world_height: float = 600.0
     edge_fraction: float = .20
     base_side: str = 'top'
+    allowed_edges: tuple[str, ...] = EDGE_NAMES
     base_fraction: float = .50
     # 保留原版 300:150:90:30 比例，缩小机械臂以适应桌面边缘带。
     arm_scale: float = .60
@@ -77,6 +94,7 @@ class OracleConfig:
     pearl_follow_height: float = 280.
     pearl_matrix_enabled: bool = False
     pearl_matrix_count: int = 14
+    pearl_matrix_avoid_radius: float = 80.  # 自主停留点与矩阵中心的间距；0 关闭。
     pearl_orbits_enabled: bool = False
     pearl_inner_count: int = 4
     pearl_outer_count: int = 2
@@ -90,10 +108,20 @@ class OracleConfig:
     halo_arcs_enabled: bool = True
     halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
+    glow_enabled: bool = False
+    glow_color: str = '#ffffff'
+    glow_radius: float = 2.  # 外发光扩散半径，逻辑像素；跟随桌宠显示倍率。
     drag_reactions: DragReactionConfig = DragReactionConfig()
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
 
     def __post_init__(self):
+        if type(self.glow_enabled) is not bool:
+            raise ValueError('oracle.glow_enabled 必须为布尔值')
+        if not isinstance(self.glow_color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.glow_color):
+            raise ValueError('发光颜色必须为 #RRGGBB 颜色')
+        if (isinstance(self.glow_radius, bool) or not isinstance(self.glow_radius, (int, float))
+                or not isfinite(self.glow_radius) or not 1 <= self.glow_radius <= 24):
+            raise ValueError('发光半径必须在 1～24 逻辑像素之间')
         if self.pixel_mode not in ('classic', 'adaptive'):
             raise ValueError('oracle.pixel_mode 必须为 classic / adaptive')
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
@@ -111,7 +139,7 @@ class OracleConfig:
             raise ValueError('oracle.physics_backend 必须为 auto / python / numba')
         for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'drift_speed', 'base_speed',
                      'cross_edge_probability', 'antigravity_probability', 'antigravity_duration_seconds',
-                     'pearl_follow_width', 'pearl_follow_height', 'projection_opacity'):
+                     'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_avoid_radius', 'projection_opacity'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(f'oracle.{name} 必须为有限数值')
@@ -119,8 +147,9 @@ class OracleConfig:
             raise ValueError('Oracle 场景至少为 640 × 480')
         if not .20 <= self.edge_fraction <= .35:
             raise ValueError('oracle.edge_fraction 必须在 0.20～0.35 之间')
-        if self.base_side not in ('top', 'right', 'bottom', 'left'):
+        if self.base_side not in EDGE_NAMES:
             raise ValueError('oracle.base_side 必须为 top / right / bottom / left')
+        object.__setattr__(self, 'allowed_edges', validate_edges(self.allowed_edges, self.base_side))
         if not 0 <= self.base_fraction <= 1:
             raise ValueError('oracle.base_fraction 必须在 0～1 之间')
         if not .35 <= self.arm_scale <= .75:
@@ -129,6 +158,8 @@ class OracleConfig:
             raise ValueError('oracle.sliding_base 必须为布尔值')
         if type(self.pearl_matrix_enabled) is not bool:
             raise ValueError('oracle.pearl_matrix_enabled 必须为布尔值')
+        if not 0 <= self.pearl_matrix_avoid_radius <= 300:
+            raise ValueError('矩阵避让半径必须在 0～300 逻辑像素之间')
         if type(self.pearl_orbits_enabled) is not bool:
             raise ValueError('oracle.pearl_orbits_enabled 必须为布尔值')
         for name, maximum in (('pearl_matrix_count', 64), ('pearl_inner_count', 32), ('pearl_outer_count', 32),

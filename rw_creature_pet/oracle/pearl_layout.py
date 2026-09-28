@@ -30,10 +30,10 @@ class PearlGroupRegion(EdgeRegion):
         w, h, inner = world.width, world.height, world.inner
         self.outer = Bounds(x, y, w-x, h-y)
         self.hole = Bounds(inner.left-x, inner.top-y, inner.right+x, inner.bottom+y)
-        self.boxes = (Bounds(x, y, w-x, self.hole.top),
+        self.set_boxes(world, (Bounds(x, y, w-x, self.hole.top),
                       Bounds(self.hole.right, y, w-x, h-y),
                       Bounds(x, self.hole.bottom, w-x, h-y),
-                      Bounds(x, y, self.hole.left, h-y))
+                      Bounds(x, y, self.hole.left, h-y)))
 
 
 def group_follow_boxes(center, body_region, region, width, height, half_size):

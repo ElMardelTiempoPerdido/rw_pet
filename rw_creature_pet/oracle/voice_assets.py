@@ -150,6 +150,12 @@ def make_bell_voice_player(config, config_path=None, parent=None, *, initialize=
     from ..interaction.audio import VoicePlayer
     if source is not None:
         return VoicePlayer(source.clips, config.audio, parent, asset_error=source.asset_error)
+    paths, error = prepare_bell_voice(config, config_path, initialize=initialize)
+    return VoicePlayer(paths, config.audio, parent, asset_error=error)
+
+
+def prepare_bell_voice(config, config_path=None, *, initialize=True):
+    """只准备文件，不创建播放设备或 QObject，可在设置窗口的后台任务中运行。"""
     paths, error = {}, ''
     try:
         directory = config.oracle.voice_directory
@@ -157,7 +163,7 @@ def make_bell_voice_player(config, config_path=None, parent=None, *, initialize=
             paths = bell_voice_paths(config.oracle, config_path)
             missing = [str(path) for path in paths.values() if not path.is_file()]
             if not missing:
-                return VoicePlayer(paths, config.audio, parent)
+                return paths, ''
             if directory.replace('\\', '/') != LEGACY_DIRECTORY:
                 raise VoiceAssetError('自定义语音目录缺少文件：'+', '.join(missing))
             # 兼容旧 TOML：迁移设备后旧 artifacts 不存在时自动从游戏准备。
@@ -167,4 +173,4 @@ def make_bell_voice_player(config, config_path=None, parent=None, *, initialize=
         paths = {clip.clip_id: root/clip.filename for clip in BELL_VOICE_CLIPS}
     except VoiceAssetError as exc:
         error = str(exc)
-    return VoicePlayer(paths, config.audio, parent, asset_error=error)
+    return paths, error

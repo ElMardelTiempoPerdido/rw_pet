@@ -205,7 +205,8 @@ class MeditationSleepTests(unittest.TestCase):
             self.assertFalse(scene.appearance.sleeping)
 
     def test_debug_controls_and_resting_meditation_do_not_repaint(self):
-        window = OracleDebugWindow(AppConfig(), load_atlas=False)
+        # 光环本身持续旋转/闪烁；关闭它后才验证其他部件停稳不触发重绘。
+        window = OracleDebugWindow(AppConfig(oracle=OracleConfig(halo_enabled=False)), load_atlas=False)
         window.timer.stop()
         try:
             window.orbit_pearl_button.click()

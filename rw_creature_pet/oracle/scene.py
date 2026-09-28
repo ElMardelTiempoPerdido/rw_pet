@@ -61,6 +61,7 @@ class OracleWorld:
     edge_fraction: float
     rail_inset: float = 18.0
     body_margin: float = 36.0
+    allowed_edges: tuple[str, ...] = ('top', 'right', 'bottom', 'left')
 
     @property
     def inner(self) -> Bounds:
@@ -152,7 +153,7 @@ class FixedOracleArm:
         # 固定最小跨度（原版也会随邻段夹角改变最小距离）。
         fold_limit = float('inf')
         if isinstance(corridor, EdgeRegion):
-            top, right = corridor.boxes[:2]
+            top, right = corridor.edge_boxes[:2]
             fold_limit = .8 * min(top.bottom - top.top, right.right - right.left)
         self.minimum_spans = tuple(min(length / 3, fold_limit) for length in self.lengths[:3])
         self.base = base
@@ -229,7 +230,7 @@ class FixedOracleArm:
         self.joints[0].position = self.base
         self.joints[-1].position = tip
 
-    def step(self, tip, base=None, normal=None):
+    def step(self, tip, base=None, normal=None, *, guide_region=None):
         for joint in self.joints:
             joint.previous_position = joint.position
         if base is not None:
@@ -237,8 +238,11 @@ class FixedOracleArm:
             self.normal = normal
             self.tangent = Vec2(normal.y, -normal.x) * self.bend_sign
         # 小幅恢复力防止多解关节持续游走；目标随末端连续变化。
-        guide = self.corridor.clamp(self.base + self.tangent * self.lengths[0] * .62
-                                   + self.normal * 22)
+        # 拖动归位时仍允许自由折叠，但恢复力必须指向合法活动带；否则会和
+        # 关节回收力抵消，停在边界外不足一像素处，导致恢复流程无法结束。
+        guide_region = self.corridor if guide_region is None else guide_region
+        guide = guide_region.clamp(self.base + self.tangent * self.lengths[0] * .62
+                                  + self.normal * 22)
         for i in (1, 2):
             joint = self.joints[i]
             target = guide if i == 1 else guide.lerp(tip, .7)
@@ -266,7 +270,7 @@ class OracleScene:
     def __init__(self, config=OracleConfig()):
         self.config = config
         self.world = OracleWorld(config.world_width, config.world_height, config.edge_fraction,
-                                 body_margin=max(36., 18 + 30 * config.arm_scale))
+                                 body_margin=max(36., 18 + 30 * config.arm_scale), allowed_edges=config.allowed_edges)
         self.anchor = RailAnchor(RailSide(config.base_side), config.base_fraction)
         self.sliding_base = config.sliding_base
         self.pearl_matrix_enabled = config.pearl_matrix_enabled
@@ -360,6 +364,8 @@ class OracleScene:
         return (self.halo, self.halo.revision, self.halo_arcs.revision) if self.halo_visible else None
 
     def set_anchor(self, side, fraction):
+        if side not in self.config.allowed_edges:
+            raise ValueError('底座位置必须位于允许活动的边缘')
         if not isfinite(fraction) or not 0 <= fraction <= 1:
             raise ValueError('底座位置必须在 0～1 之间')
         self.anchor = RailAnchor(RailSide(side), fraction)
@@ -654,7 +660,7 @@ class OracleScene:
         if self.behavior.drift_active and self.navigator:
             # 普通漫游锁在当前边；明确跨边时只开放起点边和目标邻边。
             # 仍保留上方的逐段禁区检查和人偶外形余量。
-            boxes = self.navigator.region.boxes
+            boxes = self.navigator.region.edge_boxes
             edges = (self.behavior.drift_edge, self.behavior.destination_edge) if (
                 self.behavior.state == Activity.DRIFT_CROSS_EDGE) else (self.behavior.drift_edge,)
             safe = min((boxes[edge].clamp(safe) for edge in edges), key=lambda p: (p-safe).length())
@@ -678,7 +684,8 @@ class OracleScene:
         if self.pearl_orbits is not None:
             self.pearl_orbits.step(pearl_center, self.orbit_center)
         self.arm.step(upper.position - self.body.direction * self.arm.lengths[3],
-                      self.base if self.navigator else None, self.base_normal())
+                      self.base if self.navigator else None, self.base_normal(),
+                      guide_region=self.drag.saved_corridor if self.drag.recovering else None)
         self.appearance.step(self)
         if self.halo_visible:
             if self.drag.controlling:

@@ -24,10 +24,10 @@ def base_support_region(world):
     region = EdgeRegion(world, body=False)
     o = region.outer = Bounds(3, 3, world.width-3, world.height-3)
     h = region.hole
-    region.boxes = (Bounds(o.left, o.top, o.right, h.top),
+    region.set_boxes(world, (Bounds(o.left, o.top, o.right, h.top),
                     Bounds(h.right, o.top, o.right, o.bottom),
                     Bounds(o.left, h.bottom, o.right, o.bottom),
-                    Bounds(o.left, o.top, h.left, o.bottom))
+                    Bounds(o.left, o.top, h.left, o.bottom)))
     return region
 
 

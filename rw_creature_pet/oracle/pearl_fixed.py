@@ -21,8 +21,8 @@ class FamilyRegion(EdgeRegion):
         w, h, inner = world.width, world.height, world.inner
         self.outer = Bounds(a, b, w-b, h-a)
         self.hole = Bounds(inner.left-b, inner.top-a, inner.right+a, inner.bottom+b)
-        self.boxes = (Bounds(a, b, w-b, self.hole.top), Bounds(self.hole.right, b, w-b, h-a),
-                      Bounds(a, self.hole.bottom, w-b, h-a), Bounds(a, b, self.hole.left, h-a))
+        self.set_boxes(world, (Bounds(a, b, w-b, self.hole.top), Bounds(self.hole.right, b, w-b, h-a),
+                      Bounds(a, self.hole.bottom, w-b, h-a), Bounds(a, b, self.hole.left, h-a)))
 
 
 class FixedPearl(PearlState):

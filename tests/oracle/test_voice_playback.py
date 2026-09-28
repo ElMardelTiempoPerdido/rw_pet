@@ -7,7 +7,8 @@ from time import perf_counter
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtCore import QCoreApplication, QEvent, qInstallMessageHandler
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt, qInstallMessageHandler
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
@@ -56,7 +57,7 @@ class VoiceWindowTests(unittest.TestCase):
                 return
         self.fail('成功抽中语音后，三秒等待内应生成并消费播放请求')
 
-    def test_tray_voice_status_updates_without_dynamic_qaction_warning(self):
+    def test_desktop_voice_configuration_without_dynamic_qaction_warning(self):
         messages = []
         previous = qInstallMessageHandler(lambda kind, context, text: messages.append(text))
         try:
@@ -66,14 +67,61 @@ class VoiceWindowTests(unittest.TestCase):
                 w.timer.stop()
                 for enabled in (False, True, False):
                     w.voice_player.configure(enabled=enabled)
-                    self.assertEqual(w.voice_status.text(), w.voice_player.status)
-                self.assertGreaterEqual(w.metaObject().indexOfSlot('set_voice_status(QString)'), 0)
+                    self.assertEqual(w.current_settings().audio.enabled, enabled)
             finally:
                 w.close()
                 self.app.processEvents()
         finally:
             qInstallMessageHandler(previous)
         self.assertFalse([text for text in messages if 'addMetaMethod' in text], messages)
+
+    def test_lost_release_cancels_pending_cues_but_finishes_active_clip(self):
+        for recovery in ('move', 'watch'):
+            for playing in (False, True):
+                with self.subTest(recovery=recovery, playing=playing), \
+                     patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+                    w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
+                    try:
+                        sound = self.attach_sound(w)
+                        w.sync_drag_input()
+                        scene, inp = w.motion.scene, w.drag_input
+                        point = w.motion.viewport.to_global(scene.head.position)
+                        local = QPointF(point.x-inp.x(), point.y-inp.y())
+                        global_ = QPointF(point.x, point.y)
+                        inp.mousePressEvent(QMouseEvent(QEvent.Type.MouseButtonPress, local, global_,
+                            Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+                        self.assertTrue(scene.drag.active)
+                        scene.drag_reactions._try_voice()
+                        count = scene.drag_reactions.voice.request_count
+                        self.assertEqual(count, 1)
+                        if playing:
+                            w.voice_player.sync(scene.drag_reactions.voice)
+                            sound.state = 'playing'
+                            w.voice_player.sync(scene.drag_reactions.voice)
+                        if recovery == 'move':
+                            inp.mouseMoveEvent(QMouseEvent(QEvent.Type.MouseMove, local, global_,
+                                Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+                        else:
+                            with patch('rw_creature_pet.interaction.desktop.left_button_down', return_value=False):
+                                inp.check_buttons()
+                        self.assertFalse(scene.drag.active)
+                        self.assertFalse(scene.drag_reactions.active)
+                        self.assertTrue(scene.drag.recovering)
+                        self.assertIsNone(scene.drag_reactions.voice.pending)
+                        self.assertFalse(inp._release_watch.isActive())
+                        for _ in range(480):
+                            scene.drag_reactions.step(scene)
+                            w.voice_player.sync(scene.drag_reactions.voice)
+                        self.assertEqual(scene.drag_reactions.voice.request_count, count)
+                        self.assertEqual(len(sound.paths), int(playing))
+                        if playing:
+                            self.assertEqual(sound.state, 'playing')
+                            sound.state = 'idle'
+                            w.voice_player.sync(scene.drag_reactions.voice)
+                        self.assertIsNone(w.voice_player.current)
+                    finally:
+                        w.close()
+                        self.app.processEvents()
 
     def test_debug_release_pause_reset_mute_close(self):
         w = OracleDebugWindow(self.config, load_atlas=False)
