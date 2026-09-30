@@ -95,6 +95,9 @@ class OracleConfig:
     pearl_matrix_enabled: bool = False
     pearl_matrix_count: int = 14
     pearl_matrix_avoid_radius: float = 80.  # 自主停留点与矩阵中心的间距；0 关闭。
+    pearl_playback_probability: float = .25  # 矩阵珠召近阅读后，触发无声音乐脉冲。
+    pearl_bubble_max_size: float = 12.  # bubble 最大直径，逻辑像素；下限固定为珍珠的 6px。
+    pearl_bubble_color: str = '#ff0000'
     pearl_orbits_enabled: bool = False
     pearl_inner_count: int = 4
     pearl_outer_count: int = 2
@@ -108,6 +111,7 @@ class OracleConfig:
     halo_arcs_enabled: bool = True
     halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
+    hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
     glow_color: str = '#ffffff'
     glow_radius: float = 2.  # 外发光扩散半径，逻辑像素；跟随桌宠显示倍率。
@@ -115,6 +119,8 @@ class OracleConfig:
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
 
     def __post_init__(self):
+        if type(self.hide_cords) is not bool:
+            raise ValueError('oracle.hide_cords 必须为布尔值')
         if type(self.glow_enabled) is not bool:
             raise ValueError('oracle.glow_enabled 必须为布尔值')
         if not isinstance(self.glow_color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.glow_color):
@@ -139,7 +145,8 @@ class OracleConfig:
             raise ValueError('oracle.physics_backend 必须为 auto / python / numba')
         for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'drift_speed', 'base_speed',
                      'cross_edge_probability', 'antigravity_probability', 'antigravity_duration_seconds',
-                     'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_avoid_radius', 'projection_opacity'):
+                     'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_avoid_radius',
+                     'pearl_playback_probability', 'pearl_bubble_max_size', 'projection_opacity'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(f'oracle.{name} 必须为有限数值')
@@ -160,6 +167,12 @@ class OracleConfig:
             raise ValueError('oracle.pearl_matrix_enabled 必须为布尔值')
         if not 0 <= self.pearl_matrix_avoid_radius <= 300:
             raise ValueError('矩阵避让半径必须在 0～300 逻辑像素之间')
+        if not 0 <= self.pearl_playback_probability <= 1:
+            raise ValueError('珍珠播放动画概率必须在 0～1 之间')
+        if not 6 <= self.pearl_bubble_max_size <= 64:
+            raise ValueError('播放光泡最大直径必须在 6～64 逻辑像素之间')
+        if not isinstance(self.pearl_bubble_color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.pearl_bubble_color):
+            raise ValueError('播放光泡颜色必须为 #RRGGBB 颜色')
         if type(self.pearl_orbits_enabled) is not bool:
             raise ValueError('oracle.pearl_orbits_enabled 必须为布尔值')
         for name, maximum in (('pearl_matrix_count', 64), ('pearl_inner_count', 32), ('pearl_outer_count', 32),

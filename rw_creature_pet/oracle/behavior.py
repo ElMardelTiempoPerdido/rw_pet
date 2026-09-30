@@ -35,7 +35,8 @@ class OracleBehavior:
     DRIFT_PAUSE_WEIGHTS = (.50, .35, .15)
     DRIFT_BOUT_BANDS = ((160, 400), (480, 960))  # 一轮连续漂浮约 4～10 / 12～24 秒。
     NOTICE_TICKS = (36, 60)
-    OBSERVE_TICKS = (140, 240)
+    OBSERVE_TICKS = (1600, 2400)  # 到位后保持阅读 40～60 秒，40 Hz。
+    PLAYBACK_TICKS = (3600, 4800)  # 触发播放时，以 90～120 秒替代普通阅读时长。
     MATRIX_OBSERVATION_SHARE = .5  # 矩阵开启时，观察活动的一半从矩阵抽取一颗。
     OBSERVE_DISTANCE = 50.
     RECALL_DISTANCE = 38.
@@ -51,6 +52,7 @@ class OracleBehavior:
         self.timing_random = Random(seed+3)  # 停走节奏独立于路线、速度、观察与跨边抽样。
         self.pearl_random = Random(seed+4)
         self.fixed_random = Random(seed+5)  # 固定珠选择不改变矩阵槽位的随机序列。
+        self.playback_random = Random(seed+6)  # 播放分支不扰动选路、普通阅读时长或选珠。
         self.observation_pearl = None
         self.matrix_observation = False
         self.last_matrix_slot = None
@@ -554,6 +556,15 @@ class OracleBehavior:
         if self.meditation_ticks >= self.duration:
             self.resume_or_idle(scene)
 
+    def begin_observation(self, scene):
+        self.enter(Activity.OBSERVE, self.random.randint(*self.OBSERVE_TICKS))
+        curve = scene.pearl_playback_curve
+        if (self.matrix_observation and curve is not None
+                and self.playback_random.random() < scene.config.pearl_playback_probability):
+            self.duration = self.playback_random.randint(*self.PLAYBACK_TICKS)
+            start = self.playback_random.uniform(0., curve.duration)
+            scene.observed_pearl.start_playback(curve, start, self.duration)
+
     def recall_point(self, scene):
         body, pearl = scene.body.chunks[0].position, scene.observed_pearl.position
         candidates = []
@@ -632,7 +643,7 @@ class OracleBehavior:
         elif self.state in (Activity.APPROACH, Activity.RECALL):
             if scene.arrived and scene.observed_pearl.settled:
                 if self.mode != 'orbit' or not self.start_orbit(scene):
-                    self.enter(Activity.OBSERVE, self.random.randint(*self.OBSERVE_TICKS))
+                    self.begin_observation(scene)
             elif self.state_ticks > self.duration:
                 scene._move_to(scene.body.chunks[0].position)
                 scene.observed_pearl.return_home()
@@ -640,10 +651,10 @@ class OracleBehavior:
                 scene.eyes.end_observation()
         elif self.state == Activity.ORBIT:
             if scene.arrived:
-                self.enter(Activity.OBSERVE, self.random.randint(*self.OBSERVE_TICKS))
+                self.begin_observation(scene)
             elif self.state_ticks > self.duration:
                 scene._move_to(scene.body.chunks[0].position)
-                self.enter(Activity.OBSERVE, self.random.randint(*self.OBSERVE_TICKS))
+                self.begin_observation(scene)
         elif self.state == Activity.OBSERVE and self.state_ticks >= self.duration:
             scene.observed_pearl.return_home()
             self.enter(Activity.RETURN)

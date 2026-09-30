@@ -16,6 +16,7 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
+hide_cords = false              # 隐藏粗细线缆并停止其物理计算；保留机械臂
 voice_directory = 'auto'        # 首次从 game_dir 提取和处理，缓存至用户目录；也可填写自定义 WAV 目录
 world_width = 960.0
 world_height = 600.0
@@ -25,6 +26,8 @@ base_fraction = 0.50
 arm_scale = 0.60
 pearl_matrix_enabled = true
 pearl_matrix_count = 7          # 0～64；原版 14
+pearl_bubble_max_size = 12.0    # 播放光泡最大直径，6～64 逻辑像素；最小直径保持 6px
+pearl_bubble_color = '#ff0000'  # 播放光泡颜色；透明度仍由强度、首尾淡出及投影不透明度决定
 pearl_orbits_enabled = true
 pearl_inner_count = 4           # 0～32；原版内圈为 6
 pearl_outer_count = 2           # 0～32；原版外圈为 2
@@ -34,7 +37,7 @@ projection_opacity = 0.5        # 投影不透明度：0 隐藏，0.5 半透明�
 halo_enabled = true             # 圆环与短条光环
 halo_scale = 0.8                # 光环相对原版的缩放
 halo_arcs_enabled = true        # 低频连接附近工作区边框的电弧
-halo_arc_max_count = 10          # 数量上限可选 1～10；手动与自动均随机，邻边合计最多上限的一半（向下取整）
+halo_arc_max_count = 10         # 数量上限可选 1～10；手动与自动均随机，邻边合计最多上限的一半（向下取整）
 pixel_mode = 'adaptive'         # adaptive：大倍率缩放时精细像素 / classic：放大原始像素（比较狗啃锯齿
 
 # 未填写的字段使用 oracle_config.py 中的默认值
@@ -60,3 +63,12 @@ flutter_probability = 0.85      # 双手动作占比
 alternating_probability = 0.47  # 双手动作中固定交替摆手占比
 eye_open_probability = 0.65     # 鼠标拖动时睁眼的概率
 voice_probability = 0.55        # 鼠标拖动时触发语音概率
+
+[overseer]
+color = '#ff557f'               # 监视者主色；调试面板可以临时预览其他颜色
+size = 0.8
+withdraw_distance = 60.0        # 距离固定根部的逻辑像素；进入此范围缩回
+reemerge_distance = 100.0       # 离开更大范围，并持续安全后才再次探出
+safe_delay = 0.45               # 连续安全等待（秒）
+emerge_seconds = 0.5            # 探出的主要动作时长，末段平滑收敛
+withdraw_seconds = 0.25         # 缩回的主要动作时长

@@ -269,6 +269,7 @@ class OracleScene:
 
     def __init__(self, config=OracleConfig()):
         self.config = config
+        self.pearl_playback_curve = None  # 资源层注入；场景步进不读取文件或解码音频。
         self.world = OracleWorld(config.world_width, config.world_height, config.edge_fraction,
                                  body_margin=max(36., 18 + 30 * config.arm_scale), allowed_edges=config.allowed_edges)
         self.anchor = RailAnchor(RailSide(config.base_side), config.base_fraction)

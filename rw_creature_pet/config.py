@@ -5,6 +5,7 @@ import tomllib
 
 from .lizard.config import DebugConfig
 from .oracle.config import OracleConfig
+from .overseer.config import OverseerConfig
 from .shared.paths import DEFAULT_GAME_DIR
 from .interaction.config import AudioConfig, InteractionConfig
 
@@ -29,6 +30,7 @@ class AppConfig:
     interaction: InteractionConfig = InteractionConfig()
     audio: AudioConfig = AudioConfig()
     desktop: DesktopConfig = DesktopConfig()
+    overseer: OverseerConfig = OverseerConfig()
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
@@ -46,7 +48,7 @@ class AppConfig:
     def from_mapping(cls, data) -> "AppConfig":
         if not isinstance(data, dict):
             raise ValueError('配置必须为对象')
-        unknown = set(data) - {"game_dir", "debug", "oracle", "interaction", "audio", "desktop"}
+        unknown = set(data) - {"game_dir", "debug", "oracle", "interaction", "audio", "desktop", "overseer"}
         if unknown:
             raise ValueError(f"未知配置字段：{', '.join(sorted(unknown))}")
         game_dir = data.get("game_dir", str(DEFAULT_GAME_DIR))
@@ -56,4 +58,5 @@ class AppConfig:
                    OracleConfig.from_mapping(data.get('oracle', {})),
                    InteractionConfig(**data.get('interaction', {})),
                    AudioConfig(**data.get('audio', {})),
-                   DesktopConfig(**data.get('desktop', {})))
+                   DesktopConfig(**data.get('desktop', {})),
+                   OverseerConfig(**data.get('overseer', {})))

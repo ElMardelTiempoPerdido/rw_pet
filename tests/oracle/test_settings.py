@@ -78,12 +78,17 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertFalse(radius.isEnabled())
         d.controls['oracle.pearl_matrix_count'].setValue(7)
         radius.setValue(95)
+        playback = d.controls['oracle.pearl_playback_probability']
+        self.assertTrue(playback.isEnabled())
+        playback.setValue(60)
         d.save()
         saved = self.store.load()
         self.assertEqual(saved.oracle.pearl_matrix_avoid_radius, 95)
+        self.assertEqual(saved.oracle.pearl_playback_probability, .6)
         self.config = saved
         reopened = self.dialog(assets=self.assets)
         self.assertEqual(reopened.controls['oracle.pearl_matrix_avoid_radius'].value(), 95)
+        self.assertEqual(reopened.controls['oracle.pearl_playback_probability'].value(), 60)
 
     def test_start_edge_auto_checks_allowed_edge_and_round_trips(self):
         d = self.dialog(assets=self.assets)
@@ -238,6 +243,34 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(w.voice_player.volume, .35)
         self.assertIs(w.motion.scene, scene)
         self.assertTrue(scene.behavior.drift_active, '只改音量不能取消手动漫游')
+
+    def test_hide_cords_persists_without_reset_and_failed_save_keeps_current_cords(self):
+        w = self.desktop()
+        scene = w.motion.scene
+        scene.drift()
+        appearance, cords = scene.appearance, scene.appearance.cords
+        w.pause_action.setChecked(True)
+        w.open_settings()
+        d = w.settings_dialog
+        d.controls['oracle.hide_cords'].setChecked(True)
+        with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
+            d.save()
+        self.assertIs(appearance.cords, cords)
+        self.assertFalse(scene.config.hide_cords)
+        d.save()
+        self.assertIs(w.motion.scene, scene)
+        self.assertIs(scene.appearance, appearance)
+        self.assertTrue(scene.behavior.drift_active)
+        self.assertIsNone(appearance.cords)
+        self.assertTrue(self.store.load().oracle.hide_cords)
+        w.open_settings()
+        self.assertTrue(w.settings_dialog.controls['oracle.hide_cords'].isChecked())
+        w.settings_dialog.controls['oracle.hide_cords'].setChecked(False)
+        w.settings_dialog.save()
+        self.assertIs(w.motion.scene, scene)
+        self.assertIsNotNone(appearance.cords)
+        self.assertIsNot(appearance.cords, cords)
+        self.assertFalse(self.store.load().oracle.hide_cords)
 
     def test_glow_settings_and_color_picker_preserve_pose_and_persist(self):
         w = self.desktop()

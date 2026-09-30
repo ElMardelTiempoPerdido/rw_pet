@@ -14,7 +14,8 @@ def point_bounds(points, padding):
 def body_bounds(scene):
     # 33px 头图、袖口、领边均含在 20px 余量内。线缆允许垂入中央，
     # 必须取真实节点，不能仅使用活动带或人偶质点作为清除范围。
-    soft = point_bounds((v for p in scene.appearance.points
+    points = scene.appearance.body_points if scene.config.hide_cords else scene.appearance.points
+    soft = point_bounds((v for p in points
                          for v in (p.previous_position, p.position)), 20.)
     # 外壳弯折至多 24，活塞可伸出 length/4，另含底座和抗锯齿余量。
     arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
@@ -38,6 +39,11 @@ def visual_bounds(scene):
             bounds = point_bounds(points, 20.)  # 含 15px 字形及珍珠高光。
             if not bounds.isEmpty():
                 result = result.united(bounds)
+    pearl = scene.pearl_matrix.extracted if scene.pearl_matrix is not None else None
+    if pearl is not None and pearl.playback is not None:
+        # 可配置的大光泡可能超出文字投影余量；同时覆盖前后帧，避免桌面残影。
+        result = result.united(point_bounds((pearl.previous_position, pearl.position),
+                                           scene.config.pearl_bubble_max_size/2+2))
     if scene.config.glow_enabled:
         margin = scene.config.glow_radius+3
         result = result.adjusted(-margin, -margin, margin, margin)

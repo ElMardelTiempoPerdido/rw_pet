@@ -20,8 +20,8 @@ NOTE_STYLE = "font-size: 12px;color:#707070;"
 
 class _WheelScrollsPage:
     def wheelEvent(self, event):
-        # SpinBox/ComboBox 不消费滚轮，即使正在编辑。显式转交当前页，
-        # 避免平台差异导致只忽略事件却无法继续滚动。
+        # SpinBox/ComboBox 不消费滚轮，即使正在编辑。显式转交当前页
+        # 避免平台差异导致只忽略事件却无法继续滚动
         parent = self.parentWidget()
         while parent is not None and not isinstance(parent, QScrollArea):
             parent = parent.parentWidget()
@@ -49,9 +49,10 @@ class WheelSafeComboBox(_WheelScrollsPage, QComboBox):
     pass
 
 
-class GlowColorButton(QPushButton):
-    def __init__(self, value):
+class ColorButton(QPushButton):
+    def __init__(self, value, title):
         super().__init__()
+        self.title = title
         self.setAutoDefault(False)
         self.setValue(value)
         self.clicked.connect(self.choose_color)
@@ -72,7 +73,7 @@ class GlowColorButton(QPushButton):
         self.setIcon(QIcon(swatch))
 
     def choose_color(self):
-        color = QColorDialog.getColor(QColor(self._color), self, '选择外发光颜色')
+        color = QColorDialog.getColor(QColor(self._color), self, self.title)
         if color.isValid():
             self.setValue(color.name())
 
@@ -160,12 +161,14 @@ class OracleSettingsDialog(QDialog):
         general.addRow('桌宠显示大小', scale)
         self.check(general, '人偶想去哪去哪', 'desktop.autonomous', config.desktop.autonomous)
         self.check(general, '开启鼠标拖动', 'interaction.drag_enabled', config.interaction.drag_enabled)
+        self.check(general, '隐藏线缆', 'oracle.hide_cords', config.oracle.hide_cords)
+        self.controls['oracle.hide_cords'].setToolTip('隐藏粗线与头部细线，并停止线缆物理计算；机械臂保持显示。')
         self.check(general, '开启人偶语音', 'audio.enabled', config.audio.enabled)
         self.spin(general, '语音音量', 'audio.volume', config.audio.volume * 100, 0, 100, suffix=' %')
         self.controls['audio.enabled'].toggled.connect(self.controls['audio.volume'].setEnabled)
         self.controls['audio.volume'].setEnabled(config.audio.enabled)
         self.check(general, '开启外发光', 'oracle.glow_enabled', config.oracle.glow_enabled)
-        glow_color = GlowColorButton(config.oracle.glow_color)
+        glow_color = ColorButton(config.oracle.glow_color, '选择外发光颜色')
         glow_color.setFixedWidth(130)
         self.controls['oracle.glow_color'] = glow_color
         general.addRow('发光颜色', glow_color)
@@ -197,6 +200,18 @@ class OracleSettingsDialog(QDialog):
                   o.pearl_matrix_avoid_radius, 0, 300, suffix=' px')
         self.controls['oracle.pearl_matrix_avoid_radius'].setToolTip(
             '自主移动的停留点与矩阵中心保持的距离，单位为逻辑像素；0 表示关闭。')
+        self.spin(pearls, '珍珠播放动画概率', 'oracle.pearl_playback_probability',
+                  o.pearl_playback_probability*100, 0, 100, suffix=' %')
+        self.controls['oracle.pearl_playback_probability'].setToolTip(
+            '矩阵珠召近后，每次阅读抽取一次概率。动画使用 Soft Gesture 强度曲线，不播放声音；0 关闭。')
+        self.spin(pearls, '播放光泡最大直径', 'oracle.pearl_bubble_max_size',
+                  o.pearl_bubble_max_size, 6, 64, decimals=1, suffix=' px')
+        self.controls['oracle.pearl_bubble_max_size'].setToolTip(
+            '强度为 0 时直径为 6 逻辑像素，强度为 1 时达到此上限；随桌宠显示倍率缩放。')
+        bubble_color = ColorButton(o.pearl_bubble_color, '选择播放光泡颜色')
+        bubble_color.setFixedWidth(130)
+        self.controls['oracle.pearl_bubble_color'] = bubble_color
+        pearls.addRow('播放光泡颜色', bubble_color)
         self.check(pearls, '显示环绕珍珠', 'oracle.pearl_orbits_enabled', o.pearl_orbits_enabled)
         for label, field in (('内圈数量', 'pearl_inner_count'), ('外圈数量', 'pearl_outer_count'),
                              ('固定珍珠数量', 'pearl_fixed_count'), ('卫星珍珠数量', 'pearl_satellite_count')):
@@ -228,6 +243,7 @@ class OracleSettingsDialog(QDialog):
         # activity.addRow(note)
         self.controls['oracle.pearl_matrix_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.pearl_matrix_count'].valueChanged.connect(self.sync_dependencies)
+        self.controls['oracle.pearl_playback_probability'].valueChanged.connect(self.sync_dependencies)
         self.controls['oracle.pearl_orbits_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.halo_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.halo_arcs_enabled'].toggled.connect(self.sync_dependencies)
@@ -255,7 +271,7 @@ class OracleSettingsDialog(QDialog):
         footer.addWidget(QSizeGrip(self), 0, Qt.AlignmentFlag.AlignBottom)
         layout.addLayout(footer)
         apply_settings_style(self)
-        # 约为旧版满行输入的 1/4；长的秒数额外预留单位和步进按钮。
+        # 约为旧版满行输入的 1/4；长的秒数额外预留单位和步进按钮
         for control in self.controls.values():
             if isinstance(control, (QSpinBox, QDoubleSpinBox)):
                 widest = max(control.fontMetrics().horizontalAdvance(control.textFromValue(value) + control.suffix())
@@ -349,6 +365,10 @@ class OracleSettingsDialog(QDialog):
         c['oracle.pearl_matrix_count'].setEnabled(c['oracle.pearl_matrix_enabled'].isChecked())
         c['oracle.pearl_matrix_avoid_radius'].setEnabled(
             c['oracle.pearl_matrix_enabled'].isChecked() and c['oracle.pearl_matrix_count'].value() > 0)
+        c['oracle.pearl_playback_probability'].setEnabled(c['oracle.pearl_matrix_avoid_radius'].isEnabled())
+        for key in ('oracle.pearl_bubble_max_size', 'oracle.pearl_bubble_color'):
+            c[key].setEnabled(c['oracle.pearl_playback_probability'].isEnabled()
+                              and c['oracle.pearl_playback_probability'].value() > 0)
         for name in ('inner', 'outer'):
             c[f'oracle.pearl_{name}_count'].setEnabled(c['oracle.pearl_orbits_enabled'].isChecked())
         c['oracle.pearl_satellite_count'].setEnabled(c['oracle.pearl_fixed_count'].value() > 0)
@@ -373,11 +393,12 @@ class OracleSettingsDialog(QDialog):
         edges = [edge for edge, check in self.edge_checks.items() if check.isChecked()]
         groups['oracle'].update(base_side=base_side, allowed_edges=validate_edges(edges, base_side))
         percentages = {'audio.volume', 'oracle.projection_opacity', 'oracle.edge_fraction',
-                       'oracle.cross_edge_probability', 'oracle.antigravity_probability'}
+                       'oracle.cross_edge_probability', 'oracle.antigravity_probability',
+                       'oracle.pearl_playback_probability'}
         for key, control in self.controls.items():
             value = self.value(control)
             if value == self.initial_values[key]:
-                continue  # 不把未编辑的精确数值按控件显示位数重新舍入。
+                continue  # 不把未编辑的精确数值按控件显示位数重新舍入
             group, field = key.split('.')
             groups[group][field] = value / 100 if key in percentages else value
         return replace(self.original, game_dir=directory,
@@ -457,7 +478,7 @@ class OracleSettingsDialog(QDialog):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, 'directory_hint'):
-            # 小工作区优先给参数留空间；完整目录说明仍可悬停查看。
+            # 小工作区优先给参数留空间；完整目录说明仍可悬停查看
             self.directory_hint.setVisible(self.height() >= 540)
 
     def eventFilter(self, watched, event):

@@ -68,6 +68,8 @@ class OracleRenderer:
     CORD_SEGMENT_SPACING = 12.  # 沿用用户实机校准；节纹长 7.2，间隙约 2.8。
     SLEEVE_ROOT_HALF_WIDTH = 3.
     SLEEVE_CUFF_HALF_WIDTH = 5.
+    SLEEVE_CUFF_RADIUS = 2.  # 逻辑像素；随身体几何缩放，不按屏幕像素固定削角。
+    SLEEVE_CUFF_DROP = 2.  # 抬臂时衣料相对手腕的最大下垂量；不移动手部质点。
     SLEEVE_ROOT_RISE = HangingHand.SHOULDER_RISE
     SLEEVE_SHOULDER_OUTSET = 3.
     OPEN_EYE_WIDTH = 2.
@@ -113,10 +115,11 @@ class OracleRenderer:
     GOWN_TRIM_HALF = .70  # 相对开口的半宽差 .08→.32，深度差 .04→.16。
     GOWN_TRIM_DEPTH = .44
 
-    def __init__(self, atlas=None, colors=OracleColors(), *, glyphs=None):
+    def __init__(self, atlas=None, colors=OracleColors(), *, glyphs=None, playback_curve=None):
         self.atlas = atlas
         self.colors = colors
         self.glyphs = glyphs
+        self.playback_curve = playback_curve
         self._pearl_palette_key = None
         self._pearl_palette = ()
         self._arm_geometry_key = None
@@ -275,6 +278,8 @@ class OracleRenderer:
         self.draw_arm_base(painter, scene, base, normal, frames[0].elbow, front=True)
 
     def draw_cords(self, painter, scene, alpha):
+        if scene.config.hide_cords or scene.appearance.cords is None:
+            return
         c = self.colors
         appearance = scene.appearance
         main = [p.sample(alpha) for p in appearance.main_cord]
@@ -351,6 +356,13 @@ class OracleRenderer:
         # 原版向外伸 5；Bell 收到 3，让肩部转折靠近衣袍，形成较缓的溜肩。
         a = shoulder+outward*self.SLEEVE_SHOULDER_OUTSET
         b = end+unit(shoulder-end)*3+direction
+        arm = unit(end-shoulder, direction*(-1))
+        raised = max(0., min(1., (arm.x*direction.x+arm.y*direction.y+.85)/.8))
+        raised = raised*raised*(3-2*raised)
+        cuff_forward = unit(end-bezier(shoulder, a, b, end, 5/6), outward)
+        # 将画面向下的方向投影到袖口截面。接近竖直时自然归零，不能
+        # 归一化投影，否则手臂经过竖直方向时衣料会突然跳到另一侧。
+        drop = (Vec2(0, 1)-cuff_forward*cuff_forward.y)*(self.SLEEVE_CUFF_DROP*raised)
         previous = shoulder-outward*2
         edges = []
         for i in range(7):
@@ -361,8 +373,12 @@ class OracleRenderer:
             half = (self.SLEEVE_ROOT_HALF_WIDTH
                     + (self.SLEEVE_CUFF_HALF_WIDTH-self.SLEEVE_ROOT_HALF_WIDTH)*t*t*(3-2*t))
             back = center-tangent*((center-previous).length()*.3)
-            edges.extend(((back-normal*half, back+normal*half),
-                          (center-normal*half, center+normal*half)))
+            # 袖根的前三分之一不动；只让远端衣料下垂。每对截面同移，
+            # 保留末端切向与开口平面，使手掌仍由袖口遮住靠腕的一半。
+            drape = max(0., (t-1/3)*1.5)
+            offset = drop*(drape*drape*(3-2*drape))
+            edges.extend(((back+offset-normal*half, back+offset+normal*half),
+                          (center+offset-normal*half, center+offset+normal*half)))
             previous = center
         return edges
 
@@ -373,6 +389,36 @@ class OracleRenderer:
                                   + [point(b) for _, b in reversed(edges)]))
         path.closeSubpath()
         return path
+
+    def sleeve_path(self, edges):
+        """只向内修圆袖口两角，保留原网格、横向渐变和袖口中央的手腕遮挡。"""
+        outline = self.strip_path(edges)
+        a, b = edges[-1]
+        center = a.lerp(b, .5)
+        previous = edges[-2][0].lerp(edges[-2][1], .5)
+        forward = unit(center-previous)
+        radius = min(self.SLEEVE_CUFF_RADIUS, (b-a).length()*.25,
+                     (center-edges[0][0].lerp(edges[0][1], .5)).length()*.25)
+        if radius <= 1e-9:
+            return outline
+        cuts = QPainterPath()
+        for corner, inward in ((a, unit(b-a)), (b, unit(a-b))):
+            side, front = corner-forward*radius, corner+inward*radius
+            cuts.moveTo(point(side))
+            cuts.lineTo(point(corner))
+            cuts.lineTo(point(front))
+            # 四分之一圆的三次贝塞尔近似。剪掉的是角外的小块，不是整条袖口。
+            cuts.cubicTo(point(front-inward*(radius*.55228475)),
+                         point(side+forward*(radius*.55228475)), point(side))
+            cuts.closeSubpath()
+        return outline.subtracted(cuts)
+
+    def draw_sleeve(self, painter, edges):
+        painter.save()
+        painter.setClipPath(self.sleeve_path(edges), Qt.ClipOperation.IntersectClip)
+        c = self.colors
+        self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
+        painter.restore()
 
     def draw_hand(self, painter, end):
         # 图集恢复了透明留白：10×10 画布中实际有色部分约 4×4。
@@ -395,8 +441,7 @@ class OracleRenderer:
                 self.draw_hand(painter, end)
                 # 对应 Gown.Color(0.4) / Color(0)，从现有衣袍配色取色。
                 # 原版顺序是先手掌再袖子，袖口自然覆盖靠手腕的一部分。
-                self.transverse_strip(painter, self.sleeve_edges(shoulder, end, direction, sign),
-                                      mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
+                self.draw_sleeve(painter, self.sleeve_edges(shoulder, end, direction, sign))
             else:
                 knee = lower.lerp(end, .5)+side*(4*sign)
                 self.ribbon(painter, lower, lower.lerp(knee, .9), end.lerp(knee, .9),
@@ -757,6 +802,7 @@ class OracleRenderer:
              raster_scale=None):
         density = painter_density(painter, scene.config.pixel_mode, raster_scale)
         app = scene.appearance
+        cords = cords and not scene.config.hide_cords and app.cords is not None
         eye_alpha = pearl_alpha = alpha
         if app.sleeping:
             alpha = 1.
@@ -858,6 +904,28 @@ class OracleRenderer:
                 self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
         for p, glyph_id, slot in scene.fixed_pearls.samples(alpha):
             self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        if scene.pearl_matrix is not None and scene.pearl_matrix.extracted is not None:
+            self.draw_pearl_playback(painter, scene.pearl_matrix.extracted, alpha, scene.config.projection_opacity,
+                                     max_size=scene.config.pearl_bubble_max_size,
+                                     color=scene.config.pearl_bubble_color)
+        painter.restore()
+
+    def draw_pearl_playback(self, painter, pearl, alpha=1., opacity=1., *, max_size=12., color='#ff0000'):
+        if pearl.playback is None or opacity <= 0:
+            return
+        strength = pearl.playback.sample(alpha)
+        fade = pearl.playback.sample_fade(alpha)
+        if fade <= 0:
+            return
+        # 最小与珍珠相当，最大直径由配置指定，默认保留原版最大尺寸 12px。
+        # 首尾淡入淡出只改变透明度，不再将 bubble 缩进珍珠内部。
+        # 属于半透明投影，不参与珍珠本体的外发光缓存。
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*opacity*(.25+strength*.65)*fade)
+        size = 6+(max_size-6)*strength
+        self.sprite(painter, 'LizardBubble6', pearl.sample(alpha), size, size, color)
         painter.restore()
 
     def draw_halo(self, painter, scene, alpha, *, raster_scale=None):
@@ -1014,7 +1082,7 @@ class OracleRenderer:
         head = app.head.sample(alpha)
         if arm:
             self.draw_arm(painter, scene, alpha)
-        if cords:
+        if cords and not scene.config.hide_cords and app.cords is not None:
             self.draw_cords(painter, scene, alpha)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
         if cache_body:
@@ -1074,7 +1142,7 @@ class OracleRenderer:
             end = hand.sample(alpha)
             shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
             edges = self.sleeve_edges(shoulder, end, direction, sign)
-            sleeve = self.strip_path(edges)
+            sleeve = self.sleeve_path(edges)
             palm = QPainterPath()
             palm.addRect(QRectF(end.x-6, end.y-6, 12, 12))
             painter.save()

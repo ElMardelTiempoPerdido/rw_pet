@@ -117,6 +117,8 @@ class OracleDesktopMotion:
             self.scene.behavior.timing_random.setstate(previous.behavior.timing_random.getstate())
             self.scene.behavior.pearl_random.setstate(previous.behavior.pearl_random.getstate())
             self.scene.behavior.fixed_random.setstate(previous.behavior.fixed_random.getstate())
+            self.scene.behavior.playback_random.setstate(previous.behavior.playback_random.getstate())
+            self.scene.pearl_playback_curve = previous.pearl_playback_curve
             self.scene.behavior.last_matrix_slot = previous.behavior.last_matrix_slot
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
             self.scene.eyes.random.setstate(previous.eyes.random.getstate())
@@ -162,6 +164,9 @@ class OracleDesktopWindow(QWidget):
                 renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)
             except (AtlasError, OSError, ValueError) as exc:
                 self.asset_message = f'珍珠投影不可用：{exc}'
+            from .pearl_playback_assets import prepare_pearl_playback
+            self.asset_message = ' / '.join(filter(None, (self.asset_message,
+                prepare_pearl_playback(config.game_dir, renderer))))
         self.renderer = renderer
         configure_desktop_overlay(self)
         self.setWindowTitle('Oracle · Bell 桌宠')
@@ -291,6 +296,7 @@ class OracleDesktopWindow(QWidget):
             else:
                 settings = self.config.oracle
                 self.motion = OracleDesktopMotion(settings, viewport, previous)
+                self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
                 if previous is None:
                     self.motion.scene.set_autonomous(self.config.desktop.autonomous)
                 pass
@@ -384,10 +390,11 @@ class OracleDesktopWindow(QWidget):
         """先准备新场景、写入配置，再公布运行状态；写入失败不改变当前桌宠。"""
         current = self.current_settings()
         motion = None
-        glow = {name: getattr(config.oracle, name) for name in ('glow_enabled', 'glow_color', 'glow_radius')}
-        # 纯外观后处理不重置物理、行为或已选珍珠。
-        previous_with_glow = replace(current.oracle, **glow)
-        if self.motion is not None and (config.oracle != previous_with_glow or config.desktop.scale != self.requested_scale):
+        visual = {name: getattr(config.oracle, name)
+                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'hide_cords')}
+        # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
+        previous_with_visual = replace(current.oracle, **visual)
+        if self.motion is not None and (config.oracle != previous_with_visual or config.desktop.scale != self.requested_scale):
             viewport = replace(self.motion.viewport, requested_scale=config.desktop.scale)
             motion = OracleDesktopMotion(config.oracle, viewport, self.motion.scene, preserve_options=False)
         self.config_store.save(config)
@@ -408,7 +415,9 @@ class OracleDesktopWindow(QWidget):
             self.motion, self._signature = motion, motion.viewport
             self.clock.accumulator = 0.
         if self.motion is not None:
-            self.motion.scene.config = replace(self.motion.scene.config, **glow)
+            self.motion.scene.config = replace(self.motion.scene.config, **visual)
+            self.motion.scene.appearance.sync_cords(self.motion.scene)
+            self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
                 self.motion.scene.set_autonomous(config.desktop.autonomous)
             self.motion.scene.drag.set_enabled(config.interaction.drag_enabled)
@@ -592,7 +601,9 @@ class OracleDesktopWindow(QWidget):
             settings = self.current_settings()
             debug = OracleDebugWindow(settings, self.config_path, load_atlas=False, voice_source=self.voice_player)
             debug.renderer = debug.canvas.renderer = OracleRenderer(
-                self.renderer.atlas, self.renderer.colors, glyphs=self.renderer.glyphs)
+                self.renderer.atlas, self.renderer.colors, glyphs=self.renderer.glyphs,
+                playback_curve=self.renderer.playback_curve)
+            debug.scene.pearl_playback_curve = self.renderer.playback_curve
             debug.asset_message = self.asset_message
             debug.assets.setText(self.asset_message+' · 独立调试；关闭窗口返回桌宠')
             debug.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)

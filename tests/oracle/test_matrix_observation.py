@@ -251,11 +251,12 @@ class MatrixObservationRenderTests(unittest.TestCase):
             before = (scene.ticks, scene.pearl_visual_revision)
             window.on_timer()
             self.assertEqual(before, (scene.ticks, scene.pearl_visual_revision))
-            for tick in range(1800):
+            budget = scene.behavior.OBSERVE_TICKS[1]+1800  # 完整阅读之后再等待归位及次级运动收敛。
+            for tick in range(budget):
                 scene.step()
                 if scene.behavior.completed_cycles and scene.appearance.sleeping and scene.pearls_settled:
                     break
-            self.assertLess(tick, 1799)
+            self.assertLess(tick, budget-1)
             revisions = (scene.pearl_visual_revision, scene.appearance.revision, scene.eyes.revision)
             for _ in range(200):
                 scene.step()

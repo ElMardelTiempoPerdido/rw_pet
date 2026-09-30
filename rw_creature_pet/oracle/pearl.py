@@ -40,6 +40,17 @@ class PearlState:
         self.returning_home = True
         self.catching_up = False
         self._replan_ticks = 0
+        self.playback = None
+
+    def start_playback(self, curve, start, duration):
+        from .pearl_playback import PearlPlayback
+        self.playback = PearlPlayback(curve, start, duration)
+        self.revision += 1
+
+    def stop_playback(self):
+        if self.playback is not None:
+            self.playback = None
+            self.revision += 1
 
     @classmethod
     def nearby_home(cls, point, center, region, width, height, *, inset=False):
@@ -74,6 +85,7 @@ class PearlState:
             self._replan_ticks = self.REPLAN_TICKS
 
     def move_to(self, target):
+        self.stop_playback()
         self.returning_home = False
         self._set_target(target)
 
@@ -93,11 +105,17 @@ class PearlState:
         self.settled = False
 
     def return_home(self):
+        self.stop_playback()
         self.returning_home = True
         self._set_target(self.home)
 
     def step(self):
         self.previous_position = self.position
+        if self.playback is not None:
+            self.playback.step()
+            self.revision += 1
+            if self.playback.ticks >= self.playback.duration:
+                self.stop_playback()
         if self.settled:
             return
         remaining = max(0., self.route.length-self.distance)

@@ -241,11 +241,10 @@ class OracleAppearance:
         for p in self.necklace:
             p.previous_position = p.position
             p.velocity = Vec2()
-        self.cords = OracleCords(scene, self.head.position)
-        self.main_cord = self.cords.main.points
-        self.small_cords = [rope.points for rope in self.cords.fine]
-        self._points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace, *self.main_cord,
-                        *(p for cord in self.small_cords for p in cord)]
+        self.body_points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace]
+        self.cords = None
+        self.main_cord, self.small_cords = [], []
+        self._points = self.body_points
         self.sleeping = False
         self.revision = 0
         self._quiet_ticks = 0
@@ -253,6 +252,27 @@ class OracleAppearance:
         self.cog_turns = [0.] * 4
         self.previous_cog_turns = self.cog_turns.copy()
         self._arm_spans = self.arm_spans(scene)
+        self.sync_cords(scene)
+
+    def sync_cords(self, scene):
+        """按配置释放或重建线缆；不改变身体、导航及行为状态。"""
+        visible = not scene.config.hide_cords
+        if visible == (self.cords is not None):
+            return
+        if visible:
+            # 隐藏期间人偶可能已跨边；以当前连接点初始化，前后帧一致。
+            self.cords = OracleCords(scene, self.head.position)
+            self.main_cord = self.cords.main.points
+            self.small_cords = [rope.points for rope in self.cords.fine]
+            self._points = [*self.body_points, *self.main_cord,
+                            *(p for cord in self.small_cords for p in cord)]
+        else:
+            self.cords = None
+            self.main_cord, self.small_cords = [], []
+            self._points = self.body_points
+        self.sleeping = False
+        self._quiet_ticks = 0
+        self.revision += 1
 
     @staticmethod
     def arm_spans(scene):
@@ -387,6 +407,7 @@ class OracleAppearance:
             p.drive_velocity = Vec2(vx[i], vy[i])
 
     def step(self, scene):
+        self.sync_cords(scene)
         # 转动量只来自主跨度变化；固定 40 Hz 更新，静止不空转，绘制只插值。
         spans = self.arm_spans(scene)
         self.previous_cog_turns = self.cog_turns.copy()
@@ -428,7 +449,8 @@ class OracleAppearance:
             p.position = self.lower + clamp_length(p.position-self.lower, 10)
             p.velocity = p.position-p.previous_position
         self.step_necklace()
-        self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
+        if self.cords is not None:
+            self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
         self._quiet_ticks = (self._quiet_ticks+1 if not reacting and not gravity_changed and self.maximum_speed < .002
                              and abs(self.sway_velocity) < 1e-6
                              and max((a-b).length() for a, b in zip(inputs, self._sleep_inputs)) < .001

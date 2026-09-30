@@ -4,12 +4,16 @@ from pathlib import Path
 from time import perf_counter
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
+from PySide6.QtGui import QColor, QCursor, QFont, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
 from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSpinBox, QVBoxLayout, QWidget
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..config import AppConfig
-from ..shared.geometry import Vec2
+from ..shared.geometry import Bounds, Vec2
+from ..overseer.model import Overseer
+from ..overseer.render import OverseerRenderer
+from ..overseer.debug import OverseerDebugPanel
+from ..overseer.config import OverseerConfig
 from .scene import OracleScene, RailSide
 from .config import DISPLAY_SCALES, OracleColors
 from .glyphs import load_pearl_glyphs
@@ -34,8 +38,9 @@ class OracleCanvas(QWidget):
     target_picked = Signal(float, float)
     look_picked = Signal(float, float)
     pearl_picked = Signal(float, float)
+    overseer_look_picked = Signal(float, float)
 
-    def __init__(self, scene, clock, renderer):
+    def __init__(self, scene, clock, renderer, overseer_config=OverseerConfig()):
         super().__init__()
         self.scene, self.clock, self.renderer = scene, clock, renderer
         self.skeleton = False
@@ -47,7 +52,51 @@ class OracleCanvas(QWidget):
         self.drag_hit = PuppetHitMap()
         self._route = None
         self._route_path = None
+        self.overseer = Overseer(self.overseer_bounds(), overseer_config)
+        self.overseer_renderer = OverseerRenderer(renderer.atlas)
+        self.overseer_look_mode = 'mouse'
+        self.overseer_fixed_target = Vec2(scene.world.width/2, scene.world.height/2)
+        self.overseer_guides = self.overseer_focus = False
+        self.overseer_avoidance = True
         self.setMinimumSize(640, 420)
+
+    def overseer_bounds(self):
+        world = self.scene.world
+        pad = world.rail_inset
+        return Bounds(pad, pad, world.width-pad, world.height-pad)
+
+    def overseer_target_at(self, position):
+        """只读取画布内的鼠标；不参与命中测试，也不要求按下鼠标。"""
+        if not self.rect().contains(round(position.x), round(position.y)):
+            return None
+        if self.magnifier and self.magnifier_rect().contains(QPointF(position.x, position.y)):
+            return None
+        world = self.view_to_world(position)
+        return world if self.overseer.bounds.contains(world) else None
+
+    def overseer_target(self):
+        if self.overseer_look_mode == 'fixed':
+            return self.overseer_fixed_target
+        if self.overseer_look_mode == 'mouse':
+            local = self.mapFromGlobal(QCursor.pos())
+            return self.overseer_target_at(Vec2(local.x(), local.y()))
+        return None
+
+    def overseer_threat(self):
+        if not self.overseer_avoidance:
+            return None
+        local = self.mapFromGlobal(QCursor.pos())
+        # 边框外但仍在画布内的鼠标也构成威胁；注视目标和避让源相互独立。
+        if (not self.rect().contains(local) or
+                (self.magnifier and self.magnifier_rect().contains(QPointF(local)))):
+            return None
+        return self.view_to_world(Vec2(local.x(), local.y()))
+
+    def center_on_overseer(self):
+        if self.overseer.active:
+            self.overseer_focus = True
+            self.view_center = self.overseer.root+self.overseer.normal*60
+            self.update()
 
     def view_transform(self):
         world = self.scene.world
@@ -69,6 +118,7 @@ class OracleCanvas(QWidget):
         self.update()
 
     def center_on_pet(self):
+        self.overseer_focus = False
         upper = self.scene.body.chunks[0]
         self.view_center = upper.previous_position.lerp(upper.position, self.clock.alpha)
         self.update()
@@ -107,7 +157,12 @@ class OracleCanvas(QWidget):
             else:
                 self.target_picked.emit(pos.x, pos.y)
         elif event.button() == Qt.MouseButton.RightButton:
-            self.look_picked.emit(pos.x, pos.y)
+            if self.overseer.active and self.overseer_look_mode == 'fixed':
+                pos = self.overseer.bounds.clamp(pos)
+                self.overseer_fixed_target = pos
+                self.overseer_look_picked.emit(pos.x, pos.y)
+            else:
+                self.look_picked.emit(pos.x, pos.y)
         event.accept()
 
     def mouseMoveEvent(self, event):
@@ -205,6 +260,8 @@ class OracleCanvas(QWidget):
                 painter.setPen(pen('#b8edba'))
                 painter.drawEllipse(point(nav.guide), 3, 3)
             self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton)
+            self.overseer_renderer.draw(painter, self.overseer, self.clock.alpha,
+                pixel_mode=scene.config.pixel_mode, guides=self.overseer_guides)
 
             def cross(pos, color, size=5):
                 painter.setPen(pen(color))
@@ -276,17 +333,25 @@ class OracleCanvas(QWidget):
                 painter.translate(rect.center().x(), rect.center().y())
                 zoom = 4/self.devicePixelRatioF()
                 painter.scale(zoom, zoom)
+                focus_overseer = self.overseer_focus and self.overseer.active
                 upper = scene.body.chunks[0]
-                center = upper.previous_position.lerp(upper.position, self.clock.alpha)
+                center = (self.overseer.hover if focus_overseer
+                          else upper.previous_position.lerp(upper.position, self.clock.alpha))
                 painter.translate(-center.x, -center.y)
-                self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton,
-                                   raster_scale=scale*self.devicePixelRatioF())
+                if focus_overseer:
+                    self.overseer_renderer.draw(painter, self.overseer, self.clock.alpha,
+                        pixel_mode=scene.config.pixel_mode, raster_scale=scale*self.devicePixelRatioF(),
+                        guides=self.overseer_guides)
+                else:
+                    self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton,
+                                       raster_scale=scale*self.devicePixelRatioF())
                 painter.restore()
                 painter.setPen(QPen(QColor('#536b80'), 1))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(rect)
                 painter.setPen(QColor('#bfceda'))
-                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22), '人偶局部 / 4× / 主视图像素')
+                painter.drawText(QPointF(rect.left() + 10, rect.top() + 22),
+                    ('监视者' if focus_overseer else '人偶')+'局部 / 4× / 主视图像素')
         finally:
             painter.end()
 
@@ -321,7 +386,13 @@ class OracleDebugWindow(QMainWindow):
                 self.renderer = OracleRenderer(colors=config.oracle.colors)
         else:
             self.renderer = OracleRenderer(colors=config.oracle.colors)
-        self.canvas = OracleCanvas(self.scene, self.clock, self.renderer)
+        if load_atlas:
+            from .pearl_playback_assets import prepare_pearl_playback
+            self.asset_message = ' / '.join(filter(None, (self.asset_message,
+                prepare_pearl_playback(config.game_dir, self.renderer))))
+        self.scene.pearl_playback_curve = self.renderer.playback_curve
+        self.canvas = OracleCanvas(self.scene, self.clock, self.renderer, config.overseer)
+        self.overseer_panel = None
         self.setWindowTitle('测试')
         self.resize(1220, 830)
         root, layout = QWidget(), QVBoxLayout()
@@ -386,6 +457,9 @@ class OracleDebugWindow(QMainWindow):
         self.voice_status.setWordWrap(True)
         self.voice_player.status_changed.connect(self.voice_status.setText)
         audio_controls.addWidget(self.voice_status, 1)
+        self.overseer_button = QPushButton('监视者调试…')
+        self.overseer_button.clicked.connect(self.open_overseer_debug)
+        audio_controls.addWidget(self.overseer_button)
         layout.addLayout(audio_controls)
         controls = QHBoxLayout()
         controls.addWidget(QLabel('初始底座'))
@@ -629,12 +703,14 @@ class OracleDebugWindow(QMainWindow):
 
     def single_step(self):
         self.pause_button.setChecked(True)
-        self.clock.single_step(self.scene.step)
+        self.clock.single_step(self.step_scene)
         self.refresh()
 
     def reset_scene(self):
         self.cancel_drag()
         self.scene.reset()
+        self.canvas.overseer.clear()
+        self.canvas.overseer_focus = False
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
         self.last_time = perf_counter()
@@ -745,9 +821,21 @@ class OracleDebugWindow(QMainWindow):
         self.scene.set_look_target(None)
         self.refresh()
 
+    def open_overseer_debug(self):
+        if self.overseer_panel is None:
+            self.overseer_panel = OverseerDebugPanel(self.canvas, self, config_path=self.config_path,
+                                                    initial_config=self.config.overseer)
+        self.overseer_panel.show()
+        self.overseer_panel.raise_()
+
+    def step_scene(self):
+        self.scene.step()
+        if self.canvas.overseer.active:
+            self.canvas.overseer.step(self.canvas.overseer_target(), threat=self.canvas.overseer_threat())
+
     def on_timer(self):
         now = perf_counter()
-        self.clock.advance(now - self.last_time, self.scene.step)
+        self.clock.advance(now - self.last_time, self.step_scene)
         self.last_time = now
         self.voice_player.sync(self.scene.drag_reactions.voice, paused=self.clock.paused)
         self.refresh(force=False)
@@ -766,7 +854,7 @@ class OracleDebugWindow(QMainWindow):
         self.orbit_pearl_button.setEnabled(scene.sliding_base and available)
         now = perf_counter()
         revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
-                    scene.halo_visual_revision)
+                    scene.halo_visual_revision, self.canvas.overseer.revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
                                                    or not scene.pearls_settled or scene.eyes.moving))
                        or revision != self._last_visual_revision)
@@ -781,6 +869,8 @@ class OracleDebugWindow(QMainWindow):
         if not force and now-self._last_status_time < .25:
             return
         self._last_status_time = now
+        if self.overseer_panel is not None and self.overseer_panel.isVisible():
+            self.overseer_panel.refresh_status()
         for control in (self.look_pearl_button, self.recall_pearl_button, self.orbit_pearl_button,
                         self.meditate_button, self.short_roam_button, self.drift_button,
                         self.cross_edge_button, self.clockwise_button, self.counterclockwise_button):
