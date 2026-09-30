@@ -32,7 +32,7 @@ def main():
         try:
             dialog.show()
             app.processEvents()
-            for i, name in enumerate(('general', 'pearls', 'halo', 'activity')):
+            for i, name in enumerate(('general', 'pearls', 'halo', 'activity', 'overseer')):
                 dialog.tabs.setCurrentIndex(i)
                 app.processEvents()
                 dialog.grab().save(str(out/f'oracle-settings-{name}.png'))

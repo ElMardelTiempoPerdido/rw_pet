@@ -15,6 +15,7 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.debug_window import OracleDebugWindow
 from rw_creature_pet.overseer.model import Edge
+from rw_creature_pet.overseer.events import EventPhase
 
 
 class OverseerDebugTests(unittest.TestCase):
@@ -218,6 +219,102 @@ class OverseerDebugTests(unittest.TestCase):
                 self.assertFalse(any(bytes(image.constBits())[row*image.bytesPerLine():]))
         render(1.)
         self.assertFalse(any(bytes(image.constBits())))
+
+    def test_event_buttons_settings_fast_cycle_and_paused_timers(self):
+        w, c, p = self.window, self.canvas, self.panel
+        p.settings_button.click()
+        settings = p.settings_dialog
+        settings.preset_button.click()
+        self.assertFalse(c.overseer.config.enabled)  # 填入尚未应用。
+        settings.apply_button.click()
+        self.assertTrue(c.overseer.config.enabled)
+        self.assertEqual(c.overseer.config.appearance_probability, 1)
+        p.close()  # 面板可见性不影响调度。
+        with patch.object(c, 'overseer_mouse', return_value=None):
+            w.clock.advance(5, w.step_scene)
+            self.assertEqual(c.overseer_events.check_remaining, 1)
+            for _ in range(40):
+                w.step_scene()
+            self.assertEqual(c.overseer_events.phase, EventPhase.ACTIVE)
+            self.assertTrue(c.overseer.active)
+            p.refresh_status()
+            self.assertFalse(p.start_event_button.isEnabled())
+            self.assertTrue(p.finish_event_button.isEnabled())
+            p.finish_event_button.click()
+            self.assertFalse(p.emerge_button.isEnabled())
+            for _ in range(80):
+                w.step_scene()
+                if c.overseer_events.phase == EventPhase.COOLDOWN:
+                    break
+            p.refresh_status()
+            self.assertTrue(p.skip_cooldown_button.isEnabled())
+            p.skip_cooldown_button.click()
+            p.check_event_button.click()
+            self.assertEqual(c.overseer_events.phase, EventPhase.ACTIVE)
+            self.assertEqual(c.overseer_events.event_count, 2)
+            p.clear_button.click()
+            settings.controls['enabled'].setChecked(False)
+            settings.apply_button.click()
+            for _ in range(50):
+                w.step_scene()
+            self.assertFalse(c.overseer.active)
+            p.start_event_button.click()  # 关闭自动功能时仍可手动调试事件。
+            self.assertTrue(c.overseer.active)
+
+    def test_event_settings_validation_export_reload_and_cancel(self):
+        from rw_creature_pet.config import AppConfig
+        p, c = self.panel, self.canvas
+        p.settings_button.click()
+        settings = p.settings_dialog
+        before = c.overseer.config
+        settings.controls['reemerge_distance'].setValue(20)
+        settings.apply_button.click()
+        self.assertEqual(c.overseer.config, before)
+        self.assertIn('未应用', settings.status.text())
+        settings.controls['reemerge_distance'].setValue(130)
+        settings.controls['puppet_withdraw_distance'].setValue(110)
+        settings.controls['puppet_reemerge_distance'].setValue(170)
+        settings.controls['relocation_probability'].setValue(70)
+        with patch('rw_creature_pet.overseer.settings.QFileDialog.getSaveFileName', return_value=('', '')):
+            settings.export_button.click()
+        self.assertEqual(c.overseer.config, before)
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp)/'saved.json'
+            with patch('rw_creature_pet.overseer.settings.QFileDialog.getSaveFileName', return_value=(str(path), '')):
+                settings.export_button.click()
+            config = AppConfig.load(path)
+            self.assertEqual(config.overseer.reemerge_distance, 130)
+            self.assertEqual(config.overseer.puppet_reemerge_distance, 170)
+            self.assertEqual(config.overseer.relocation_probability, .7)
+            self.assertEqual(config.oracle, self.window.config.oracle)
+            self.assertEqual(c.overseer.config, config.overseer)
+            p.set_color('#123456')
+            settings.source = path
+            settings.controls['duration_min'].setValue(7)
+            settings.reload_button.click()
+            settings.apply_button.click()
+            self.assertEqual(c.overseer.config.duration_min, config.overseer.duration_min)
+            self.assertEqual(c.overseer.config.color, '#123456')
+            saved = path.read_bytes()
+            self.assertFalse(saved.startswith(b'\xef\xbb\xbf'))
+            path.write_text('invalid', encoding='utf-8')
+            settings.reload_button.click()
+            self.assertIn('读取失败', settings.status.text())
+
+    def test_spawn_obstacle_uses_puppet_only_and_ignores_avoidance_toggle(self):
+        c = self.canvas
+        c.overseer_avoidance = False
+        mouse = Vec2(480, 300)
+        with patch.object(c, 'overseer_mouse', return_value=mouse):
+            context = c.overseer_spawn_context()
+        self.assertEqual(context.mouse, mouse)
+        self.assertIsNone(c.overseer_threat())
+        self.assertEqual(context.edges, c.scene.config.allowed_edges)
+        body = context.obstacles[0]
+        for point in c.scene.appearance.body_points:
+            self.assertTrue(body.contains(point.position))
+        self.assertLess(body.right-body.left, c.scene.world.width/2)
+        self.assertLess(body.bottom-body.top, c.scene.world.height/2)
 
 
 if __name__ == '__main__':

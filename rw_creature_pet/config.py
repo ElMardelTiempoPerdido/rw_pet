@@ -1,5 +1,6 @@
 """不可变应用配置；TOML 默认值与用户设置共用验证。"""
-from dataclasses import dataclass
+from .shared.messages import Message
+from dataclasses import dataclass, field
 from pathlib import Path
 import tomllib
 
@@ -8,6 +9,7 @@ from .oracle.config import OracleConfig
 from .overseer.config import OverseerConfig
 from .shared.paths import DEFAULT_GAME_DIR
 from .interaction.config import AudioConfig, InteractionConfig
+from .ui_config import UiConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +33,7 @@ class AppConfig:
     audio: AudioConfig = AudioConfig()
     desktop: DesktopConfig = DesktopConfig()
     overseer: OverseerConfig = OverseerConfig()
+    ui: UiConfig = field(default_factory=UiConfig)
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":
@@ -48,9 +51,9 @@ class AppConfig:
     def from_mapping(cls, data) -> "AppConfig":
         if not isinstance(data, dict):
             raise ValueError('配置必须为对象')
-        unknown = set(data) - {"game_dir", "debug", "oracle", "interaction", "audio", "desktop", "overseer"}
+        unknown = set(data) - {"game_dir", "debug", "oracle", "interaction", "audio", "desktop", "overseer", "ui"}
         if unknown:
-            raise ValueError(f"未知配置字段：{', '.join(sorted(unknown))}")
+            raise ValueError(Message('未知配置字段：{value0}', value0=', '.join(sorted(unknown))))
         game_dir = data.get("game_dir", str(DEFAULT_GAME_DIR))
         if not isinstance(game_dir, str) or not game_dir.strip():
             raise ValueError("game_dir 必须为非空路径字符串")
@@ -59,4 +62,4 @@ class AppConfig:
                    InteractionConfig(**data.get('interaction', {})),
                    AudioConfig(**data.get('audio', {})),
                    DesktopConfig(**data.get('desktop', {})),
-                   OverseerConfig(**data.get('overseer', {})))
+                   OverseerConfig(**data.get('overseer', {})), UiConfig(**data.get('ui', {})))

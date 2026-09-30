@@ -50,6 +50,8 @@ def main(argv=None, *, default_desktop=False):
     app = QApplication(sys.argv[:1])
     app.setStyle("Fusion")
     app.setFont(QFont("Microsoft YaHei UI", 10))
+    from .i18n import language_manager, tr
+    language_manager().set_language(config.ui.language)
     assets = None
     if bell_desktop:
         app.setQuitOnLastWindowClosed(False)
@@ -66,6 +68,9 @@ def main(argv=None, *, default_desktop=False):
             if dialog.exec() != dialog.DialogCode.Accepted:
                 return 0
             config, assets = dialog.saved_config, dialog.prepared_assets
+        elif message:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(None, tr('用户设置未更新'), tr(message))
     if args.desktop:
         from .shared.atlas import AtlasError
         from PySide6.QtWidgets import QMessageBox
@@ -77,7 +82,7 @@ def main(argv=None, *, default_desktop=False):
                 from .lizard.desktop import DesktopWindow
                 window = DesktopWindow(config, 1. if args.scale is None else args.scale, args.activity)
         except (OSError, ValueError, RuntimeError, AtlasError) as exc:
-            QMessageBox.critical(None, '桌宠启动失败', str(exc))
+            QMessageBox.critical(None, tr('桌宠启动失败'), tr(exc))
             return 1
     elif args.creature == 'oracle':
         from .oracle.debug_window import OracleDebugWindow

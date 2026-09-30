@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import sys
 from PyInstaller.utils.hooks import collect_data_files, get_package_paths
+from PySide6.QtCore import QLibraryInfo
 
 root = Path(SPECPATH).parents[1]
 full = os.environ.get('RW_PET_BUNDLE_FULL') == '1'
@@ -10,7 +11,10 @@ use_upx = os.environ.get('RW_PET_BUNDLE_UPX') == '1'
 name = os.environ.get('RW_PET_BUNDLE_NAME', 'BellPet')
 _, fmod_root = get_package_paths('fmod_toolkit')
 datas = [(str(root/'config.toml'), '.'),
-         (str(root/'rw_creature_pet/ico'), 'rw_creature_pet/ico')]
+         (str(root/'rw_creature_pet/ico'), 'rw_creature_pet/ico'),
+         (str(root/'rw_creature_pet/translations/en.qm'), 'rw_creature_pet/translations'),
+         (str(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))/'qtbase_zh_CN.qm'),
+          'rw_creature_pet/translations')]
 datas += collect_data_files('UnityPy')
 datas += collect_data_files('archspec', includes=['json/cpu/*.json'])
 binaries = [(str(Path(fmod_root)/'libfmod/Windows/x64/fmod.dll'),

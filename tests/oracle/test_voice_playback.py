@@ -28,6 +28,7 @@ class VoiceWindowTests(unittest.TestCase):
         cls.app.setQuitOnLastWindowClosed(False)
 
     def setUp(self):
+        self.enterContext(patch('rw_creature_pet.interaction.audio.voice_event'))
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         for clip in BELL_VOICE_CLIPS:
@@ -199,6 +200,34 @@ class VoiceWindowTests(unittest.TestCase):
         w.advance()
         self.assertIsNone(w.voice_player.current)
         w.close()
+
+    def test_desktop_drag_recovers_on_new_cue_after_audio_failure(self):
+        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+            w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
+        self.addCleanup(w.close)
+        broken = self.attach_sound(w)
+        w.sync_drag_input()
+        scene = w.motion.scene
+        self.grab(scene)
+        self.wait_for_voice(w)
+        broken.state = 'error'
+        w.advance()
+        self.assertTrue(scene.drag.active)
+        self.assertTrue(scene.drag_reactions.active)
+        self.assertIsNone(w.voice_player._backend)
+        self.assertEqual(broken.closed, 1)
+        fresh = FakeSound()
+        w.voice_player._factory = lambda _: fresh
+        scene.drag.release()
+        w.advance()
+        self.assertEqual(fresh.paths, [])
+        self.grab(scene)
+        self.wait_for_voice(w)
+        self.assertEqual(len(fresh.paths), 1)
+        fresh.state = 'playing'
+        w.advance()
+        self.assertFalse(w.voice_player.error)
+        self.assertEqual(w.voice_player.play_count, 1)
 
 
 if __name__ == '__main__':

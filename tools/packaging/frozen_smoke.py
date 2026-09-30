@@ -26,6 +26,7 @@ def main(argv):
         from rw_creature_pet.oracle.settings import OracleSettingsDialog
         from rw_creature_pet.oracle.numeric import compiled_rope_solver
         from rw_creature_pet.oracle.desktop import OracleDesktopWindow
+        from rw_creature_pet.i18n import language_manager, tr
 
         app = QApplication([])
         app.setQuitOnLastWindowClosed(False)
@@ -100,6 +101,23 @@ def main(argv):
         app.processEvents()
         assert window.action_toolbar is not None
         report.update(desktop=True, tray_icon=True, toolbar=True, glow=True, simulation_frames=240)
+        # 从包内加载两种语言；写入隔离用户文件，不重建运动中的场景。
+        for language in ('en', 'zh'):
+            window.change_language(language)
+            app.processEvents()
+            assert language_manager().language == language
+            assert store.load().ui.language == language
+            assert window.motion.scene is scene
+            assert window.settings_action.text() == tr('打开设置菜单')
+            assert window.action_toolbar.buttons['drift'].text() == tr('反重力漫游')
+            if language == 'en':
+                assert tr('反重力漫游') != '反重力漫游', '包内英文译文未生效'
+                window.open_settings()
+                app.processEvents()
+                assert window.settings_dialog.tabs.tabText(0) == tr('常规')
+                assert window.settings_dialog.grab().save(str(output/'settings-en.png'))
+                window.settings_dialog.reject()
+        report['language_switch_and_persistence'] = True
         window.open_debug()
         app.processEvents()
         assert window.debug_window is not None

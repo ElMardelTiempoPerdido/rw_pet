@@ -124,6 +124,8 @@ python tools/packaging/verify_bell.py
 
 输出为 `dist/BellPet.exe`，双击直接进入 Bell 桌面模式，首次运行显示设置窗口。EXE 无控制台，内含 Python、Qt、Numba 数值加速、资源提取依赖及根目录 `config.toml` 的当前默认值；构建时不会读取或打包个人 `settings.json`、游戏目录、图集/语音缓存。把这一份 EXE 复制给其他 Windows x64 用户即可，运行时仍需选择其本机 Rain World 安装目录。
 
+构建脚本会先检查 `en.ts` 的原文匹配和参数占位符，并重新编译 `en.qm`；检查失败时停止打包，避免分发旧译文。包内同时包含英文译文和 Qt 通用对话框的中文译文。
+
 调试窗口仅通过命令行进入：`.\dist\BellPet.exe --debug`，或源码入口 `python run_bell.py --debug`。默认沿用已保存设置，`--config config.toml` 可指定调试用 TOML；`--debug` 与 `--desktop` 互斥。托盘双击不再打开调试窗口。
 
 默认启用组件裁剪：移除未使用的 QML/虚拟键盘、PDF 插件、软件 OpenGL 回退、视频 FFmpeg 后端及 Pillow AVIF 编解码器。当前产品使用 QWidget/QPainter、PNG 和本地 WAV，保留原生 Windows 音频、系统输入法、NumPy 和 Numba/LLVM。`--full` 可恢复自动收集的完整依赖，供新增功能时对照。
@@ -147,6 +149,8 @@ Get-Content -Encoding UTF8 .\artifacts\frozen-smoke\report.json
 ```
 
 自检使用指定输出目录下独立的 `profile`，不改动日常用户配置；首次使用空目录可覆盖冷缓存提取流程。`report.json` 的 `ok` 应为 `true`。`verify_bell.py` 还会检查 PE 图标与依赖，将 EXE 复制到新建的中文路径，并移除子进程 PATH 中的 Conda 路径后执行此自检，结果写入 `artifacts/bell-package-verification.json`。该自检使用离屏 Qt 平台，不能代替朋友设备上的桌面显示、点击穿透和音频试听验收。
+
+语言检查覆盖包内中英文切换、托盘／设置／工具栏文字、语言保存及切换时保留场景。验包还逐字节比对包内 `config.toml` 和 `en.qm` 与当前工程文件，确认包含本次默认参数和译文。
 
 音频问题可单独执行 `python tools/packaging/audio_probe.py artifacts/audio-probe --seconds 120 --simulation-seconds 1800`。它只读取当前设置，在独立缓存内准备十段短音频；离屏运行桌面窗口，依次验证未互动、模拟拖动、正常松手后的真实等待和加速自主活动。使用真实 Qt 播放后端并静音，`events.jsonl` 记录请求、文件和播放起止，`report.json` 记录长度与哈希。打包入口对应 `BellPet.exe --audio-probe 输出目录`（需重新构建含该入口的版本）。此检查不模拟 Windows 原生鼠标事件丢失。
 

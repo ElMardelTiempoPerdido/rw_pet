@@ -164,15 +164,20 @@ class Overseer:
         self.config = replace(self.config, color=color)
         self.revision += 1
 
-    def _step_extension(self, threat):
+    def _step_extension(self, threat, puppet):
         self.last_extended = self.extended
         self.threat_distance = None if threat is None else (threat-self.root).length()
         c, dt = self.config, 1/self.TICK_RATE
-        if self.threat_distance is not None and self.threat_distance <= c.withdraw_distance:
+        puppet_distance = None if puppet is None else (puppet-self.root).length()
+        near = ((self.threat_distance is not None and self.threat_distance <= c.withdraw_distance)
+                or (puppet_distance is not None and puppet_distance <= c.puppet_withdraw_distance))
+        safe = ((self.threat_distance is None or self.threat_distance >= c.reemerge_distance)
+                and (puppet_distance is None or puppet_distance >= c.puppet_reemerge_distance))
+        if near:
             self.scared = True
             self.safe_time = 0.
         elif self.scared:
-            if self.threat_distance is None or self.threat_distance >= c.reemerge_distance:
+            if safe:
                 self.safe_time += dt
                 if self.safe_time+1e-9 >= c.safe_delay:
                     self.scared = False
@@ -238,15 +243,15 @@ class Overseer:
                 +self.normal*(sin(i*pi/2+phase)*spread*depth+3*self.config.size)
                 -gaze*(8*self.config.size), self.extended) for i in range(self.FILAMENT_COUNT)]
 
-    def step(self, target=None, *, threat=None):
+    def step(self, target=None, *, threat=None, puppet=None):
         if not self.active:
             return
-        for value in (target, threat):
+        for value in (target, threat, puppet):
             if value is not None and not (isfinite(value.x) and isfinite(value.y)):
                 raise ValueError('观察目标和避让位置必须是有限坐标')
         self.target = target
         previous = (self.state, self.extended, self.last_extended)
-        self._step_extension(threat)
+        self._step_extension(threat, puppet)
         if self.extended == self.last_extended == 0:
             if previous != (self.state, self.extended, self.last_extended):
                 self.revision += 1

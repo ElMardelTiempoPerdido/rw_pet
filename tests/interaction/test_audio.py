@@ -2,9 +2,10 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.interaction.audio import VoicePlayer
+from rw_creature_pet.interaction.audio import QtSoundBackend, VoicePlayer
 from rw_creature_pet.interaction.config import AudioConfig
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 from rw_creature_pet.oracle.config import OracleConfig
@@ -16,6 +17,7 @@ class FakeSound:
         self.state = 'idle'
         self.paths = []
         self.stops = 0
+        self.closed = 0
 
     def play(self, path):
         self.paths.append(path)
@@ -28,16 +30,27 @@ class FakeSound:
     def set_volume(self, volume):
         self.volume = volume
 
+    def close(self):
+        self.closed += 1
+        self.stop()
+
 
 class VoicePlayerTests(unittest.TestCase):
     def setUp(self):
+        self.events = self.enterContext(patch('rw_creature_pet.interaction.audio.voice_event'))
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.path = Path(self.directory.name)/'bell.wav'
         self.path.write_bytes(b'test backend does not decode')
         self.sound = FakeSound()
+        self.sounds = [self.sound]
         self.now = 0.
-        self.player = VoicePlayer({'bell': self.path}, backend_factory=lambda _: self.sound,
+        def factory(_):
+            if self.sound.closed:
+                self.sound = FakeSound()
+                self.sounds.append(self.sound)
+            return self.sound
+        self.player = VoicePlayer({'bell': self.path}, backend_factory=factory,
                                   time_source=lambda: self.now)
         self.channel = VoiceCueChannel()
         self.cue = VoiceCue('bell', 2., 'drag')
@@ -144,6 +157,132 @@ class VoicePlayerTests(unittest.TestCase):
         self.assertIn('没有可用', self.player.status)
         self.assertIsNone(self.player.current)
         self.assertIsNone(self.channel.pending)
+
+    def test_persistent_error_releases_backend_and_waits_for_new_request(self):
+        self.start()
+        broken = self.sound
+        broken.state = 'error'
+        broken.stop = Mock(side_effect=RuntimeError('lost device'))
+        self.player.sync(self.channel)
+        self.assertEqual(broken.closed, 1)
+        self.assertIsNone(self.player._backend)
+        self.assertIsNone(self.player.current)
+        self.assertIsNone(self.channel.pending)
+        # 即使清理旧实例时报错，也不自动重试之前的声音。
+        self.player.configure(enabled=False)
+        self.player.configure(enabled=True)
+        for _ in range(100):
+            self.player.sync(self.channel)
+        self.assertEqual(len(self.sounds), 1)
+        self.start()
+        self.assertIsNot(self.sound, broken)
+        self.assertEqual(len(self.sounds), 2)
+        self.assertEqual(self.player.play_count, 2)
+        self.assertFalse(self.player.error)
+
+    def test_loading_and_playing_timeouts_drop_pending_and_recreate(self):
+        for started in (False, True):
+            with self.subTest(started=started):
+                if started:
+                    self.start()
+                else:
+                    self.request()
+                broken = self.sound
+                self.channel.cancel()
+                self.channel.request(self.cue)
+                self.now += 6.
+                self.player.sync(self.channel)
+                self.assertEqual(broken.closed, 1)
+                self.assertIsNone(self.channel.pending)
+                self.assertIsNone(self.player.current)
+                self.assertIsNone(self.player._backend)
+                self.player.sync(self.channel)
+                self.assertIsNone(self.player._backend)
+                self.start()
+                self.assertIsNot(self.sound, broken)
+                self.assertFalse(self.player.error)
+                self.player.stop()
+
+    def test_backend_exceptions_do_not_escape_or_block_future_requests(self):
+        for operation in ('play', 'state', 'volume', 'stop'):
+            with self.subTest(operation=operation):
+                self.request()
+                broken = self.sound
+                if operation == 'play':
+                    self.player.stop()
+                    broken.play = Mock(side_effect=RuntimeError('play failed'))
+                    self.request()
+                elif operation == 'state':
+                    class InvalidState(FakeSound):
+                        @property
+                        def state(self):
+                            raise RuntimeError('invalid audio object')
+                        @state.setter
+                        def state(self, value):
+                            pass
+                    broken.__class__ = InvalidState
+                    self.player.sync(self.channel)
+                elif operation == 'volume':
+                    broken.set_volume = Mock(side_effect=RuntimeError('volume failed'))
+                    self.player.configure(volume=.25)
+                else:
+                    broken.stop = Mock(side_effect=RuntimeError('stop failed'))
+                    self.player.stop()
+                self.assertIsNone(self.player._backend)
+                self.assertIsNone(self.player.current)
+                self.assertEqual(broken.closed, 1)
+                self.start()
+                self.assertIsNot(self.sound, broken)
+                self.assertFalse(self.player.error)
+                self.player.stop()
+
+    def test_events_record_outcomes_without_per_frame_logging(self):
+        self.start()
+        self.assertTrue(any(call.args[0] == 'request_received' for call in self.events.call_args_list))
+        self.assertTrue(any(call.args[0] == 'playback_started' for call in self.events.call_args_list))
+        self.events.reset_mock()
+        for _ in range(100):
+            self.player.sync(self.channel)
+        self.events.assert_not_called()
+        self.sound.state = 'idle'
+        self.player.sync(self.channel)
+        self.assertEqual(self.events.call_args.args[0], 'playback_finished')
+        self.events.reset_mock()
+        for _ in range(100):
+            self.player.sync(self.channel)
+        self.events.assert_not_called()
+        self.request()
+        self.sound.state = 'error'
+        self.player.sync(self.channel)
+        errors = [call.kwargs for call in self.events.call_args_list if call.args[0] == 'playback_error']
+        self.assertEqual(errors[0]['reason'], 'backend_error')
+        self.assertEqual(errors[0]['clip'], 'bell')
+
+
+class QtBackendCleanupTests(unittest.TestCase):
+    def test_disposal_revokes_late_ready_callback_and_releases_qt_object(self):
+        backend = QtSoundBackend.__new__(QtSoundBackend)
+        effect = backend.effect = Mock()
+        backend.requested = True
+        backend.close()
+        backend._ready()  # 已在事件队列中的旧回调也不能补播。
+        backend.close()
+        effect.statusChanged.disconnect.assert_called_once_with(backend._ready)
+        effect.stop.assert_called_once()
+        effect.deleteLater.assert_called_once()
+        effect.play.assert_not_called()
+        self.assertFalse(backend.requested)
+
+    def test_disposal_still_deletes_qt_object_if_stop_fails(self):
+        backend = QtSoundBackend.__new__(QtSoundBackend)
+        effect = backend.effect = Mock()
+        effect.stop.side_effect = RuntimeError('lost device')
+        backend.requested = True
+        with self.assertRaises(RuntimeError):
+            backend.close()
+        backend._ready()
+        effect.deleteLater.assert_called_once()
+        effect.play.assert_not_called()
 
 
 class AudioConfigTests(unittest.TestCase):

@@ -6,14 +6,17 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QFor
 
 from ..shared.geometry import Vec2
 from .model import Anchor, Edge, State
+from .events import EventPhase
 
 
 class OverseerDebugPanel(QDialog):
-    def __init__(self, canvas, parent=None, *, config_path=None, initial_config=None):
+    def __init__(self, canvas, parent=None, *, config_path=None, initial_config=None, app_config=None):
         super().__init__(parent)
         self.canvas = canvas
         self.config_path = config_path
         self.initial_config = initial_config or canvas.overseer.config
+        self.app_config = app_config
+        self.settings_dialog = None
         self.setWindowTitle('监视者调试')
         self.setWindowFlag(Qt.WindowType.Tool, True)
         layout = QVBoxLayout(self)
@@ -57,7 +60,7 @@ class OverseerDebugPanel(QDialog):
         self.color_hint = QLabel('配色仅在本窗口预览；持久修改请编辑 [overseer] color。')
         self.color_hint.setWordWrap(True)
         layout.addWidget(self.color_hint)
-        self.avoidance = QCheckBox('鼠标靠近时缩回（与观察方式独立）')
+        self.avoidance = QCheckBox('鼠标 / 人偶靠近时缩回（与观察方式独立）')
         self.avoidance.setChecked(canvas.overseer_avoidance)
         self.avoidance.toggled.connect(self.set_avoidance)
         layout.addWidget(self.avoidance)
@@ -80,8 +83,29 @@ class OverseerDebugPanel(QDialog):
         for widget in (self.show_button, self.clear_button, self.focus_button):
             buttons.addWidget(widget)
         layout.addLayout(buttons)
+        self.show_button.setToolTip('不计时的手动外观预览；清除或退场后才恢复自动检查')
+        self.event_status = QLabel()
+        self.event_status.setWordWrap(True)
+        layout.addWidget(self.event_status)
+        self.start_event_button = QPushButton('随机位置触发一次')
+        self.finish_event_button = QPushButton('到期 / 退场')
+        self.check_event_button = QPushButton('立即抽签')
+        self.skip_cooldown_button = QPushButton('结束冷却')
+        self.settings_button = QPushButton('事件设置…')
+        for controls in ((self.start_event_button, self.finish_event_button),
+                         (self.check_event_button, self.skip_cooldown_button, self.settings_button)):
+            row = QHBoxLayout()
+            for button in controls:
+                row.addWidget(button)
+            layout.addLayout(row)
+        self.start_event_button.clicked.connect(self.start_event)
+        self.finish_event_button.clicked.connect(self.finish_event)
+        self.check_event_button.clicked.connect(self.check_event)
+        self.skip_cooldown_button.clicked.connect(self.skip_cooldown)
+        self.settings_button.clicked.connect(self.open_settings)
         hint = QLabel('固定目标时可在场景中右键指定位置。鼠标离开场景后转为扫视。\n'
-                      '暂停和单步使用主窗口控件；关闭本面板后仍保留预览。')
+                      '暂停和单步使用主窗口控件；关闭本面板后仍继续调度。\n'
+                      '“显示 / 重置”是不计时预览；“触发一次”才使用事件持续时间。')
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.show_button.clicked.connect(self.show_overseer)
@@ -99,13 +123,13 @@ class OverseerDebugPanel(QDialog):
         self.refresh_status()
 
     def show_overseer(self):
-        self.canvas.overseer.show(self.canvas.overseer_bounds(),
+        self.canvas.overseer_events.preview(self.canvas.overseer_bounds(),
             Anchor(Edge(self.edge.currentData()), self.fraction.value()/100))
         self.canvas.center_on_overseer()
         self.refresh_status()
 
     def clear_overseer(self):
-        self.canvas.overseer.clear()
+        self.canvas.overseer_events.clear()
         self.canvas.overseer_focus = False
         self.canvas.update()
         self.refresh_status()
@@ -115,7 +139,7 @@ class OverseerDebugPanel(QDialog):
             self.show_overseer()
 
     def emerge(self):
-        self.canvas.overseer.request_emerge()
+        self.canvas.overseer_events.emerge()
         self.refresh_status()
 
     def withdraw(self):
@@ -127,16 +151,61 @@ class OverseerDebugPanel(QDialog):
 
     def refresh_status(self):
         model = self.canvas.overseer
-        self.emerge_button.setEnabled(model.active)
+        events = self.canvas.overseer_events
+        self.emerge_button.setEnabled(model.active and events.phase != EventPhase.EXITING)
         self.withdraw_button.setEnabled(model.active)
+        self.start_event_button.setEnabled(events.phase not in (EventPhase.ACTIVE, EventPhase.EXITING))
+        self.finish_event_button.setEnabled(events.phase in (EventPhase.ACTIVE, EventPhase.PREVIEW))
+        self.check_event_button.setEnabled(events.phase == EventPhase.WAITING)
+        self.skip_cooldown_button.setEnabled(events.phase == EventPhase.COOLDOWN)
+        phase = {EventPhase.DISABLED: '自动出现已关闭', EventPhase.PREVIEW: '不计时预览（自动检查挂起）',
+                 EventPhase.WAITING: f'下次检查 {events.check_remaining:.1f} s',
+                 EventPhase.ACTIVE: f'事件剩余 {events.remaining:.1f} s（包含避让隐藏）',
+                 EventPhase.EXITING: '正在退场，不再探出',
+                 EventPhase.COOLDOWN: f'冷却剩余 {events.cooldown_remaining:.1f} s'}[events.phase]
+        self.event_status.setText(f'{phase}\n检查 {events.check_count} 次 · 事件 {events.event_count} 次 · 换位 {events.relocation_count} 次\n{events.last_result}')
         if not model.active:
             self.status.setText('未显示；点击“显示 / 重置”开始。')
             return
         label = {State.HIDDEN: '隐藏', State.EMERGING: '探出',
                  State.WATCHING: '观察', State.WITHDRAWING: '缩回'}[model.state]
-        reason = ('等待鼠标离开安全范围' if model.scared else
+        reason = ('等待鼠标和人偶离开安全范围' if model.scared else
                   '手动保持缩回' if not model.wants_out else '原位观察')
         self.status.setText(f'{label} · 展开 {model.extended:.0%} · {reason}')
+
+    def start_event(self):
+        if self.canvas.overseer_events.start(self.canvas.overseer_spawn_context()):
+            self.canvas.center_on_overseer()
+        self.refresh_status()
+
+    def finish_event(self):
+        self.canvas.overseer_events.finish()
+        self.refresh_status()
+
+    def check_event(self):
+        if self.canvas.overseer_events.check(self.canvas.overseer_spawn_context):
+            self.canvas.center_on_overseer()
+        self.refresh_status()
+
+    def skip_cooldown(self):
+        self.canvas.overseer_events.skip_cooldown()
+        self.refresh_status()
+
+    def apply_settings(self, config):
+        self.canvas.overseer_events.configure(config)
+        self.canvas.update()
+        self.refresh_status()
+
+    def open_settings(self):
+        from ..config import AppConfig
+        from .settings import OverseerSettingsDialog
+        if self.settings_dialog is None:
+            self.settings_dialog = OverseerSettingsDialog(self.canvas.overseer, self.apply_settings,
+                self.app_config or AppConfig(overseer=self.initial_config), self, source=self.config_path)
+        elif not self.settings_dialog.isVisible():
+            self.settings_dialog.fill(self.canvas.overseer.config)
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
 
     def choose_color(self):
         color = QColorDialog.getColor(QColor(self.canvas.overseer.config.color), self, '监视者主色预览')

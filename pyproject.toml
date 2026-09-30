@@ -21,4 +21,4 @@ bell-pet = "rw_creature_pet.app:bell_main"
 include = ["rw_creature_pet*"]
 
 [tool.setuptools.package-data]
-rw_creature_pet = ["ico/*.png"]
+rw_creature_pet = ["ico/*.png", "translations/*.qm", "translations/*.ts"]

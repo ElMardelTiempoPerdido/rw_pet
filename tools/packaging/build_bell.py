@@ -45,6 +45,9 @@ def main():
         parser.error('--upx-dir 下找不到 upx.exe')
     if sys.platform != 'win32':
         raise SystemExit('Windows EXE 需要在 Windows 上构建。')
+    # TS 编辑后不能沿用旧 QM；检查通过才生成并打包最新译文。
+    subprocess.run([sys.executable, str(ROOT/'tools/update_translations.py'), '--check', '--compile'],
+                   cwd=ROOT, check=True)
     make_icon()
     environment = dict(os.environ, RW_PET_BUNDLE_FULL=str(int(args.full)),
                        RW_PET_BUNDLE_UPX=str(int(args.upx_dir is not None)), RW_PET_BUNDLE_NAME=args.name)

@@ -13,20 +13,21 @@ INK = QColor('#707070')
 MUTED = QColor('#aaaaaa')
 
 
-@lru_cache(maxsize=1)
-def pixel_font_family():
+@lru_cache(maxsize=2)
+def pixel_font_family(language='zh'):
     # 使用系统宋体的点阵字形，不把 Windows 字体复制进发行包。
-    font_path = Path(os.environ.get('WINDIR', 'C:/Windows'))/'Fonts/simsun.ttc'
+    filename, fallback = ('tahoma.ttf', 'Tahoma') if language == 'en' else ('simsun.ttc', 'SimSun')
+    font_path = Path(os.environ.get('WINDIR', 'C:/Windows'))/'Fonts'/filename
     if font_path.is_file():
         font_id = QFontDatabase.addApplicationFont(str(font_path))
         families = QFontDatabase.applicationFontFamilies(font_id)
         if families:
             return families[0]
-    return 'SimSun'
+    return fallback
 
 
-def pixel_font():
-    font = QFont(pixel_font_family())
+def pixel_font(language='zh'):
+    font = QFont(pixel_font_family(language))
     font.setPixelSize(14)
     font.setStyleStrategy(QFont.StyleStrategy.NoAntialias | QFont.StyleStrategy.PreferBitmap)
     return font
@@ -45,6 +46,17 @@ class PixelRule(QWidget):
     def __init__(self):
         super().__init__()
         self.setFixedHeight(3)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        for x in range(0, self.width(), 6):
+            painter.fillRect(x, 1, 2, 2, INK)
+
+
+class PixelRuleThin(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setFixedHeight(2)
 
     def paintEvent(self, event):
         painter = QPainter(self)

@@ -28,8 +28,12 @@ def main():
     entries = {name.replace('\\', '/') for name in archive.toc}
     for name in ('config.toml', 'PySide6/plugins/platforms/qwindows.dll', 'UnityPy/resources/lzma.tpk',
                  'archspec/json/cpu/microarchitectures.json',
+                 'rw_creature_pet/translations/en.qm', 'rw_creature_pet/translations/qtbase_zh_CN.qm',
                  'fmod_toolkit/libfmod/Windows/x64/fmod.dll', 'rw_creature_pet/ico/bell_icon_16.png'):
         assert name in entries, f'缺少包内依赖：{name}'
+    for name in ('config.toml', 'rw_creature_pet/translations/en.qm'):
+        stored_name = next(key for key in archive.toc if key.replace('\\', '/') == name)
+        assert archive.extract(stored_name) == (ROOT/name).read_bytes(), f'包内文件不是当前版本：{name}'
     assert not any(name.endswith(('.wav', '.assets')) or name.startswith(('artifacts/', 'tests/'))
                    for name in entries), '包内不应包含游戏素材或测试缓存'
     pe = pefile.PE(str(exe))
@@ -59,6 +63,7 @@ def main():
     report.update(exit_code=completed.returncode, exe=str(exe), bytes=exe.stat().st_size,
                   sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),
                   dark_icons_exact=True, isolated_directory=str(directory))
+    report['current_defaults_and_translation'] = True
     args.report.write_text(
         json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)

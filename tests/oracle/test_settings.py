@@ -13,7 +13,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.assets import OracleAssets
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
 from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.oracle.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
@@ -66,6 +66,67 @@ class OracleSettingsTests(unittest.TestCase):
         d.reject()
         self.assertFalse(self.store.path.exists())
         self.assertEqual(self.config.desktop.scale, 1.)
+
+    def test_overseer_fields_validate_persist_and_reload(self):
+        d = self.dialog(assets=self.assets)
+        self.assertFalse(d.controls['overseer.check_interval'].isEnabled())
+        d.controls['overseer.enabled'].setChecked(True)
+        self.assertTrue(d.controls['overseer.check_interval'].isEnabled())
+        d.controls['overseer.color'].setValue('#fa5577')
+        for key, value in dict(check_interval=8, appearance_probability=45, duration_min=4,
+                               duration_max=7, cooldown_min=12, cooldown_max=18,
+                               withdraw_distance=80, reemerge_distance=130,
+                               puppet_withdraw_distance=110, puppet_reemerge_distance=170,
+                               relocation_probability=70).items():
+            d.controls['overseer.'+key].setValue(value)
+        d.controls['overseer.duration_max'].setValue(2)
+        d.save()
+        self.assertIn('duration_min', d.status.text())
+        self.assertFalse(self.store.path.exists())
+        d.controls['overseer.duration_max'].setValue(7)
+        d.save()
+        saved = self.store.load()
+        self.assertTrue(saved.overseer.enabled)
+        self.assertEqual(saved.overseer.color, '#fa5577')
+        self.assertEqual(saved.overseer.appearance_probability, .45)
+        self.assertEqual(saved.overseer.reemerge_distance, 130)
+        self.assertEqual(saved.overseer.puppet_withdraw_distance, 110)
+        self.assertEqual(saved.overseer.puppet_reemerge_distance, 170)
+        self.assertEqual(saved.overseer.relocation_probability, .7)
+        self.config = saved
+        reopened = self.dialog(assets=self.assets)
+        self.assertEqual(reopened.controls['overseer.duration_min'].value(), 4)
+        self.assertEqual(reopened.controls['overseer.cooldown_max'].value(), 18)
+        self.assertEqual(reopened.controls['overseer.relocation_probability'].value(), 70)
+
+    def test_overseer_only_apply_keeps_puppet_and_failed_save_keeps_event(self):
+        from rw_creature_pet.overseer.events import EventPhase
+        w = self.desktop()
+        w.motion.scene.set_autonomous(False)
+        for _ in range(800):
+            w.motion.step()
+        scene, hit = w.motion.scene, w.drag_hit
+        w.settings_action.trigger()
+        d = w.settings_dialog
+        d.controls['overseer.enabled'].setChecked(True)
+        d.controls['overseer.color'].setValue('#123456')
+        with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
+            d.save()
+        self.assertFalse(w.overseer_layer.model.config.enabled)
+        with patch.object(w, 'update') as update:
+            d.save()
+            update.assert_not_called()
+        self.assertIs(w.motion.scene, scene)
+        self.assertIs(w.drag_hit, hit)
+        self.assertTrue(scene.appearance.sleeping)
+        self.assertEqual(w.overseer_layer.model.config.color, '#123456')
+        w.overseer_layer.events.start(w.overseer_spawn_context())
+        w.settings_action.trigger()
+        d = w.settings_dialog
+        d.controls['overseer.enabled'].setChecked(False)
+        d.save()
+        self.assertEqual(w.overseer_layer.events.phase, EventPhase.EXITING)
+        self.assertIs(w.motion.scene, scene)
 
     def test_matrix_avoidance_radius_round_trips_and_tracks_matrix_availability(self):
         d = self.dialog(assets=self.assets)
@@ -139,6 +200,26 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(self.store.load().oracle.base_side, 'left')
         w.reset_position()
         self.assertEqual(w.motion.scene.anchor.side.value, 'left')
+
+    def test_start_fraction_applies_each_save_without_lag_and_resize_preserves_current_location(self):
+        w = self.desktop()
+        for percentage in (25., 75., 37.5):
+            w.open_settings()
+            d = w.settings_dialog
+            d.controls['oracle.base_fraction'].setValue(percentage)
+            d.save()
+            self.assertAlmostEqual(current_anchor(w.motion.scene)[1], percentage/100)
+            self.assertEqual(self.store.load().oracle.base_fraction, percentage/100)
+        w.open_settings()
+        self.assertEqual(w.settings_dialog.controls['oracle.base_fraction'].value(), 37.5)
+        w.settings_dialog.reject()
+        # 模拟桌宠已经移动；改变缩放不应再跳回保存的启动百分比。
+        w.motion = OracleDesktopMotion(replace(w.config.oracle, base_fraction=.61), w.motion.viewport)
+        w.change_scale(1.5)
+        self.assertAlmostEqual(current_anchor(w.motion.scene)[1], .61)
+        self.assertEqual(self.store.load().oracle.base_fraction, .375)
+        w.reset_position()
+        self.assertAlmostEqual(current_anchor(w.motion.scene)[1], .375)
 
     def test_save_reload_disabled_options_and_unexposed_precision(self):
         self.config = replace(self.config, oracle=replace(self.config.oracle, cross_edge_probability=.123456,

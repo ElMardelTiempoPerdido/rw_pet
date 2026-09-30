@@ -1,6 +1,7 @@
 """桌面工具栏的真实按钮、暂停、场景重建及窗口生命周期。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from dataclasses import replace
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.shared.geometry import Vec2
+from rw_creature_pet.overseer.events import EventPhase
 from tests.oracle.test_desktop import FakeScreen
 
 
@@ -112,6 +114,61 @@ class OracleToolbarTests(unittest.TestCase):
         self.assertIn('没有符合', w.action_toolbar.status.text())
         w.cleanup()
         self.assertFalse(w.action_toolbar.isVisible())
+
+    def test_overseer_manual_trigger_blocks_duplicates_through_hidden_and_exit(self):
+        w, toolbar = self.window, self.window.action_toolbar
+        events, model = w.overseer_layer.events, w.overseer_layer.model
+        scene, hit = w.motion.scene, w.drag_hit
+        self.assertFalse(events.config.enabled)
+        self.assertTrue(toolbar.buttons['overseer'].isEnabled())
+        revision = w._last_revision
+        with patch.object(w, 'update') as repaint:
+            self.click('overseer')
+            repaint.assert_not_called()
+        self.assertEqual(w._last_revision, revision)
+        self.assertIs(w.motion.scene, scene)
+        self.assertIs(w.drag_hit, hit)
+        self.assertEqual(events.event_count, 1)
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
+        self.click('overseer')
+        self.assertEqual(events.event_count, 1)
+        # 已缩回隐藏仍占用当前事件；不能因看不见而生成另一只。
+        model.request_withdraw()
+        events.step(context_factory=w.overseer_spawn_context)
+        w.sync_toolbar()
+        self.assertFalse(model.visible)
+        self.assertTrue(model.active)
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
+        events.configure(replace(events.config, enabled=True))
+        events.finish()
+        w.sync_toolbar()
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
+        events.step(context_factory=w.overseer_spawn_context)
+        self.assertEqual(events.phase, EventPhase.COOLDOWN)
+        w.sync_toolbar()
+        self.assertTrue(toolbar.buttons['overseer'].isEnabled())
+        self.click('overseer')
+        self.assertEqual(events.event_count, 2)
+        self.assertEqual(events.phase, EventPhase.ACTIVE)
+
+    def test_overseer_rechecks_live_state_and_reports_no_safe_position(self):
+        w, toolbar = self.window, self.window.action_toolbar
+        events = w.overseer_layer.events
+        context = w.overseer_spawn_context()
+        blocked = replace(context, obstacles=(context.bounds,))
+        with patch.object(w, 'overseer_spawn_context', return_value=blocked):
+            self.click('overseer')
+        self.assertEqual(events.event_count, 0)
+        self.assertTrue(toolbar.buttons['overseer'].isEnabled())
+        self.assertIn('没有安全', toolbar.status.text())
+        # 模拟自动出现刚发生、按钮状态尚未刷新时收到点击。
+        self.assertTrue(events.start(context))
+        self.assertTrue(toolbar.buttons['overseer'].isEnabled())
+        root, remaining = events.model.root, events.remaining
+        self.click('overseer')
+        self.assertEqual(events.event_count, 1)
+        self.assertEqual((events.model.root, events.remaining), (root, remaining))
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
 
 
 if __name__ == '__main__':

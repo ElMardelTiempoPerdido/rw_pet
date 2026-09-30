@@ -104,6 +104,34 @@ class RetractionTests(unittest.TestCase):
         model.step(model.root+Vec2(200, 200), threat=model.root)
         self.assertTrue(model.scared)
 
+    def test_puppet_avoidance_and_mouse_both_must_be_safe_on_all_edges(self):
+        for edge in Edge:
+            model = Overseer()
+            model.show(anchor=Anchor(edge, .5))
+            for _ in range(64):
+                model.step()
+            root, normal = model.root, model.normal
+            for i in range(80):
+                model.step(puppet=root+normal*(99 if i % 2 else 101))
+            self.assertTrue(model.scared)
+            self.assertFalse(model.visible)
+            for i in range(80):
+                model.step(puppet=root+normal*(149 if i % 2 else 151))
+            self.assertFalse(model.visible)
+            # 鼠标还在安全圈内时，人偶离开也不能解除避让，反之亦然。
+            for _ in range(30):
+                model.step(threat=root+normal*80, puppet=root+normal*200)
+            self.assertEqual(model.safe_time, 0)
+            for _ in range(30):
+                model.step(threat=root+normal*200, puppet=root+normal*120)
+            self.assertEqual(model.safe_time, 0)
+            for _ in range(17):
+                model.step(threat=root+normal*200, puppet=root+normal*200)
+            self.assertTrue(model.scared)
+            model.step(threat=root+normal*200, puppet=root+normal*200)
+            self.assertFalse(model.scared)
+            self.assertEqual(model.state, State.EMERGING)
+
     def test_different_motion_speeds_do_not_jump_at_a_reversal_endpoint(self):
         model = Overseer(config=replace(OverseerConfig(), emerge_seconds=40))
         model.show()

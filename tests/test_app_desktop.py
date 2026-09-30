@@ -135,3 +135,20 @@ class DesktopEntryTests(unittest.TestCase):
                 main(['--creature', 'oracle', '--desktop'])
             dialog.assert_not_called()
             self.assertEqual(window.call_args.args[1], 1.5)
+
+    def test_failed_upgrade_write_reports_warning_and_uses_loaded_user_settings(self):
+        saved = AppConfig()
+        saved = replace(saved, desktop=replace(saved.desktop, scale=2.))
+        message = '已保留原有设置，但无法保存新增设置：locked'
+        with patch('rw_creature_pet.app.QApplication', return_value=self.app), \
+             patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(saved, False, message)), \
+             patch('rw_creature_pet.settings_store.validate_game_directory'), \
+             patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
+             patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as window, \
+             patch('PySide6.QtWidgets.QMessageBox.warning') as warning, \
+             patch.object(self.app, 'exec', return_value=0):
+            with self.assertRaises(SystemExit):
+                main(['--creature', 'oracle', '--desktop'])
+            dialog.assert_not_called()
+            warning.assert_called_once_with(None, '用户设置未更新', message)
+            self.assertEqual(window.call_args.args[0], saved)

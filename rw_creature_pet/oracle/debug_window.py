@@ -9,11 +9,13 @@ from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..config import AppConfig
-from ..shared.geometry import Bounds, Vec2
+from ..shared.geometry import Vec2
 from ..overseer.model import Overseer
 from ..overseer.render import OverseerRenderer
 from ..overseer.debug import OverseerDebugPanel
 from ..overseer.config import OverseerConfig
+from ..overseer.events import OverseerEvents
+from .overseer import overseer_bounds, puppet_position, spawn_context
 from .scene import OracleScene, RailSide
 from .config import DISPLAY_SCALES, OracleColors
 from .glyphs import load_pearl_glyphs
@@ -53,6 +55,7 @@ class OracleCanvas(QWidget):
         self._route = None
         self._route_path = None
         self.overseer = Overseer(self.overseer_bounds(), overseer_config)
+        self.overseer_events = OverseerEvents(self.overseer)
         self.overseer_renderer = OverseerRenderer(renderer.atlas)
         self.overseer_look_mode = 'mouse'
         self.overseer_fixed_target = Vec2(scene.world.width/2, scene.world.height/2)
@@ -61,9 +64,7 @@ class OracleCanvas(QWidget):
         self.setMinimumSize(640, 420)
 
     def overseer_bounds(self):
-        world = self.scene.world
-        pad = world.rail_inset
-        return Bounds(pad, pad, world.width-pad, world.height-pad)
+        return overseer_bounds(self.scene)
 
     def overseer_target_at(self, position):
         """只读取画布内的鼠标；不参与命中测试，也不要求按下鼠标。"""
@@ -85,12 +86,19 @@ class OracleCanvas(QWidget):
     def overseer_threat(self):
         if not self.overseer_avoidance:
             return None
+        return self.overseer_mouse()
+
+    def overseer_mouse(self):
         local = self.mapFromGlobal(QCursor.pos())
         # 边框外但仍在画布内的鼠标也构成威胁；注视目标和避让源相互独立。
         if (not self.rect().contains(local) or
                 (self.magnifier and self.magnifier_rect().contains(QPointF(local)))):
             return None
         return self.view_to_world(Vec2(local.x(), local.y()))
+
+    def overseer_spawn_context(self):
+        # 仅在真正尝试出现时计算；外形点包含头、四肢、衣袍，不计装饰线缆。
+        return spawn_context(self.scene, self.overseer_mouse())
 
     def center_on_overseer(self):
         if self.overseer.active:
@@ -709,7 +717,7 @@ class OracleDebugWindow(QMainWindow):
     def reset_scene(self):
         self.cancel_drag()
         self.scene.reset()
-        self.canvas.overseer.clear()
+        self.canvas.overseer_events.clear()
         self.canvas.overseer_focus = False
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
@@ -824,14 +832,18 @@ class OracleDebugWindow(QMainWindow):
     def open_overseer_debug(self):
         if self.overseer_panel is None:
             self.overseer_panel = OverseerDebugPanel(self.canvas, self, config_path=self.config_path,
-                                                    initial_config=self.config.overseer)
+                                                    initial_config=self.config.overseer, app_config=self.config)
         self.overseer_panel.show()
         self.overseer_panel.raise_()
 
     def step_scene(self):
         self.scene.step()
-        if self.canvas.overseer.active:
-            self.canvas.overseer.step(self.canvas.overseer_target(), threat=self.canvas.overseer_threat())
+        canvas = self.canvas
+        active = canvas.overseer.active
+        canvas.overseer_events.step(canvas.overseer_target() if active else None,
+            threat=canvas.overseer_threat() if active else None,
+            puppet=puppet_position(self.scene) if active and canvas.overseer_avoidance else None,
+            context_factory=canvas.overseer_spawn_context)
 
     def on_timer(self):
         now = perf_counter()

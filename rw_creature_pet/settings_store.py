@@ -7,6 +7,7 @@ import sys
 import tempfile
 
 from .config import AppConfig
+from .shared.messages import Message
 
 
 def default_settings_path():
@@ -45,21 +46,54 @@ def validate_game_directory(directory):
         raise ValueError('请选择 Rain World 安装目录：其中应包含 RainWorld_Data 文件夹及 resources.assets。')
 
 
+def _mapping(config):
+    data = asdict(config)
+    data['game_dir'] = str(config.game_dir)
+    return data
+
+
+def _fill_missing(data, defaults):
+    """只按键是否存在补齐，保留 false、0、空列表及用户的嵌套设置。"""
+    result, changed = dict(data), False
+    for key, value in defaults.items():
+        if key not in result:
+            result[key], changed = value, True
+        elif isinstance(value, dict) and isinstance(result[key], dict):
+            result[key], nested_changed = _fill_missing(result[key], value)
+            changed |= nested_changed
+    return result, changed
+
+
 class SettingsStore:
     def __init__(self, path=None):
         self.path = Path(path) if path is not None else default_settings_path()
 
     def load(self):
+        source = default_template_path()
+        defaults = absolute_paths(AppConfig.load(source), source)
+        return self._load(_mapping(defaults))[0]
+
+    def _load(self, defaults):
         data = json.loads(self.path.read_text(encoding='utf-8'))
         if not isinstance(data, dict) or data.get('version') != 1:
             raise ValueError('不支持的用户设置文件版本')
-        return absolute_paths(AppConfig.from_mapping(data.get('config')), self.path)
+        if not isinstance(data.get('config'), dict):
+            raise ValueError('配置必须为对象')
+        merged, changed = _fill_missing(data['config'], defaults)
+        # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
+        config = absolute_paths(AppConfig.from_mapping(merged), self.path)
+        if merged['ui']['language'] != config.ui.language:
+            merged['ui'] = {**merged['ui'], 'language': config.ui.language}
+            changed = True
+        return config, {**data, 'config': merged}, changed
 
     def save(self, config):
-        data = asdict(config)
-        data['game_dir'] = str(config.game_dir)
+        data = _mapping(config)
         AppConfig.from_mapping(data)
-        payload = json.dumps({'version': 1, 'config': data}, ensure_ascii=False, indent=2)+'\n'
+        self._write({'version': 1, 'config': data})
+
+    def _write(self, data):
+        payload = json.dumps(data, ensure_ascii=False, indent=2)+'\n'
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = None
         try:
@@ -80,11 +114,20 @@ class SettingsStore:
     def startup(self, explicit=None):
         """返回配置、是否需要首次设置、提示；显式 TOML 仅覆盖本次启动。"""
         first_run, message = not self.path.is_file(), ''
+        source = explicit if explicit is not None else default_template_path()
+        defaults = absolute_paths(AppConfig.load(source), source)
         if explicit is None and not first_run:
             try:
-                return self.load(), False, ''
+                config, payload, changed = self._load(_mapping(defaults))
             except (OSError, ValueError, TypeError) as exc:
-                message = f'无法读取已保存设置：{exc}\n请重新确认，保存时会保留旧文件的备份。'
+                message = Message('无法读取已保存设置：{error}\n请重新确认，保存时会保留旧文件的备份。', error=exc)
                 first_run = True
-        source = explicit if explicit is not None else default_template_path()
-        return absolute_paths(AppConfig.load(source), source), first_run, message
+            else:
+                if changed:
+                    try:
+                        self._write(payload)
+                    except OSError as exc:
+                        # 自动升级写入失败仍使用读出的用户值，不退回首次设置或默认值。
+                        message = Message('已保留原有设置，但无法保存新增设置：{error}\n本次仍可使用；请检查设置文件的写入权限后重试。', error=exc)
+                return config, False, message
+        return defaults, first_run, message

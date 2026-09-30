@@ -1,4 +1,5 @@
 """从本机 resources.assets 读取主图集，缓存到用户目录，不修改游戏。"""
+from .messages import Message
 import hashlib
 import json
 import os
@@ -16,7 +17,7 @@ class AtlasError(RuntimeError):
 def extract_atlas(game_dir: Path) -> Path:
     source = game_dir / 'RainWorld_Data' / 'resources.assets'
     if not source.is_file():
-        raise AtlasError(f'找不到游戏图集容器：{source}；请检查 config.toml 的 game_dir')
+        raise AtlasError(Message('找不到游戏图集容器：{value0}；请检查 config.toml 的 game_dir', value0=source))
     stat = source.stat()
     identity = f'{source.resolve()}:{stat.st_size}:{stat.st_mtime_ns}'
     key = hashlib.sha256(identity.encode()).hexdigest()[:16]
@@ -50,7 +51,7 @@ def extract_atlas(game_dir: Path) -> Path:
     except AtlasError:
         raise
     except Exception as exc:
-        raise AtlasError(f'提取游戏图集失败：{exc}') from exc
+        raise AtlasError(Message('提取游戏图集失败：{value0}', value0=exc)) from exc
     return root
 
 
@@ -62,7 +63,7 @@ class Atlas:
             if self.image.isNull():
                 raise ValueError('PNG 无法解码')
         except (OSError, ValueError, KeyError) as exc:
-            raise AtlasError(f'无法读取图集缓存 {root}：{exc}') from exc
+            raise AtlasError(Message('无法读取图集缓存 {value0}：{value1}', value0=root, value1=exc)) from exc
         self.cache = {}
         self.root = root
 
@@ -73,7 +74,7 @@ class Atlas:
         try:
             frame = self.frames[name + '.png']
         except KeyError as exc:
-            raise AtlasError(f'游戏主图集缺少贴图：{name}') from exc
+            raise AtlasError(Message('游戏主图集缺少贴图：{value0}', value0=name)) from exc
         rect = frame['frame']
         image = self.image.copy(rect['x'], rect['y'], rect['w'], rect['h'])
         if frame.get('rotated'):

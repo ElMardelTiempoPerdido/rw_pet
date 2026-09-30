@@ -1,13 +1,15 @@
-"""桌面人偶的六项即时操作；独立小窗口，不改变透明桌面层的鼠标穿透。"""
+"""桌宠的即时操作；独立小窗口，不改变透明桌面层的鼠标穿透。"""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QGridLayout, QLabel, QLayout, QPushButton, QSizePolicy, QWidget
+from ..i18n import language_manager, tr
 
 
 class OracleActionToolbar(QWidget):
     requested = Signal(str)
     closed = Signal()
     ACTIONS = (('drift', '反重力漫游'), ('matrix', '抽取矩阵珍珠'), ('pulse', '光环扩张'),
-               ('flash', '光环外圈闪烁'), ('fill', '光环实心化'), ('arcs', '触发电弧'))
+               ('flash', '光环外圈闪烁'), ('fill', '光环实心化'), ('arcs', '触发电弧'),
+               ('overseer', '触发监视者'))
 
     def __init__(self):
         super().__init__(None, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint
@@ -24,17 +26,30 @@ class OracleActionToolbar(QWidget):
         self.status = QLabel()
         self.status.setMinimumHeight(self.fontMetrics().height()+2)
         self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        layout.addWidget(self.status, 2, 0, 1, 3)
+        layout.addWidget(self.status, (len(self.ACTIONS)+2)//3, 0, 1, 3)
         self._state = None
         self._feedback = ''
+        self._blocked = ''
+        self._hints = {}
+        language_manager().changed.connect(self.retranslate)
+        self.retranslate()
 
-    def sync(self, scene, blocked=''):
+    def retranslate(self):
+        self.setWindowTitle(tr('古人调试模拟器'))
+        for name, label in self.ACTIONS:
+            self.buttons[name].setText(tr(label))
+            self.buttons[name].setToolTip(tr(self._hints.get(name, '')))
+        self.status.setText(tr(self._blocked or self._feedback))
+        self.status.setToolTip(self.status.text())
+        self.adjustSize()
+
+    def sync(self, scene, blocked='', *, overseer_active=False):
         drag = bool(scene and scene.drag.controlling)
         matrix = bool(scene and scene.pearl_matrix is not None)
         halo = bool(scene and scene.halo_visible)
         arcs = bool(halo and scene.config.halo_arcs_enabled)
         active_arcs = bool(scene and scene.halo_arcs.arcs)
-        state = (blocked, drag, matrix, halo, arcs, active_arcs)
+        state = (blocked, drag, matrix, halo, arcs, active_arcs, overseer_active)
         if state == self._state:
             return
         self._state = state
@@ -48,14 +63,22 @@ class OracleActionToolbar(QWidget):
                 reason = '光环关闭或投影透明度为 0'
             if not reason and name == 'arcs':
                 reason = ('配置中已关闭电弧' if not arcs else '电弧显示中' if active_arcs else '')
+            if not reason and name == 'overseer' and overseer_active:
+                reason = '已有监视者（包含避让隐藏或退场中），请等待本次事件结束'
             button.setEnabled(not reason)
-            button.setToolTip(reason or ('跳过等待，仍遵守距离及活动带限制' if name == 'arcs' else ''))
+            hint = ('手动触发一次；自动出现关闭或冷却时也可使用，仍遵守安全选点'
+                    if name == 'overseer' else '跳过等待，仍遵守距离及活动带限制' if name == 'arcs' else '')
+            self._hints[name] = reason or hint
+            button.setToolTip(tr(reason or hint))
             button.setCursor(Qt.CursorShape.ForbiddenCursor if reason else Qt.CursorShape.PointingHandCursor)
-        self.status.setText(blocked or self._feedback)
+        self._blocked = blocked
+        self.status.setText(tr(blocked or self._feedback))
+        self.status.setToolTip(self.status.text())
 
     def feedback(self, text):
         self._feedback = text
-        self.status.setText(text)
+        self.status.setText(tr(self._blocked or text))
+        self.status.setToolTip(self.status.text())
 
     def fit_workarea(self, rect, *, initial=False):
         self.adjustSize()

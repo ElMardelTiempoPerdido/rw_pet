@@ -1,4 +1,5 @@
 """Oracle 调试配置：以完好 Moon / DM 为基础的 Bell 外观。"""
+from ..shared.messages import Message
 from dataclasses import dataclass, fields
 from math import isfinite
 import re
@@ -50,7 +51,7 @@ class OracleColors:
         for field in fields(self):
             value = getattr(self, field.name)
             if not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value):
-                raise ValueError(f'oracle.colors.{field.name} 必须为 #RRGGBB 颜色')
+                raise ValueError(Message('oracle.colors.{value0} 必须为 #RRGGBB 颜色', value0=field.name))
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +71,7 @@ class DragReactionConfig:
             value = getattr(self, name)
             if (isinstance(value, bool) or not isinstance(value, (int, float))
                     or not isfinite(value) or not 0 <= value <= 1):
-                raise ValueError(f'oracle.drag_reactions.{name} 必须在 0～1 之间')
+                raise ValueError(Message('oracle.drag_reactions.{value0} 必须在 0～1 之间', value0=name))
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,7 +150,7 @@ class OracleConfig:
                      'pearl_playback_probability', 'pearl_bubble_max_size', 'projection_opacity'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
-                raise ValueError(f'oracle.{name} 必须为有限数值')
+                raise ValueError(Message('oracle.{value0} 必须为有限数值', value0=name))
         if self.world_width < 640 or self.world_height < 480:
             raise ValueError('Oracle 场景至少为 640 × 480')
         if not .20 <= self.edge_fraction <= .35:
@@ -179,7 +180,7 @@ class OracleConfig:
                               ('pearl_fixed_count', 32), ('pearl_satellite_count', 32)):
             value = getattr(self, name)
             if type(value) is not int or not 0 <= value <= maximum:
-                raise ValueError(f'oracle.{name} 必须为 0～{maximum} 的整数')
+                raise ValueError(Message('oracle.{value0} 必须为 0～{value1} 的整数', value0=name, value1=maximum))
         if not 0 <= self.projection_opacity <= 1:
             raise ValueError('oracle.projection_opacity 必须在 0～1 之间')
         if not .3 <= self.float_speed <= 2.0 or not 1.5 <= self.base_speed <= 4.0:
