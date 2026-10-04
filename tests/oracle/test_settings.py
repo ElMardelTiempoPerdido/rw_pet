@@ -67,6 +67,66 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertFalse(self.store.path.exists())
         self.assertEqual(self.config.desktop.scale, 1.)
 
+    def test_drag_projection_controls_save_percent_seconds_and_keep_cooldown(self):
+        w = self.desktop()
+        w.motion.scene.projection.cooldown = 31.25
+        d = self.dialog(assets=self.assets, commit=w.apply_settings)
+        probability = d.controls['oracle.drag_projection_probability']
+        cooldown = d.controls['oracle.drag_projection_cooldown_seconds']
+        self.assertEqual((probability.value(), cooldown.value()), (20., 45.))
+        probability.setValue(32.5)
+        cooldown.setValue(90.)
+        d.save()
+        self.assertEqual(d.result(), QDialog.DialogCode.Accepted)
+        saved = self.store.load().oracle
+        self.assertEqual((saved.drag_projection_probability, saved.drag_projection_cooldown_seconds), (.325, 90.))
+        self.assertEqual(w.motion.scene.config.drag_projection_probability, .325)
+        self.assertEqual(w.motion.scene.projection.cooldown, 31.25)
+
+    def test_arm_scale_percentage_preserves_precision_and_round_trips(self):
+        d = self.dialog(assets=self.assets)
+        scale = d.controls['oracle.arm_scale']
+        self.assertEqual((scale.value(), scale.minimum(), scale.maximum()), (60., 35., 75.))
+        self.config = replace(self.config, oracle=replace(self.config.oracle, arm_scale=.623456))
+        d = self.dialog(assets=self.assets)
+        self.assertEqual(d.controls['oracle.arm_scale'].value(), 62.3)
+        self.assertEqual(d.candidate().oracle.arm_scale, .623456)
+        d.controls['oracle.arm_scale'].setValue(70.5)
+        d.save()
+        self.config = self.store.load()
+        self.assertEqual(self.config.oracle.arm_scale, .705)
+        reopened = self.dialog(assets=self.assets)
+        self.assertEqual(reopened.controls['oracle.arm_scale'].value(), 70.5)
+
+    def test_arm_scale_applies_to_desktop_reach_only_after_successful_save(self):
+        w = self.desktop()
+        desktop_scale = w.requested_scale
+        for percent in (75., 35.):
+            old = w.motion.scene
+            side, fraction = current_anchor(old)
+            w.open_settings()
+            d = w.settings_dialog
+            d.controls['oracle.arm_scale'].setValue(percent)
+            with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
+                d.save()
+            self.assertIs(w.motion.scene, old)
+            self.assertEqual(d.controls['oracle.arm_scale'].value(), percent)
+            d.save()
+            scene = w.motion.scene
+            self.assertIsNot(scene, old)
+            self.assertEqual(scene.config.arm_scale, percent / 100)
+            for actual, original in zip(scene.arm.lengths, (300., 150., 90., 30.)):
+                self.assertAlmostEqual(actual, original * percent / 100)
+            self.assertAlmostEqual(scene.arm.maximum_reach, old.arm.maximum_reach * percent / 100 / old.config.arm_scale)
+            self.assertEqual(current_anchor(scene)[0], side)
+            self.assertAlmostEqual(current_anchor(scene)[1], fraction)
+            self.assertEqual(w.requested_scale, desktop_scale)
+            self.assertEqual(self.store.load().oracle.arm_scale, percent / 100)
+            for _ in range(40):
+                scene.step()
+            self.assertTrue(scene.navigator.region.contains(scene.body.chunks[0].position))
+            self.assertLess(scene.arm.constraint_error, .2)
+
     def test_overseer_fields_validate_persist_and_reload(self):
         d = self.dialog(assets=self.assets)
         self.assertFalse(d.controls['overseer.check_interval'].isEnabled())
@@ -361,14 +421,19 @@ class OracleSettingsTests(unittest.TestCase):
         d = w.settings_dialog
         color = d.controls['oracle.glow_color']
         self.assertFalse(color.isEnabled())
+        opacity = d.controls['oracle.glow_opacity']
+        self.assertFalse(opacity.isEnabled())
+        self.assertEqual(opacity.value(), 40)
         d.controls['oracle.glow_enabled'].setChecked(True)
         self.assertTrue(color.isEnabled())
+        self.assertTrue(opacity.isEnabled())
         with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor('#73ddff')):
             color.choose_color()
         with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor()):
             color.choose_color()
         self.assertEqual(color.value(), '#73ddff')
         d.controls['oracle.glow_radius'].setValue(9.)
+        opacity.setValue(65)
         d.save()
         self.assertIs(w.motion.scene, scene)
         self.assertTrue(scene.behavior.drift_active)
@@ -376,8 +441,15 @@ class OracleSettingsTests(unittest.TestCase):
         saved = self.store.load()
         self.assertEqual(saved.oracle.glow_color, '#73ddff')
         self.assertEqual(saved.oracle.glow_radius, 9.)
+        self.assertEqual(saved.oracle.glow_opacity, .65)
+        self.assertEqual(scene.config.glow_opacity, .65)
         w.open_settings()
         self.assertEqual(w.settings_dialog.controls['oracle.glow_color'].value(), '#73ddff')
+        self.assertEqual(w.settings_dialog.controls['oracle.glow_opacity'].value(), 65)
+        w.settings_dialog.controls['oracle.glow_opacity'].setValue(0)
+        w.settings_dialog.save()
+        self.assertIs(w.motion.scene, scene)
+        self.assertEqual(self.store.startup()[0].oracle.glow_opacity, 0.)
 
     def test_small_workarea_keeps_save_buttons_visible(self):
         d = self.dialog(assets=self.assets)
@@ -389,7 +461,7 @@ class OracleSettingsTests(unittest.TestCase):
     def test_wheel_scrolls_page_without_changing_focused_or_unfocused_numbers(self):
         d = self.dialog(assets=self.assets)
         d.fit_workarea(QRect(0, 0, 800, 480))
-        d.tabs.setCurrentIndex(3)
+        d.tabs.setCurrentIndex(4)
         self.app.processEvents()
         area = d.tabs.currentWidget()
         control = d.controls['oracle.edge_fraction']

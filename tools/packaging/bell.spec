@@ -12,6 +12,7 @@ name = os.environ.get('RW_PET_BUNDLE_NAME', 'BellPet')
 _, fmod_root = get_package_paths('fmod_toolkit')
 datas = [(str(root/'config.toml'), '.'),
          (str(root/'rw_creature_pet/ico'), 'rw_creature_pet/ico'),
+         (str(root/'rw_creature_pet/skin'), 'rw_creature_pet/skin'),
          (str(root/'rw_creature_pet/translations/en.qm'), 'rw_creature_pet/translations'),
          (str(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))/'qtbase_zh_CN.qm'),
           'rw_creature_pet/translations')]

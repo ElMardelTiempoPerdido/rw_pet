@@ -132,6 +132,8 @@ class OracleDesktopMotion:
                 getattr(self.scene.drag_reactions, name).setstate(getattr(previous.drag_reactions, name).getstate())
             self.scene.halo.random.setstate(previous.halo.random.getstate())
             self.scene.halo_arcs.inherit_cooldown(previous.halo_arcs)
+            self.scene.projection.inherit_cooldown(previous.projection)
+            self.scene.projection.available = previous.projection.available
             self.scene.behavior.completed_cycles = previous.behavior.completed_cycles
             self.scene.behavior.cross_cooldown = previous.behavior.cross_cooldown
             self.scene.behavior.drift_cooldown = previous.behavior.drift_cooldown
@@ -174,6 +176,9 @@ class OracleDesktopWindow(QWidget):
             from .pearl_playback_assets import prepare_pearl_playback
             self.asset_message = ' / '.join(filter(None, (self.asset_message,
                 prepare_pearl_playback(config.game_dir, renderer))))
+            from .projection_assets import prepare_projection
+            projection_error = prepare_projection(config.game_dir, renderer)
+            self.asset_message = ' / '.join(str(item) for item in (self.asset_message, projection_error) if item)
         self.renderer = renderer
         configure_desktop_overlay(self)
         self.setWindowTitle('桌宠')
@@ -356,6 +361,7 @@ class OracleDesktopWindow(QWidget):
                 settings = self.config.oracle
                 self.motion = OracleDesktopMotion(settings, viewport, previous)
                 self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
+                self.motion.scene.projection.available = bool(self.renderer.projection_images)
                 if previous is None:
                     self.motion.scene.set_autonomous(self.config.desktop.autonomous)
                 pass
@@ -474,7 +480,7 @@ class OracleDesktopWindow(QWidget):
             return
         motion = None
         visual = {name: getattr(config.oracle, name)
-                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'hide_cords')}
+                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
         if self.motion is not None and (config.oracle != previous_with_visual or config.desktop.scale != self.requested_scale):
@@ -505,6 +511,7 @@ class OracleDesktopWindow(QWidget):
             self.motion.scene.config = replace(self.motion.scene.config, **visual)
             self.motion.scene.appearance.sync_cords(self.motion.scene)
             self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
+            self.motion.scene.projection.available = bool(self.renderer.projection_images)
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
                 self.motion.scene.set_autonomous(config.desktop.autonomous)
             self.motion.scene.drag.set_enabled(config.interaction.drag_enabled)
@@ -655,7 +662,7 @@ class OracleDesktopWindow(QWidget):
             return
         s = self.motion.scene
         revision = (s.appearance, s.appearance.revision, s.pearl_visual_revision, s.eyes.revision,
-                    s.halo_visual_revision)
+                    s.halo_visual_revision, s.projection.revision)
         changed = (revision != self._last_revision or not s.appearance.sleeping or not s.arrived
                    or not s.pearls_settled or s.eyes.moving)
         if now >= self._next_render_time:
@@ -711,6 +718,10 @@ class OracleDesktopWindow(QWidget):
                 self.renderer.atlas, self.renderer.colors, glyphs=self.renderer.glyphs,
                 playback_curve=self.renderer.playback_curve)
             debug.scene.pearl_playback_curve = self.renderer.playback_curve
+            debug.renderer.projection_images = self.renderer.projection_images
+            debug.scene.projection.available = bool(self.renderer.projection_images)
+            if self.motion is not None:
+                debug.scene.projection.inherit_cooldown(self.motion.scene.projection)
             # 唯一控制器转交给调试时钟；桌面时钟随后暂停，绝不独立生成第二只。
             debug.canvas.overseer_events = self.overseer_layer.events
             debug.canvas.overseer = self.overseer_layer.model
@@ -727,6 +738,8 @@ class OracleDesktopWindow(QWidget):
         self.debug_window.activateWindow()
 
     def debug_closed(self, *args):
+        if self.debug_window is not None and self.motion is not None:
+            self.motion.scene.projection.inherit_cooldown(self.debug_window.scene.projection)
         self.debug_window = None
         if not self._closing:
             # 无时限的手动外观预览不泄漏到桌面；计时事件则继续本次剩余时长。

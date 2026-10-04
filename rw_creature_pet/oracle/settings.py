@@ -52,6 +52,28 @@ class WheelSafeComboBox(_WheelScrollsPage, QComboBox):
     pass
 
 
+class OutfitSelector(QWidget):
+    def __init__(self, value):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(20)
+        self.group = QButtonGroup(self)
+        self.buttons = {}
+        for name, label in (('normal', '常规'), ('maid', '女仆套装')):
+            button = QRadioButton(label)
+            self.buttons[name] = button
+            self.group.addButton(button)
+            layout.addWidget(button)
+        self.setValue(value)
+
+    def setValue(self, value):
+        self.buttons[value].setChecked(True)
+
+    def value(self):
+        return next(name for name, button in self.buttons.items() if button.isChecked())
+
+
 class _TwoColumnForm(QFormLayout):
     """双列行中的单列：标签靠左，带标签的输入控件靠右。"""
 
@@ -205,7 +227,10 @@ class OracleSettingsDialog(QDialog):
         self.controls['audio.volume'].setEnabled(config.audio.enabled)
         general.addRow(PixelRuleThin())
 
-        self.check(general, '开启外发光', 'oracle.glow_enabled', config.oracle.glow_enabled)
+        left, right = self.two_columns(general)
+        self.check(left, '开启外发光', 'oracle.glow_enabled', config.oracle.glow_enabled)
+        self.spin(right, '发光不透明度', 'oracle.glow_opacity', config.oracle.glow_opacity * 100,
+                  0, 100, suffix=' %')
         glow_color = ColorButton(config.oracle.glow_color, '选择外发光颜色')
         glow_color.setFixedWidth(100)
         self.controls['oracle.glow_color'] = glow_color
@@ -227,6 +252,16 @@ class OracleSettingsDialog(QDialog):
         test_note.setTextInteractionFlags(Qt.TextSelectableByMouse)
         test_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         general.addRow(test_note)
+
+        appearance = self.tab('外观')
+        outfit = OutfitSelector(config.oracle.outfit)
+        self.controls['oracle.outfit'] = outfit
+        appearance.addRow(outfit)
+        appearance.addRow(PixelRuleThin())
+        self.spin(appearance, '机械臂缩放', 'oracle.arm_scale', config.oracle.arm_scale * 100,
+                  35, 75, decimals=1, suffix=' %')
+        self.controls['oracle.arm_scale'].setToolTip(
+            '相对于原作臂段长度，默认 60%；修改后会重新安置人偶并更新机械臂可达范围。')
 
         pearls = self.tab('珍珠')
         o = config.oracle
@@ -274,6 +309,16 @@ class OracleSettingsDialog(QDialog):
         left, right = self.two_columns(halo)
         self.check(left, '显示电弧', 'oracle.halo_arcs_enabled', o.halo_arcs_enabled)
         self.spin(right, '电弧数量上限', 'oracle.halo_arc_max_count', o.halo_arc_max_count, 1, 10)
+        halo.addRow(PixelRuleThin())
+        left, right = self.two_columns(halo)
+        self.spin(left, '拖动投影触发概率', 'oracle.drag_projection_probability',
+                  o.drag_projection_probability*100, 0, 100, decimals=1, suffix=' %')
+        self.spin(right, '拖动投影冷却时间', 'oracle.drag_projection_cooldown_seconds',
+                  o.drag_projection_cooldown_seconds, 0, 3600, decimals=1, suffix=' 秒')
+        # projection_note = QLabel('摆手结束后才尝试投影；概率为 0 时关闭。冷却从触发时开始，松手不重置。')
+        # projection_note.setStyleSheet(NOTE_STYLE)
+        # projection_note.setWordWrap(True)
+        # halo.addRow(projection_note)
 
         activity = self.tab('移动')
         self.edge_selection(activity, o)
@@ -525,7 +570,7 @@ class OracleSettingsDialog(QDialog):
         for key in c:
             if key.startswith('overseer.') and key not in ('overseer.enabled', 'overseer.color'):
                 c[key].setEnabled(c['overseer.enabled'].isChecked())
-        for key in ('oracle.glow_color', 'oracle.glow_radius'):
+        for key in ('oracle.glow_color', 'oracle.glow_radius', 'oracle.glow_opacity'):
             c[key].setEnabled(c['oracle.glow_enabled'].isChecked())
         c['oracle.pearl_matrix_count'].setEnabled(c['oracle.pearl_matrix_enabled'].isChecked())
         c['oracle.pearl_matrix_avoid_radius'].setEnabled(
@@ -558,9 +603,11 @@ class OracleSettingsDialog(QDialog):
         base_side = self.start_edge_group.checkedButton().property('edge')
         edges = [edge for edge, check in self.edge_checks.items() if check.isChecked()]
         groups['oracle'].update(base_side=base_side, allowed_edges=validate_edges(edges, base_side))
-        percentages = {'audio.volume', 'oracle.projection_opacity', 'oracle.edge_fraction', 'oracle.base_fraction',
+        percentages = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity',
+                       'oracle.edge_fraction', 'oracle.base_fraction',
+                       'oracle.arm_scale',
                        'oracle.cross_edge_probability', 'oracle.antigravity_probability',
-                       'oracle.pearl_playback_probability', 'overseer.appearance_probability',
+                       'oracle.pearl_playback_probability', 'oracle.drag_projection_probability', 'overseer.appearance_probability',
                        'overseer.relocation_probability'}
         for key, control in self.controls.items():
             value = self.value(control)

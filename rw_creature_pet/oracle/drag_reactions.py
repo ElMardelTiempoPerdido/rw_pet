@@ -6,6 +6,7 @@ from ..interaction.drag import limited
 from ..interaction.voice import VoiceCue, VoiceCueChannel
 from ..shared.geometry import Vec2
 from .voice import BELL_VOICE_CLIPS
+from .projection import OracleProjection
 
 
 def smooth(value):
@@ -23,6 +24,7 @@ class OracleDragReactions:
         self.eye_random = Random(seed+1)
         self.voice_random = Random(seed+2)
         self.voice = VoiceCueChannel()
+        self.projection = OracleProjection(seed+3)
         self.active = False
         self.gesture = None
         self.weight = self.elapsed = self.duration = self.phase = 0.
@@ -45,6 +47,8 @@ class OracleDragReactions:
 
     @property
     def label(self):
+        if self.projection.busy:
+            return '展示扫描投影'
         return self.LABELS.get(self.gesture, '放松')
 
     def begin(self, scene):
@@ -67,6 +71,7 @@ class OracleDragReactions:
         self.eye_remaining = 0.
         scene.eyes.end_observation()
         self.voice.cancel()
+        self.projection.stop(cancel=cancel)
         if cancel:
             self.gesture = None
             self.weight = 0.
@@ -76,6 +81,8 @@ class OracleDragReactions:
         """显式调试入口；日常运行通过独立的间歇抽签调用。"""
         if kind not in self.LABELS:
             raise ValueError('未知拖动手势')
+        if self.projection.busy:
+            return
         self.gesture = kind
         self.weight = self.elapsed = 0.
         self.duration = self.random.uniform(1.4, 2.6)
@@ -116,6 +123,9 @@ class OracleDragReactions:
             self.flutter_phases[i] += 2*pi*self.flutter_rates[i]*self.DT
 
     def _try_gesture(self, scene):
+        if self.projection.try_start(scene):
+            self.gesture_wait = self.random.uniform(.45, 1.35)
+            return
         if self.random.random() < self.config.gesture_probability:
             kind = 'protest'
             if self.random.random() < self.config.flutter_probability:
@@ -141,6 +151,7 @@ class OracleDragReactions:
 
     def step(self, scene):
         self.voice.step(self.DT)
+        self.projection.step(scene)
         if not self.active and not self.gesturing:
             return
         self.motion += (min(1., scene.body.chunks[0].velocity.length()/5.)-self.motion)*.15
@@ -158,7 +169,7 @@ class OracleDragReactions:
                 self.weight = 0.
         if not self.active:
             return
-        if not self.gesturing:
+        if not self.gesturing and not self.projection.busy:
             self.gesture_wait -= self.DT
             if self.gesture_wait <= 0:
                 self._try_gesture(scene)
@@ -174,10 +185,14 @@ class OracleDragReactions:
             self._try_voice()
 
     def hand_weight(self, index):
+        if self.projection.busy:
+            return self.projection.hand_weight(index)
         return self.weight if self.gesture in ('flutter', 'alternating') or (self.gesture == 'protest' and index == self.hand_index) else 0.
 
     def hand_targets(self, appearance, pointer):
         """目标只在各自肩外的扇形内往返，不把两个正交正弦合成为旋转力。"""
+        if self.projection.busy:
+            return self.projection.hand_targets(appearance)
         direction = appearance.direction
         side = Vec2(-direction.y, direction.x)
         targets = []
@@ -208,12 +223,12 @@ class OracleDragReactions:
         return targets
 
     def hand_forces(self, appearance, pointer):
-        if not self.gesturing or self.weight == 0:
+        if not self.projection.busy and (not self.gesturing or self.weight == 0):
             return (Vec2(), Vec2())
         result = []
         targets = self.hand_targets(appearance, pointer)
         for i, (hand, target, natural) in enumerate(zip(appearance.hands, targets, appearance.hand_forces())):
-            if target is None:
+            if target is None or self.hand_weight(i) == 0:
                 result.append(Vec2())
                 continue
             relative_velocity = hand.drive_velocity-appearance.last_body_velocity
@@ -227,5 +242,5 @@ class OracleDragReactions:
             offset = (radial*(hand.SWING_TARGET_REACH-distance)
                       + tangent*(angle*min(distance, hand.SWING_TARGET_REACH)))
             force = offset*(.22+.05*self.motion)-relative_velocity*.5-natural
-            result.append(limited(force, 3.)*self.weight)
+            result.append(limited(force, 3.)*self.hand_weight(i))
         return result

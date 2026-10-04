@@ -399,6 +399,11 @@ class OracleDebugWindow(QMainWindow):
             self.asset_message = ' / '.join(filter(None, (self.asset_message,
                 prepare_pearl_playback(config.game_dir, self.renderer))))
         self.scene.pearl_playback_curve = self.renderer.playback_curve
+        if load_atlas:
+            from .projection_assets import prepare_projection
+            projection_error = prepare_projection(config.game_dir, self.renderer)
+            self.asset_message = ' / '.join(str(item) for item in (self.asset_message, projection_error) if item)
+        self.scene.projection.available = bool(self.renderer.projection_images)
         self.canvas = OracleCanvas(self.scene, self.clock, self.renderer, config.overseer)
         self.overseer_panel = None
         self.setWindowTitle('测试')
@@ -866,7 +871,7 @@ class OracleDebugWindow(QMainWindow):
         self.orbit_pearl_button.setEnabled(scene.sliding_base and available)
         now = perf_counter()
         revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
-                    scene.halo_visual_revision, self.canvas.overseer.revision)
+                    scene.halo_visual_revision, scene.projection.revision, self.canvas.overseer.revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
                                                    or not scene.pearls_settled or scene.eyes.moving))
                        or revision != self._last_visual_revision)

@@ -26,6 +26,11 @@ def body_bounds(scene):
 
 def visual_bounds(scene):
     result = body_bounds(scene)
+    projection = scene.projection
+    if projection.visible:
+        for center in (projection.previous_position, projection.position):
+            result = result.united(QRectF(center.x-projection.WIDTH/2-2, center.y-projection.HEIGHT/2-2,
+                                         projection.WIDTH+4, projection.HEIGHT+4))
     if scene.halo_visible:
         halo = scene.halo
         result = result.united(point_bounds((halo.previous_center, halo.center), halo.extent+2))
@@ -44,7 +49,7 @@ def visual_bounds(scene):
         # 可配置的大光泡可能超出文字投影余量；同时覆盖前后帧，避免桌面残影。
         result = result.united(point_bounds((pearl.previous_position, pearl.position),
                                            scene.config.pearl_bubble_max_size/2+2))
-    if scene.config.glow_enabled:
+    if scene.config.glow_enabled and scene.config.glow_opacity > 0:
         margin = scene.config.glow_radius+3
         result = result.adjusted(-margin, -margin, margin, margin)
     return result

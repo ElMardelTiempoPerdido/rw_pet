@@ -168,6 +168,7 @@ class FixedOracleArm:
         a = candidates[0 if self.bend_sign == 1 else 1]
         b = corridor.clamp(a.lerp(tip, .65))
         self.joints = [ArmJoint(p, p) for p in (base, a, b, tip)]
+        self._carry = (Vec2(), Vec2())
         self._solve(tip, iterations=120)
         for joint in self.joints:
             joint.previous_position = joint.position
@@ -179,11 +180,19 @@ class FixedOracleArm:
 
     def _unfold_at_boundary(self, joint, anchor, minimum):
         """径向推出被边界抵消时，沿边界解最小跨度圆的最近交点。"""
-        delta = joint.position-anchor
-        if delta.length() >= minimum-1e-6 or self.corridor.contains(anchor+unit(delta)*minimum):
-            return
+        joint.position = self._unfold_target(joint.position, anchor, minimum, self.corridor,
+                                            joint.previous_position)
+
+    def _unfold_target(self, point, anchor, minimum, region, previous):
+        delta = point-anchor
+        if delta.length() >= minimum-1e-6:
+            return point
+        radial = anchor+unit(delta)*minimum
+        if region.contains(radial) and (not isinstance(region, EdgeRegion)
+                                       or region.segment_safe(anchor, radial)):
+            return radial
         candidates = []
-        boxes = self.corridor.boxes if isinstance(self.corridor, EdgeRegion) else (self.corridor,)
+        boxes = region.boxes if isinstance(region, EdgeRegion) else (region,)
         for box in boxes:
             for x in (box.left, box.right):
                 square = minimum**2-(x-anchor.x)**2
@@ -193,11 +202,9 @@ class FixedOracleArm:
                 square = minimum**2-(y-anchor.y)**2
                 if square >= 0:
                     candidates.extend((Vec2(anchor.x+sqrt(square), y), Vec2(anchor.x-sqrt(square), y)))
-        candidates = [p for p in candidates if self.corridor.contains(p) and (
-            not isinstance(self.corridor, EdgeRegion) or self.corridor.segment_safe(anchor, p))]
-        if candidates:
-            joint.position = min(candidates, key=lambda p: ((p-joint.position).length(),
-                                                           (p-joint.previous_position).length()))
+        candidates = [p for p in candidates if region.contains(p) and (
+            not isinstance(region, EdgeRegion) or region.segment_safe(anchor, p))]
+        return min(candidates, key=lambda p: ((p-point).length(), (p-previous).length())) if candidates else point
 
     def _solve(self, tip, iterations=90):
         for iteration in range(iterations):
@@ -231,22 +238,41 @@ class FixedOracleArm:
         self.joints[-1].position = tip
 
     def step(self, tip, base=None, normal=None, *, guide_region=None):
+        base_delta = (base if base is not None else self.base) - self.joints[0].position
+        tip_delta = tip - self.joints[-1].position
         for joint in self.joints:
             joint.previous_position = joint.position
         if base is not None:
             self.base = base
             self.normal = normal
             self.tangent = Vec2(normal.y, -normal.x) * self.bend_sign
-        # 小幅恢复力防止多解关节持续游走；目标随末端连续变化。
-        # 拖动归位时仍允许自由折叠，但恢复力必须指向合法活动带；否则会和
-        # 关节回收力抵消，停在边界外不足一像素处，导致恢复流程无法结束。
+        recovering = guide_region is not None
         guide_region = self.corridor if guide_region is None else guide_region
+        # 两端已减速且姿势合法时，保留当前折叠，只消除余速；不再为了
+        # 一个理想弯折位置，在人偶停下后独自继续整理几秒钟。
+        braking = (max(base_delta.length(), tip_delta.length()) < .03
+                   and self.constraint_error < .02 and self.safe_in(guide_region))
         guide = guide_region.clamp(self.base + self.tangent * self.lengths[0] * .62
                                   + self.normal * 22)
+        carries = []
         for i in (1, 2):
             joint = self.joints[i]
             target = guide if i == 1 else guide.lerp(tip, .7)
-            joint.position = joint.position + joint.velocity * .7 + limited(target - joint.position, 20) * .012
+            if recovering:
+                target = guide_region.clamp(target)
+                # 角落的目标也必须容得下最小臂段；否则目标在带内，实际
+                # 关节却会被长度约束向外推，永久卡在回收状态。
+                target = self._unfold_target(target, self.base if i == 1 else tip,
+                                             self.minimum_spans[0 if i == 1 else 2],
+                                             guide_region, joint.position)
+            # 同步搬运两端的位移，余速在该移动参考系内衰减，避免把上一帧
+            # 搬运速度再累加一次。仍由原有距离/边界约束决定最终关节位置。
+            carry = base_delta.lerp(tip_delta, .25 if i == 1 else .7)
+            residual = (joint.velocity - self._carry[i - 1]) * (.45 if braking else .7)
+            drive = Vec2() if braking else limited(target - joint.position, 20) * (.06 if recovering else .012)
+            joint.position = joint.position + carry + residual + drive
+            carries.append(carry)
+        self._carry = tuple(carries)
         self._solve(tip)
         if self.constraint_error > .02:
             # 大倾角末端经过窄角落时，边界投影偶尔耗尽首轮预算。
@@ -254,6 +280,17 @@ class FixedOracleArm:
             self._solve(tip)
         for joint in self.joints:
             joint.velocity = joint.position - joint.previous_position
+
+    def safe_in(self, region):
+        return (all(region.contains(j.position) for j in self.joints)
+                and (not isinstance(region, EdgeRegion) or all(
+                    region.segment_safe(a.position, b.position)
+                    for a, b in zip(self.joints, self.joints[1:]))))
+
+    @property
+    def settled(self):
+        return (max(j.velocity.length() for j in self.joints) < .03
+                and self.constraint_error < .02)
 
     @property
     def constraint_error(self):
@@ -300,6 +337,7 @@ class OracleScene:
 
     def reset(self):
         drag_enabled = self.drag.enabled if hasattr(self, 'drag') else False
+        previous_projection = getattr(self, 'projection', None)
         self.pose = OraclePose()
         self.navigator = None
         base = self.world.anchor_position(self.anchor)
@@ -326,6 +364,10 @@ class OracleScene:
         self.behavior = OracleBehavior()
         self.eyes = OracleEyes()
         self.drag_reactions = OracleDragReactions(self.config.drag_reactions)
+        self.projection = self.drag_reactions.projection
+        if previous_projection is not None:
+            self.projection.available = previous_projection.available
+            self.projection.inherit_cooldown(previous_projection)
         self._reset_fixed_pearls()
         self.pearl_matrix = None
         self.set_pearl_matrix(self.pearl_matrix_enabled)
@@ -600,6 +642,7 @@ class OracleScene:
     def arrived(self):
         return ((self.body.chunks[0].position - self.target).length() < .3
                 and max(c.velocity.length() for c in self.body.chunks) < .03
+                and self.arm.settled
                 and (self.navigator is None or (self.navigator.done and abs(self.navigator.base.velocity) < .01)))
 
     def step(self):
@@ -687,6 +730,7 @@ class OracleScene:
         self.arm.step(upper.position - self.body.direction * self.arm.lengths[3],
                       self.base if self.navigator else None, self.base_normal(),
                       guide_region=self.drag.saved_corridor if self.drag.recovering else None)
+        self.projection.avoid_arm(self)
         self.appearance.step(self)
         if self.halo_visible:
             if self.drag.controlling:

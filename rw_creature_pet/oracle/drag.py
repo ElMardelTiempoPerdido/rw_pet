@@ -140,11 +140,6 @@ class OracleDrag:
         for c in s.body.chunks:
             c.position = c.position+shift
             c.velocity = c.position-c.previous_position
-        if self.recovering:
-            # 先在自由区域内让中间关节逐步收回，避免切换回边缘约束时跳变。
-            for joint in s.arm.joints[1:3]:
-                goal = self.saved_corridor.clamp(joint.position)
-                joint.velocity = joint.velocity+limited(goal-joint.position, 3.)*.3
 
     def after_step(self):
         if not self.recovering:
@@ -152,12 +147,9 @@ class OracleDrag:
         s = self.scene
         upper = s.body.chunks[0]
         region = s.navigator.region if s.navigator else s.world.corridor(s.anchor.side)
-        arm_safe = all(self.saved_corridor.contains(j.position) for j in s.arm.joints)
-        if hasattr(self.saved_corridor, 'segment_safe'):
-            arm_safe = arm_safe and all(self.saved_corridor.segment_safe(a.position, b.position)
-                                       for a, b in zip(s.arm.joints, s.arm.joints[1:]))
+        arm_safe = s.arm.safe_in(self.saved_corridor)
         if ((upper.position-self.home).length() > .15 or upper.velocity.length() > .03
-                or not region.contains(upper.position) or not arm_safe or not s.pose.settled
+                or not region.contains(upper.position) or not arm_safe or not s.arm.settled or not s.pose.settled
                 or (s.halo_visible and not s.halo.region.contains(s.halo.center))
                 or (s.navigator and abs(s.navigator.base.velocity) > .01)):
             return

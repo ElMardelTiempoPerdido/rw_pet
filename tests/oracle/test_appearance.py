@@ -13,9 +13,27 @@ from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.appearance import perpendicular
 
 
 class OracleAppearanceTests(unittest.TestCase):
+    def test_phone_side_hysteresis_updates_in_head_coordinates_and_resets(self):
+        scene = OracleScene(OracleConfig(hide_cords=True))
+        app = scene.appearance
+        threshold = app.PHONE_SIDE_HYSTERESIS
+        # 用真实固定步入口更新；侧躺、倒立时依然按头部左右判断。
+        for direction in (Vec2(0, -1), Vec2(1, 0), Vec2(0, 1)):
+            scene.head.position = scene.body.chunks[0].position+direction*14
+            side = perpendicular(direction)
+            for gx, expected in ((threshold+.02, -1), (-threshold*.9, -1),
+                                 (.0001, -1), (-.0001, -1), (-threshold-.02, 1),
+                                 (threshold*.9, 1), (-.0001, 1), (.0001, 1)):
+                scene.look_direction = side*gx
+                app.step(scene)
+                self.assertEqual(app.near_phone, expected, (direction, gx))
+        scene.reset()
+        self.assertEqual(scene.appearance.near_phone, -1)
+
     def test_gown_falls_from_ideal_outline_with_fixed_collar(self):
         for tilt in (0, -25, 25):
             with self.subTest(tilt=tilt):
@@ -173,6 +191,7 @@ class OracleAppearanceTests(unittest.TestCase):
         for _ in range(80):
             scene.step()
         before = deepcopy(scene.appearance.points)
+        phone_side = scene.appearance.near_phone
         renderer = OracleRenderer()
         for alpha in (0., .25, .5, .75, 1.):
             image = QImage(960, 600, QImage.Format.Format_ARGB32_Premultiplied)
@@ -184,6 +203,7 @@ class OracleAppearanceTests(unittest.TestCase):
                 self.assertEqual(cord[0].sample(alpha), scene.appearance.main_cord[-1].sample(alpha))
                 self.assertEqual(cord[-1].sample(alpha), scene.appearance.head.sample(alpha))
         self.assertEqual(scene.appearance.points, before)
+        self.assertEqual(scene.appearance.near_phone, phone_side)
         self.assertIsNotNone(app)
 
 

@@ -137,7 +137,10 @@ class AntigravityTests(unittest.TestCase):
             axis = scene.body.direction
             scene.observe_pearl(mode)
             visited = set()
-            for tick in range(2200):
+            # 阅读已延长到 40～60 秒；另留召近/归位时间，避免旧的
+            # 55 秒预算在正常保持观察期间就将完整循环判为超时。
+            cycle_limit = scene.behavior.OBSERVE_TICKS[1] + 1200
+            for tick in range(cycle_limit):
                 scene.step()
                 visited.add(scene.behavior.state)
                 self.assertTrue(scene.behavior.drift_active)
@@ -150,7 +153,7 @@ class AntigravityTests(unittest.TestCase):
                     self.assertEqual(scene.look_target, scene.observed_pearl.position)
                 if scene.behavior.completed_cycles == 1:
                     break
-            self.assertLess(tick, 2199)
+            self.assertLess(tick, cycle_limit-1)
             self.assertEqual(scene.behavior.state, Activity.DRIFT)
             self.assertIn(Activity.APPROACH if mode == 'approach' else Activity.RECALL, visited)
             self.assertIn(Activity.OBSERVE, visited)
@@ -158,7 +161,7 @@ class AntigravityTests(unittest.TestCase):
             # 到期正在观察时，完成本轮再退出；不能突然丢下被召近的珍珠。
             scene.observe_pearl('recall')
             scene.behavior.drift_duration = scene.behavior.drift_ticks+1
-            for _ in range(2400):
+            for _ in range(cycle_limit):
                 scene.step()
                 if not scene.behavior.drift_active:
                     break

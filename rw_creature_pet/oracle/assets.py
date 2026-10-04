@@ -6,6 +6,7 @@ from .glyphs import load_pearl_glyphs
 from .render import OracleRenderer
 from .voice_assets import prepare_bell_voice
 from .pearl_playback_assets import prepare_pearl_playback
+from .projection_assets import prepare_projection
 
 
 @dataclass
@@ -26,5 +27,6 @@ def prepare_oracle_assets(config):
         message = f'珍珠投影不可用：{exc}'
     paths, error = prepare_bell_voice(config)
     playback_error = prepare_pearl_playback(config.game_dir, renderer)
-    message = ' / '.join(filter(None, (message, playback_error)))
+    projection_error = prepare_projection(config.game_dir, renderer)
+    message = ' / '.join(str(item) for item in (message, playback_error, projection_error) if item)
     return OracleAssets(renderer, message, paths, error)

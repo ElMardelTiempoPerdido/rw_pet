@@ -105,6 +105,8 @@ class OracleConfig:
     pearl_fixed_count: int = 2
     pearl_satellite_count: int = 0  # 旧配置默认不增加持续运动；本机 TOML 开启 1 颗。
     projection_opacity: float = .5  # 全息投影的不透明度；珍珠字符及后续光环共用。
+    drag_projection_probability: float = .20  # 每次空闲拖动反应选择；0 关闭。
+    drag_projection_cooldown_seconds: float = 45.  # 从触发开始计时，松手不重置。
     colors: OracleColors = OracleColors()
     physics_backend: str = 'auto'  # 安装 speedups 可选依赖后自动使用 Numba。
     halo_enabled: bool = True
@@ -112,14 +114,18 @@ class OracleConfig:
     halo_arcs_enabled: bool = True
     halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
+    outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
     hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
     glow_color: str = '#ffffff'
     glow_radius: float = 2.  # 外发光扩散半径，逻辑像素；跟随桌宠显示倍率。
+    glow_opacity: float = .4  # 仅调节柔光合成强度；0 隐藏，1 为完整强度。
     drag_reactions: DragReactionConfig = DragReactionConfig()
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
 
     def __post_init__(self):
+        if self.outfit not in ('normal', 'maid'):
+            raise ValueError('oracle.outfit 必须为 normal / maid')
         if type(self.hide_cords) is not bool:
             raise ValueError('oracle.hide_cords 必须为布尔值')
         if type(self.glow_enabled) is not bool:
@@ -129,6 +135,9 @@ class OracleConfig:
         if (isinstance(self.glow_radius, bool) or not isinstance(self.glow_radius, (int, float))
                 or not isfinite(self.glow_radius) or not 1 <= self.glow_radius <= 24):
             raise ValueError('发光半径必须在 1～24 逻辑像素之间')
+        if (isinstance(self.glow_opacity, bool) or not isinstance(self.glow_opacity, (int, float))
+                or not isfinite(self.glow_opacity) or not 0 <= self.glow_opacity <= 1):
+            raise ValueError('发光不透明度必须在 0～1 之间')
         if self.pixel_mode not in ('classic', 'adaptive'):
             raise ValueError('oracle.pixel_mode 必须为 classic / adaptive')
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
@@ -147,7 +156,8 @@ class OracleConfig:
         for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'drift_speed', 'base_speed',
                      'cross_edge_probability', 'antigravity_probability', 'antigravity_duration_seconds',
                      'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_avoid_radius',
-                     'pearl_playback_probability', 'pearl_bubble_max_size', 'projection_opacity'):
+                     'pearl_playback_probability', 'pearl_bubble_max_size', 'projection_opacity',
+                     'drag_projection_probability', 'drag_projection_cooldown_seconds'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(Message('oracle.{value0} 必须为有限数值', value0=name))
@@ -183,6 +193,10 @@ class OracleConfig:
                 raise ValueError(Message('oracle.{value0} 必须为 0～{value1} 的整数', value0=name, value1=maximum))
         if not 0 <= self.projection_opacity <= 1:
             raise ValueError('oracle.projection_opacity 必须在 0～1 之间')
+        if not 0 <= self.drag_projection_probability <= 1:
+            raise ValueError('拖动投影触发概率必须在 0～1 之间')
+        if not 0 <= self.drag_projection_cooldown_seconds <= 3600:
+            raise ValueError('拖动投影冷却时间必须在 0～3600 秒之间')
         if not .3 <= self.float_speed <= 2.0 or not 1.5 <= self.base_speed <= 4.0:
             raise ValueError('float_speed 必须在 0.3～2.0；base_speed 必须在 1.5～4.0')
         if not .3 <= self.drift_speed <= 1.8:

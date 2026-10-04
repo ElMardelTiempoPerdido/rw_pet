@@ -15,7 +15,9 @@ from rw_creature_pet.settings_store import SettingsStore
 
 
 PERCENTAGES = {
-    'audio.volume', 'oracle.projection_opacity', 'oracle.edge_fraction', 'oracle.base_fraction',
+    'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity', 'oracle.edge_fraction', 'oracle.base_fraction',
+    'oracle.arm_scale',
+    'oracle.drag_projection_probability',
     'oracle.cross_edge_probability', 'oracle.antigravity_probability', 'oracle.pearl_playback_probability',
     'overseer.appearance_probability', 'overseer.relocation_probability',
 }
@@ -94,13 +96,15 @@ class SettingsDefaultsTests(unittest.TestCase):
             'desktop.scale': 1.5, 'desktop.autonomous': False, 'interaction.drag_enabled': False,
             'audio.enabled': False, 'audio.volume': .31,
             'oracle.hide_cords': True, 'oracle.glow_enabled': True,
-            'oracle.glow_color': '#123456', 'oracle.glow_radius': 9.5,
+            'oracle.outfit': 'maid', 'oracle.arm_scale': .67,
+            'oracle.glow_color': '#123456', 'oracle.glow_radius': 9.5, 'oracle.glow_opacity': .63,
             'oracle.pearl_matrix_enabled': False, 'oracle.pearl_matrix_count': 13,
             'oracle.pearl_matrix_avoid_radius': 123, 'oracle.pearl_orbits_enabled': False,
             'oracle.pearl_inner_count': 8, 'oracle.pearl_outer_count': 5,
             'oracle.pearl_fixed_count': 6, 'oracle.pearl_satellite_count': 3,
             'oracle.pearl_playback_probability': .67, 'oracle.pearl_bubble_max_size': 19.5,
             'oracle.pearl_bubble_color': '#654321', 'oracle.projection_opacity': .37,
+            'oracle.drag_projection_probability': .42, 'oracle.drag_projection_cooldown_seconds': 73.5,
             'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15,
             'oracle.halo_arcs_enabled': False, 'oracle.halo_arc_max_count': 4,
             'oracle.base_fraction': .713, 'oracle.edge_fraction': .287,
@@ -142,6 +146,10 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertEqual(dialog.controls['overseer.color'].value(), '#102030')
         self.assertEqual(config.overseer.size, self.data['overseer']['size'])
         self.assertEqual(config.oracle.pearl_bubble_color, self.data['oracle']['pearl_bubble_color'])
+        self.assertEqual(config.oracle.glow_opacity, .4)
+        self.assertEqual(dialog.controls['oracle.glow_opacity'].value(), 40)
+        saved = json.loads(self.store.path.read_text(encoding='utf-8'))
+        self.assertEqual(saved['config']['oracle']['glow_opacity'], .4)
 
     def test_valid_advanced_toml_values_are_not_clamped_to_ui_convenience_limits(self):
         self.data['overseer'].update(check_interval=90000., duration_min=.01, duration_max=90001.,

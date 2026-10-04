@@ -128,7 +128,8 @@ def section_parameters(length, index, scale, half):
     return tuple(rows)
 
 
-def make_arm_frame(a, b, length, index, scale, region):
+def arm_frame_curves(a, b, length, index, scale, region):
+    """外壳的原始控制点；绘制再收弧度，避让可直接取其保守范围。"""
     ds = detail_scale(scale)
     elbow = (ik_bend(a, b, length/3, length/3, -1, region) if index == 3
              else arm_elbow(a, b, length, index, region))
@@ -136,10 +137,18 @@ def make_arm_frame(a, b, length, index, scale, region):
     middle = normalized(incoming+outgoing, normalized(b-a))
     start = a+incoming*min(.025*length+2*ds, (elbow-a).length()*.4)
     end = b-outgoing*min(.0125*length+2*ds, (b-elbow).length()*.4)
-    curves = (safe_curve(start, start+incoming*((elbow-start).length()*.2),
-                         elbow-middle*((elbow-start).length()*.2), elbow, region),
-              safe_curve(elbow, elbow+middle*((end-elbow).length()*.2),
-                         end-outgoing*((end-elbow).length()*.2), end, region))
+    curves = (Bezier(start, start+incoming*((elbow-start).length()*.2),
+                     elbow-middle*((elbow-start).length()*.2), elbow),
+              Bezier(elbow, elbow+middle*((end-elbow).length()*.2),
+                     end-outgoing*((end-elbow).length()*.2), end))
+    return elbow, incoming, curves
+
+
+def make_arm_frame(a, b, length, index, scale, region):
+    ds = detail_scale(scale)
+    elbow, incoming, raw_curves = arm_frame_curves(a, b, length, index, scale, region)
+    outgoing = normalized(b-elbow)
+    curves = tuple(safe_curve(c.a, c.b, c.c, c.d, region) for c in raw_curves)
     strips = []
     for half, curve in enumerate(curves):
         sections = []

@@ -16,7 +16,7 @@ class PuppetHitMap:
         if app.sleeping:
             alpha = 1.
         density = pixel_density(scene.config.pixel_mode, raster_scale)
-        key = (app, app.revision, alpha, renderer.colors, renderer.atlas, density)
+        key = (app, app.revision, alpha, renderer.colors, renderer.atlas, density, scene.config.outfit)
         if key != self.key:
             parts = (app.head, *app.hands, *app.feet, *app.cloth)
             image, rect = local_canvas(point_bounds((p.sample(alpha) for p in parts), 20), density)
@@ -25,8 +25,10 @@ class PuppetHitMap:
                 painter.scale(density, density)
                 painter.translate(-rect.x(), -rect.y())
                 renderer.draw_geometry(painter, scene, alpha, cords=False, pearl=False,
-                                       halo=False, arm=False, cache_body=True, include_head=False)
+                                       halo=False, arm=False, cache_body=True, include_head=False,
+                                       include_chest_ribbon=False)
                 renderer.draw_scene_head(painter, scene, alpha, pixelated=True, raster_scale=density)
+                renderer.draw_chest_ribbon(painter, scene, alpha, raster_scale=density)
             finally:
                 painter.end()
             self.key = key

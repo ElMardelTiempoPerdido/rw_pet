@@ -23,10 +23,12 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
+outfit = 'normal'               # normal 常规 / maid 女仆套装
 hide_cords = false              # 隐藏粗细线缆并停止其物理计算；保留机械臂
 glow_enabled = false            # 不透明部件的外发光
-glow_color = '#ffffff'
-glow_radius = 2.0               # 外发光半径，逻辑像素
+glow_color = '#a1a6ab'          # 外发光颜色
+glow_radius = 6.0               # 外发光半径，逻辑像素
+glow_opacity = 0.4              # 外发光不透明度，0 隐藏，1 为完整强度
 voice_directory = 'auto'        # 首次从 game_dir 提取和处理，缓存至用户目录；也可填写自定义 WAV 目录
 world_width = 960.0
 world_height = 600.0
@@ -34,7 +36,7 @@ edge_fraction = 0.20
 base_side = 'top'
 allowed_edges = ['top', 'right', 'bottom', 'left'] # 活动边缘须连续，且包含启动边缘
 base_fraction = 0.50
-arm_scale = 0.60
+arm_scale = 0.60                # 原作臂段长度的 60%；设置 → 外观可调整 35%～75%
 float_speed = 1.6               # 通常移动速度
 drift_speed = 1.0               # 反重力漫游速度
 cross_edge_probability = 0.05   # 跨到相邻边的概率
@@ -52,6 +54,8 @@ pearl_outer_count = 2           # 0～32；原版外圈为 2
 pearl_fixed_count = 2           # 0～32；原版完整房间有 11 颗，包含卫星母珠
 pearl_satellite_count = 1       # 0～32；原版有 5 颗。固定珠为 0 时不生成卫星
 projection_opacity = 0.5        # 投影不透明度：0 隐藏，0.5 半透明，1 完全不透明
+drag_projection_probability = 0.20  # 摆手结束后的空闲反应选择概率；0 关闭扫描投影
+drag_projection_cooldown_seconds = 45.0  # 触发后冷却秒数，松手/再次抓取不清零
 halo_enabled = true             # 圆环与短条光环
 halo_scale = 0.8                # 光环相对原版的缩放
 halo_arcs_enabled = true        # 低频连接附近工作区边框的电弧

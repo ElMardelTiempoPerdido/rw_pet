@@ -140,7 +140,7 @@ class TranslationUiTests(unittest.TestCase):
     def test_form_switch_keeps_dirty_values_tab_scroll_and_pending_save_language(self):
         d = self.dialog()
         d.fit_workarea(QRect(0, 0, 800, 480))
-        d.tabs.setCurrentIndex(1)
+        d.tabs.setCurrentIndex(2)
         d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
         d.controls['oracle.pearl_matrix_count'].setValue(23)
         d.controls['oracle.pearl_bubble_color'].setValue('#123456')
@@ -153,7 +153,7 @@ class TranslationUiTests(unittest.TestCase):
         d.pending = d.candidate()
         language_manager().set_language('en')
         self.flush()
-        self.assertEqual(d.tabs.currentIndex(), 1)
+        self.assertEqual(d.tabs.currentIndex(), 2)
         self.assertEqual(bar.value(), scroll)
         self.assertEqual(d.controls, controls)
         self.assertEqual(d.controls['oracle.pearl_matrix_count'].value(), 23)
@@ -171,8 +171,8 @@ class TranslationUiTests(unittest.TestCase):
 
     def test_initial_english_and_validation_and_failed_save_messages(self):
         d = self.dialog('en', first_run=True)
-        self.assertEqual(d.windowTitle(), 'Bell · First-time Setup')
-        self.assertEqual(d.tabs.tabText(1), 'Pearls')
+        self.assertEqual(d.windowTitle(), tr('桌宠初始化设置'))
+        self.assertEqual(d.tabs.tabText(2), 'Pearls')
         for edge, button in d.edge_checks.items():
             button.setChecked(edge in ('top', 'bottom'))
         d.save()
@@ -215,7 +215,7 @@ class TranslationUiTests(unittest.TestCase):
         self.assertTrue(w.language_actions['en'].isChecked())
         self.assertFalse(w.language_actions['zh'].isChecked())
         self.assertEqual(self.store.load().ui.language, 'en')
-        self.assertIn('paused', w.action_toolbar.status.text())
+        self.assertEqual(w.action_toolbar.status.text(), tr('桌宠已暂停，可从托盘菜单继续'))
         w.pause_action.trigger()
         self.assertEqual(w.action_toolbar.status.text(), 'Halo expansion triggered.')
         self.assertIn('Settings > Pearls', w.action_toolbar.buttons['matrix'].toolTip())

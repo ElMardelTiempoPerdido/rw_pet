@@ -57,8 +57,10 @@ class GlowTests(unittest.TestCase):
 
     def test_config_defaults_and_invalid_values(self):
         self.assertFalse(OracleConfig.from_mapping({}).glow_enabled)
+        self.assertEqual(OracleConfig.from_mapping({}).glow_opacity, .4)
         for changes in ({'glow_enabled': 1}, {'glow_color': '#gg1122'}, {'glow_radius': 0},
-                        {'glow_radius': float('nan')}, {'glow_radius': True}, {'glow_radius': 25}):
+                        {'glow_radius': float('nan')}, {'glow_radius': True}, {'glow_radius': 25},
+                        *({'glow_opacity': value} for value in (-.1, 1.1, True, '0.4', float('nan'), float('inf')))):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 OracleConfig(**changes)
 
@@ -71,6 +73,31 @@ class GlowTests(unittest.TestCase):
         opaque = before[:, :, 3] == 255
         self.assertTrue(np.array_equal(before[opaque], after[opaque]))
         self.assertGreater(np.count_nonzero((before[:, :, 3] == 0) & (after[:, :, 3] > 0)), 300)
+
+    def test_opacity_reuses_blur_preserves_entities_and_zero_skips_glow(self):
+        scene = OracleScene(OracleConfig(outfit='maid', hide_cords=True, halo_enabled=False,
+                                       projection_opacity=0.))
+        renderer = OracleRenderer()
+        base = rgba(self.paint(renderer, scene))
+        bounds = visual_bounds(scene)
+        scene.config = replace(scene.config, glow_enabled=True, glow_opacity=1.)
+        full = rgba(self.paint(renderer, scene))
+        names = ('_body_glow', '_head_glow', '_chest_ribbon_glow', '_pearl_glow')
+        cached = [getattr(renderer, name).image for name in names]
+        scene.config = replace(scene.config, glow_opacity=.4)
+        faded = rgba(self.paint(renderer, scene))
+        for name, old in zip(names, cached):
+            self.assertIs(getattr(renderer, name).image, old)
+        empty, solid = base[:, :, 3] == 0, base[:, :, 3] == 255
+        self.assertTrue(np.all(faded[:, :, 3][empty] <= full[:, :, 3][empty]))
+        self.assertGreater(faded[:, :, 3][empty].sum(), 0)
+        self.assertLess(faded[:, :, 3][empty].sum(), full[:, :, 3][empty].sum())
+        self.assertTrue(np.array_equal(faded[solid], base[solid]))
+        scene.config = replace(scene.config, glow_opacity=0.)
+        with patch.object(GlowLayer, 'prepare', side_effect=AssertionError('0% 不应计算模糊')):
+            hidden = rgba(self.paint(renderer, scene))
+        self.assertTrue(np.array_equal(hidden, base))
+        self.assertEqual(visual_bounds(scene), bounds)
 
     def test_projection_and_halo_are_excluded_even_when_fully_opaque(self):
         scene = OracleScene(OracleConfig(glow_enabled=True, projection_opacity=1.,
@@ -129,6 +156,8 @@ class GlowTests(unittest.TestCase):
             scene.step()
         snapshots.append(copy.deepcopy(scene))
         scene.config = replace(scene.config, glow_radius=2.)
+        snapshots.append(copy.deepcopy(scene))
+        scene.config = replace(scene.config, glow_opacity=0.)
         snapshots.append(copy.deepcopy(scene))
         scene.config = replace(scene.config, glow_enabled=False)
         snapshots.append(scene)

@@ -192,6 +192,7 @@ class OracleAppearance:
     NECKLACE_PASSES = 8
     NECKLACE_ANCHOR_HALF = 4.5
     NECKLACE_ANCHOR_UP = 8.
+    PHONE_SIDE_HYSTERESIS = .08  # 头部局部横向视线超过此幅度才交换耳机前后层。
 
     def __init__(self, scene):
         self.gravity_scale = scene.pose.gravity_scale
@@ -202,6 +203,8 @@ class OracleAppearance:
         self.direction = scene.body.direction
         self.lower = self.upper - self.direction * 9
         self.head = SoftPoint.at(scene.head.position)
+        self.near_phone = -1
+        self.step_phone_side(scene.look_direction)
         # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
         self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
                       for f in self.hand_forces()]
@@ -253,6 +256,16 @@ class OracleAppearance:
         self.previous_cog_turns = self.cog_turns.copy()
         self._arm_spans = self.arm_spans(scene)
         self.sync_cords(scene)
+
+    def step_phone_side(self, look):
+        # 与绘制使用相同的头部局部视线；倒立和侧躺时仍按面部左右判断。
+        # 状态只在固定物理步更新，主画面、放大镜和命中图读取同一个结果。
+        side = perpendicular(normalized(self.head.position-self.upper, self.direction))
+        gx = look.x*side.x+look.y*side.y
+        if gx > self.PHONE_SIDE_HYSTERESIS:
+            self.near_phone = -1
+        elif gx < -self.PHONE_SIDE_HYSTERESIS:
+            self.near_phone = 1
 
     def sync_cords(self, scene):
         """按配置释放或重建线缆；不改变身体、导航及行为状态。"""
@@ -418,7 +431,8 @@ class OracleAppearance:
                   scene.head.position, scene.look_direction, *(j.position for j in scene.arm.joints))
         gravity = scene.pose.gravity_scale
         gravity_changed = abs(gravity-self.gravity_scale) > 1e-9
-        reacting = scene.drag_reactions.gesturing or any(hand.reach_weight > 0 for hand in self.hands)
+        reacting = (scene.drag_reactions.gesturing or scene.projection.busy
+                    or any(hand.reach_weight > 0 for hand in self.hands))
         if self.sleeping and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
             # 静置收敛后休眠；新移动、转头、倾角都会唤醒。不依赖墙钟时间。
             return
@@ -436,6 +450,7 @@ class OracleAppearance:
         self.upper = upper.position
         self.direction = rotate(scene.body.direction, self.sway)
         self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
+        self.step_phone_side(scene.look_direction)
         reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
         for index, (hand, force, extra) in enumerate(zip(self.hands, self.hand_forces(), reactions)):
             weight = scene.drag_reactions.hand_weight(index)

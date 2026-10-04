@@ -32,7 +32,7 @@ def main():
         try:
             dialog.show()
             app.processEvents()
-            for i, name in enumerate(('general', 'pearls', 'halo', 'activity', 'overseer')):
+            for i, name in enumerate(('general', 'appearance', 'pearls', 'halo', 'activity', 'overseer')):
                 dialog.tabs.setCurrentIndex(i)
                 app.processEvents()
                 dialog.grab().save(str(out/f'oracle-settings-{name}.png'))
@@ -44,7 +44,7 @@ def main():
             app.processEvents()
             dialog.grab().save(str(out/'oracle-settings-glow.png'))
             dialog.controls['oracle.glow_enabled'].setChecked(config.oracle.glow_enabled)
-            dialog.tabs.setCurrentIndex(3)
+            dialog.tabs.setCurrentIndex(4)
             for edge, check in dialog.edge_checks.items():
                 check.setChecked(edge in ('top', 'bottom'))
             dialog.save()
@@ -57,7 +57,7 @@ def main():
             dialog.fit_workarea(QRect(-800, 0, 800, 480))
             app.processEvents()
             dialog.grab().save(str(out/'oracle-settings-activity-small.png'))
-            dialog.tabs.setCurrentIndex(1)
+            dialog.tabs.setCurrentIndex(2)
             app.processEvents()
             dialog.grab().save(str(out/'oracle-settings-small.png'))
             dialog.tabs.setCurrentIndex(0)
