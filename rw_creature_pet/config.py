@@ -15,7 +15,7 @@ from .ui_config import UiConfig
 @dataclass(frozen=True, slots=True)
 class DesktopConfig:
     scale: float = 1.
-    autonomous: bool = True
+    autonomous: bool = True  # Oracle 自主移动；关闭后仍可原地读珠与观察窗口。
 
     def __post_init__(self):
         if isinstance(self.scale, bool) or self.scale not in (1., 1.5, 2.):

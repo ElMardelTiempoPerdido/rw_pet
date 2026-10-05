@@ -96,7 +96,7 @@ for row, (title, intent, spacing) in enumerate((('慢行', FlatGait.SLOW_INTENT,
         if i:
             for _ in range(spacing): s.step()
         rect = QRectF((i%3)*420, (row*2+i//3)*160, 420, 160)
-        panel(p, s, rect, f'{title} · {i*spacing/40:.3f}s · 支撑 {s.gait.grip_count}/4', 2.8)
+        panel(p, s, rect, f'{title} - {i*spacing/40:.3f}s - 支撑 {s.gait.grip_count}/4', 2.8)
 p.end()
 sheet.save(str(root/'flat-stride-cycle.png'))
 
@@ -106,8 +106,8 @@ for i in range(160):
     img = QImage(800, 400, QImage.Format.Format_RGBA8888)
     img.fill(QColor('#17222d'))
     p = QPainter(img)
-    panel(p, slow, QRectF(0, 0, 800, 200), '慢行 · 约 31 单位/秒')
-    panel(p, active, QRectF(0, 200, 800, 200), '积极移动 · 约 48 单位/秒')
+    panel(p, slow, QRectF(0, 0, 800, 200), '慢行 - 约 31 单位/秒')
+    panel(p, active, QRectF(0, 200, 800, 200), '积极移动 - 约 48 单位/秒')
     p.end()
     frames.append(Image.frombytes('RGBA', (800, 400), bytes(img.constBits())).convert('RGB'))
     for _ in range(2):

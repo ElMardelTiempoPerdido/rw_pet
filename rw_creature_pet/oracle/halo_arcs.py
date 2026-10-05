@@ -49,7 +49,7 @@ class HaloArcs:
     COOLDOWN_SECONDS = 60.
     EXTRA_WAIT_MEAN_SECONDS = 120.
     DURATION_TICKS = 12
-    LINE_WIDTH = 4.
+    LINE_WIDTH = 3.
     OPACITY = .9
     WIDTH_DECAY = .9          # 与原版 lightUp 相同：每个逻辑帧缩到上帧的 90%
     BOW_FRACTION = (.08, .14)  # 期望峰值偏离弦线的距离 / 弦长

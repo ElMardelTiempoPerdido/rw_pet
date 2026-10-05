@@ -41,6 +41,12 @@ def absolute_paths(config, source=None):
     return replace(config, game_dir=game.resolve(), oracle=replace(config.oracle, voice_directory=voice))
 
 
+def load_defaults(source=None):
+    """启动、配置升级和面板重置共用同一份默认模板及路径解析。"""
+    source = source if source is not None else default_template_path()
+    return absolute_paths(AppConfig.load(source), source)
+
+
 def validate_game_directory(directory):
     if not (directory/'RainWorld_Data/resources.assets').is_file():
         raise ValueError('请选择 Rain World 安装目录：其中应包含 RainWorld_Data 文件夹及 resources.assets。')
@@ -69,8 +75,7 @@ class SettingsStore:
         self.path = Path(path) if path is not None else default_settings_path()
 
     def load(self):
-        source = default_template_path()
-        defaults = absolute_paths(AppConfig.load(source), source)
+        defaults = load_defaults()
         return self._load(_mapping(defaults))[0]
 
     def _load(self, defaults):
@@ -114,8 +119,7 @@ class SettingsStore:
     def startup(self, explicit=None):
         """返回配置、是否需要首次设置、提示；显式 TOML 仅覆盖本次启动。"""
         first_run, message = not self.path.is_file(), ''
-        source = explicit if explicit is not None else default_template_path()
-        defaults = absolute_paths(AppConfig.load(source), source)
+        defaults = load_defaults(explicit)
         if explicit is None and not first_run:
             try:
                 config, payload, changed = self._load(_mapping(defaults))

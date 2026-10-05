@@ -14,7 +14,7 @@ class OverseerDesktopLayer(QWidget):
     def __init__(self, owner, config, atlas=None):
         super().__init__(owner)
         configure_desktop_overlay(self)
-        self.setWindowTitle('桌宠 · 监视者显示')
+        self.setWindowTitle('桌宠 - 监视者显示')
         self.model = Overseer(config=config)
         self.events = OverseerEvents(self.model)
         self.renderer = OverseerRenderer(atlas)

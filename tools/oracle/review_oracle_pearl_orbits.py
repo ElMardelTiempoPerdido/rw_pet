@@ -44,13 +44,13 @@ def main():
             for _ in range(12):
                 scene.step()
             check_pixels(renderer, scene)
-        poses.append(snapshot(renderer, scene, closeup=True, label=f'矩阵 / 内圈 / 外圈：{counts} · 2x'))
+        poses.append(snapshot(renderer, scene, closeup=True, label=f'矩阵 / 内圈 / 外圈：{counts} - 2x'))
         if counts == (8, 4, 2):
             revision = scene.appearance.revision
             for tick in range(480):
                 scene.step()
                 if tick % 4 == 0:
-                    frames.append(snapshot(renderer, scene, closeup=True, label='内外圈反向环绕 · 身体休眠 · 2x'))
+                    frames.append(snapshot(renderer, scene, closeup=True, label='内外圈反向环绕 - 身体休眠 - 2x'))
             assert scene.appearance.revision == revision
             group = scene.pearl_orbits
             center = scene.body.chunks[0].position
@@ -82,7 +82,7 @@ def main():
     window = OracleDebugWindow(replace(config, oracle=settings), load_atlas=False)
     window.timer.stop()
     window.renderer = window.canvas.renderer = renderer
-    window.assets.setText('本机原版图集与字形缓存 · 数量与环绕预览')
+    window.assets.setText('本机原版图集与字形缓存 - 数量与环绕预览')
     window.set_paused(True)
     for _ in range(700):
         window.scene.step()

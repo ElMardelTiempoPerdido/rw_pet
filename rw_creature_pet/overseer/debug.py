@@ -163,7 +163,7 @@ class OverseerDebugPanel(QDialog):
                  EventPhase.ACTIVE: f'事件剩余 {events.remaining:.1f} s（包含避让隐藏）',
                  EventPhase.EXITING: '正在退场，不再探出',
                  EventPhase.COOLDOWN: f'冷却剩余 {events.cooldown_remaining:.1f} s'}[events.phase]
-        self.event_status.setText(f'{phase}\n检查 {events.check_count} 次 · 事件 {events.event_count} 次 · 换位 {events.relocation_count} 次\n{events.last_result}')
+        self.event_status.setText(f'{phase}\n检查 {events.check_count} 次 - 事件 {events.event_count} 次 - 换位 {events.relocation_count} 次\n{events.last_result}')
         if not model.active:
             self.status.setText('未显示；点击“显示 / 重置”开始。')
             return
@@ -171,7 +171,7 @@ class OverseerDebugPanel(QDialog):
                  State.WATCHING: '观察', State.WITHDRAWING: '缩回'}[model.state]
         reason = ('等待鼠标和人偶离开安全范围' if model.scared else
                   '手动保持缩回' if not model.wants_out else '原位观察')
-        self.status.setText(f'{label} · 展开 {model.extended:.0%} · {reason}')
+        self.status.setText(f'{label} - 展开 {model.extended:.0%} - {reason}')
 
     def start_event(self):
         if self.canvas.overseer_events.start(self.canvas.overseer_spawn_context()):

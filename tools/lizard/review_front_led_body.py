@@ -36,7 +36,7 @@ for _ in range(200): short.step()
 scenes = [walking(tracking=True), short, walking(tracking=True)]
 for s in (scenes[0], scenes[2]):
     for _ in range(160): s.step()
-titles = ('直角转弯 · 前身先转，中后身跟随', '短距移动 5 单位 · 保留已有弯曲', '连续掉头 · 保持抓附和质点身份')
+titles = ('直角转弯 - 前身先转，中后身跟随', '短距移动 5 单位 - 保留已有弯曲', '连续掉头 - 保持抓附和质点身份')
 colors = ('#77d6ed', '#edc877', '#ed9a99')
 trails = [[[] for _ in range(3)] for s in scenes]
 width, height = 420, 320
@@ -53,7 +53,7 @@ def panel(p, s, trail, rect, title, time):
     p.setPen(QColor('#a1b5c8'))
     p.drawText(rect.adjusted(12, 33, -10, -5), 0,
                f'{time:.2f} 秒  |  {status}  |  躯干折角 {abs(degrees(bend(s))):.1f}°')
-    p.drawText(rect.adjusted(12, height-27, -10, -5), 0, '青：前身   黄：中身   红：后身  ·  世界坐标轨迹')
+    p.drawText(rect.adjusted(12, height-27, -10, -5), 0, '青：前身   黄：中身   红：后身  -  世界坐标轨迹')
     p.setClipRect(rect.adjusted(0, 58, 0, -32))
     center = s.body.chunks[1].position
     p.translate(rect.center().x(), rect.center().y()+12)

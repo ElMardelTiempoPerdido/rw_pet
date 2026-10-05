@@ -76,7 +76,7 @@ def main():
     window = OracleDebugWindow(config, load_atlas=False)
     window.timer.stop()
     window.renderer = window.canvas.renderer = renderer
-    window.assets.setText('本机原版图集 · 正式固定珠与卫星珠；调试单珠已移除')
+    window.assets.setText('本机原版图集 - 正式固定珠与卫星珠；调试单珠已移除')
     window.set_paused(True)
     for _ in range(800):
         window.scene.step()

@@ -65,7 +65,7 @@ def replay(config, renderer):
         p = QPainter(close)
         p.setFont(QFont('Microsoft YaHei UI', 10))
         p.setPen(QColor('#dbe6ec'))
-        p.drawText(16, 26, f'{side} · 工作区改变后 · 3× 局部')
+        p.drawText(16, 26, f'{side} - 工作区改变后 - 3× 局部')
         p.translate(270, 160)
         p.scale(3, 3)
         center = scene.body.chunks[0].position

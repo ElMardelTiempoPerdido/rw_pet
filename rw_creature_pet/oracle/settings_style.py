@@ -1,6 +1,6 @@
-"""设置窗口专用的灰阶像素皮肤，不改变桌宠、工具栏或其他 Qt 窗口。"""
-import os
+"""设置窗口专用的灰阶像素皮肤，不改变桌宠、工具栏或其他 Qt 窗口"""
 from functools import lru_cache
+from math import floor
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QRectF, QSize, Qt
@@ -11,61 +11,91 @@ from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QProxyStyle, QStyle, 
 PAPER = QColor('#e9e9e9')
 INK = QColor('#707070')
 MUTED = QColor('#aaaaaa')
+OUTLINE_WIDTH_PX = 2
+RULE_DOT_WIDTH_PX = 2
+RULE_DOT_GAP_PX = 4
+SETTINGS_FONT_PATH = Path(__file__).resolve().parents[1]/'fonts/WenQuanYi Bitmap Song 14px.ttf'
+NOTE_STYLE = "font-size: 16px;color:#A1A1A1;"
+
+@lru_cache(maxsize=1)
+def settings_font_family():
+    # 使用程序资源，不依赖工作目录，也不要求用户把字体安装到系统
+    font_id = QFontDatabase.addApplicationFont(str(SETTINGS_FONT_PATH))
+    families = QFontDatabase.applicationFontFamilies(font_id)
+    if not families:
+        raise RuntimeError(f'Cannot load settings font: {SETTINGS_FONT_PATH}')
+    return families[0]
 
 
-@lru_cache(maxsize=2)
-def pixel_font_family(language='zh'):
-    # 使用系统宋体的点阵字形，不把 Windows 字体复制进发行包。
-    filename, fallback = ('tahoma.ttf', 'Tahoma') if language == 'en' else ('simsun.ttc', 'SimSun')
-    font_path = Path(os.environ.get('WINDIR', 'C:/Windows'))/'Fonts'/filename
-    if font_path.is_file():
-        font_id = QFontDatabase.addApplicationFont(str(font_path))
-        families = QFontDatabase.applicationFontFamilies(font_id)
-        if families:
-            return families[0]
-    return fallback
-
-
-def pixel_font(language='zh'):
-    font = QFont(pixel_font_family(language))
-    font.setPixelSize(14)
-    font.setStyleStrategy(QFont.StyleStrategy.NoAntialias | QFont.StyleStrategy.PreferBitmap)
+def settings_font():
+    font = QFont(settings_font_family())
+    font.setPixelSize(16)
+    font.setWeight(QFont.Weight.Normal)
+    # 关闭抗锯齿
+    # font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+    font.setHintingPreference(QFont.HintingPreference.PreferDefaultHinting)
     return font
 
 
+def _pixel_outline(painter, rect):
+    """轴对齐的 UI 边框吸附到物理像素，线宽不随系统 DPI 放大"""
+    transform = painter.deviceTransform()
+    inverse, _ = transform.inverted()
+    scale = abs(transform.m11())
+    width = OUTLINE_WIDTH_PX
+    bounds = transform.mapRect(QRectF(rect))
+    left, top, right, bottom = (floor(value + .5) for value in
+                               (bounds.left(), bounds.top(), bounds.right(), bounds.bottom()))
+    # 按最终线宽内缩半个描边：奇数宽度落在半像素中心，偶数宽度落在整数中心
+    bounds = QRectF(left, top, right-left, bottom-top).adjusted(width/2, width/2, -width/2, -width/2)
+    return inverse.mapRect(bounds), width/scale
+
+
 def pixel_box(painter, rect, *, fill=PAPER, border=INK, radius=4):
+    if rect.isEmpty():
+        return
+    outline, width = _pixel_outline(painter, rect)
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-    painter.setPen(QPen(border, 1))
+    painter.setPen(QPen(border, width))
     painter.setBrush(fill)
-    painter.drawRoundedRect(QRectF(rect).adjusted(.5, .5, -.5, -.5), radius, radius)
+    painter.drawRoundedRect(outline, radius, radius)
+    painter.restore()
+
+
+def pixel_rule(painter, rect, *, thickness=2):
+    """点长、间距、厚度均在设备像素中指定，避免分数 DPI 下交替粗细"""
+    transform = painter.deviceTransform()
+    inverse, _ = transform.inverted()
+    bounds = transform.mapRect(QRectF(rect))
+    left, right = (floor(value+.5) for value in (bounds.left(), bounds.right()))
+    y = floor(bounds.center().y()-thickness/2+.5)
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+    for x in range(left, right, RULE_DOT_WIDTH_PX+RULE_DOT_GAP_PX):
+        dot = QRectF(x, y, min(RULE_DOT_WIDTH_PX, right-x), thickness)
+        painter.fillRect(inverse.mapRect(dot), INK)
     painter.restore()
 
 
 class PixelRule(QWidget):
-    def __init__(self):
+    def __init__(self, *, thickness=2):
         super().__init__()
-        self.setFixedHeight(3)
+        self.thickness = thickness
+        self.setFixedHeight(thickness+1)
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        for x in range(0, self.width(), 6):
-            painter.fillRect(x, 1, 2, 2, INK)
+        pixel_rule(painter, self.rect(), thickness=self.thickness)
 
 
-class PixelRuleThin(QWidget):
+class PixelRuleThin(PixelRule):
     def __init__(self):
-        super().__init__()
-        self.setFixedHeight(2)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        for x in range(0, self.width(), 6):
-            painter.fillRect(x, 1, 2, 2, INK)
+        super().__init__(thickness=2)
 
 
 class SettingsStyle(QProxyStyle):
-    """保留 Qt 的输入与布局行为，只替换可见边框、标记和选中状态。"""
+    """保留 Qt 的输入与布局行为，只替换可见边框、标记和选中状态"""
     def __init__(self, parent):
         super().__init__(QStyleFactory.create('Fusion'))
         self.setParent(parent)
@@ -81,7 +111,7 @@ class SettingsStyle(QProxyStyle):
         pe = QStyle.PrimitiveElement
         if (element in (pe.PE_PanelLineEdit, pe.PE_FrameLineEdit) and widget is not None
                 and isinstance(widget.parentWidget(), QAbstractSpinBox)):
-            return  # 数字框由 CC_SpinBox 统一画外边框，内部编辑器不再叠一层。
+            return  # 数字框由 CC_SpinBox 统一画外边框，内部编辑器不再叠一层
         if element in (pe.PE_PanelButtonCommand, pe.PE_PanelLineEdit, pe.PE_FrameLineEdit,
                        pe.PE_FrameTabWidget):
             inverse = element == pe.PE_PanelButtonCommand and self.inverted(option, widget)
@@ -102,18 +132,21 @@ class SettingsStyle(QProxyStyle):
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             color = INK if option.state & QStyle.StateFlag.State_Enabled else MUTED
-            painter.setPen(QPen(color, 1))
+            outline, width = _pixel_outline(painter, option.rect.adjusted(1, 1, -2, -2))
+            painter.setPen(QPen(color, width))
             painter.setBrush(PAPER)
-            painter.drawEllipse(option.rect.adjusted(1, 1, -2, -2))
+            painter.drawEllipse(outline)
             if option.state & QStyle.StateFlag.State_On:
                 painter.setBrush(color)
                 painter.drawEllipse(option.rect.adjusted(4, 4, -5, -5))
             painter.restore()
         elif element == pe.PE_FrameFocusRect:
             painter.save()
-            painter.setPen(QPen(INK, 1, Qt.PenStyle.DotLine))
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            outline, width = _pixel_outline(painter, option.rect)
+            painter.setPen(QPen(INK, width, Qt.PenStyle.DotLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRect(option.rect.adjusted(0, 0, -1, -1))
+            painter.drawRect(outline)
             painter.restore()
         else:
             super().drawPrimitive(element, option, painter, widget)
@@ -132,7 +165,9 @@ class SettingsStyle(QProxyStyle):
             super().drawControl(element, option, painter, widget)
         elif element == ce.CE_SizeGrip:
             painter.save()
-            painter.setPen(INK)
+            pen = QPen(INK, OUTLINE_WIDTH_PX)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
             r = option.rect
             for offset in (3, 7, 11):
                 painter.drawLine(r.right()-offset, r.bottom()-2, r.right()-2, r.bottom()-offset)
@@ -206,9 +241,9 @@ def apply_settings_style(dialog):
     palette.setColor(QPalette.ColorRole.Highlight, INK)
     palette.setColor(QPalette.ColorRole.HighlightedText, PAPER)
     dialog.setPalette(palette)
-    dialog.setFont(pixel_font())
+    dialog.setFont(settings_font())
     dialog.pixel_style = SettingsStyle(dialog)
-    # QWidget 的 style 不像字体/调色板那样继承；同一实例仅用于这个设置窗口。
+    # QWidget 的 style 不像字体/调色板那样继承；同一实例仅用于这个设置窗口
     for combo in dialog.findChildren(QComboBox):
         combo.view().setPalette(palette)
         combo.view().setFont(dialog.font())

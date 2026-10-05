@@ -66,11 +66,11 @@ def main():
         try:
             p.setFont(font)
             p.setPen(QColor('#e7eeee'))
-            p.drawText(QPointF(22, 29), 'Soft Gesture · 珍珠播放动画（无声）')
+            p.drawText(QPointF(22, 29), 'Soft Gesture - 珍珠播放动画（无声）')
             p.setPen(QColor('#9db3c0'))
-            p.drawText(QPointF(22, 54), f'{min(tick/40, curve.duration):05.2f} / {curve.duration:.2f} s · 原版 bubble 精灵')
-            p.drawText(QPointF(30, 92), '人偶阅读 · 2×')
-            p.drawText(QPointF(410, 92), '珍珠局部 · 8×')
+            p.drawText(QPointF(22, 54), f'{min(tick/40, curve.duration):05.2f} / {curve.duration:.2f} s - 原版 bubble 精灵')
+            p.drawText(QPointF(30, 92), '人偶阅读 - 2×')
+            p.drawText(QPointF(410, 92), '珍珠局部 - 8×')
             p.save()
             p.setClipRect(QRectF(10, 105, 350, 200))
             p.translate(165, 168)
@@ -92,7 +92,7 @@ def main():
             p.restore()
             strength = pearl.playback.strength if pearl.playback else 0.
             p.setPen(QColor('#9db3c0'))
-            p.drawText(QPointF(22, 321), f'投影不透明度 {config.oracle.projection_opacity:.0%} · 音乐强度 {strength:.2f}')
+            p.drawText(QPointF(22, 321), f'投影不透明度 {config.oracle.projection_opacity:.0%} - 音乐强度 {strength:.2f}')
         finally:
             p.end()
         frame = Image.frombytes('RGBA', (640, 340), bytes(image.constBits())).convert('RGB')

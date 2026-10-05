@@ -4,21 +4,25 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThread, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QWheelEvent
-from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
+from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
                                QDoubleSpinBox,
                                QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QRadioButton, QScrollArea,
                                QSizeGrip, QSizePolicy, QSpinBox, QTabWidget, QVBoxLayout, QWidget, QFrame)
 
-from ..settings_store import validate_game_directory
+from ..settings_store import load_defaults, validate_game_directory
 from ..i18n import WidgetTexts, language_manager, tr
 from ..shared.messages import Message
 from ..ui_config import UiConfig
 from .assets import prepare_oracle_assets
 from .config import DISPLAY_SCALES, EDGE_NAMES, validate_edges
-from .settings_style import PixelRule, apply_settings_style, pixel_box, pixel_font, PixelRuleThin
+from .settings_style import PixelRule, apply_settings_style, pixel_box, settings_font, PixelRuleThin, NOTE_STYLE
 
-NOTE_STYLE = "font-size: 12px;color:#707070;"
+PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity',
+               'oracle.edge_fraction', 'oracle.base_fraction', 'oracle.arm_scale',
+               'oracle.cross_edge_probability', 'oracle.antigravity_probability',
+               'oracle.pearl_playback_probability', 'oracle.drag_projection_probability',
+               'overseer.appearance_probability', 'overseer.relocation_probability'}
 
 
 class _WheelScrollsPage:
@@ -52,6 +56,18 @@ class WheelSafeComboBox(_WheelScrollsPage, QComboBox):
     pass
 
 
+class _DirectoryHint(QLabel):
+    def sizeHint(self):
+        size = super().sizeHint()
+        size.setHeight(self.heightForWidth(self.width()))
+        return size
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if event.size().width() != event.oldSize().width():
+            self.updateGeometry()
+
+
 class OutfitSelector(QWidget):
     def __init__(self, value):
         super().__init__()
@@ -74,23 +90,61 @@ class OutfitSelector(QWidget):
         return next(name for name, button in self.buttons.items() if button.isChecked())
 
 
-class _TwoColumnForm(QFormLayout):
-    """双列行中的单列：标签靠左，带标签的输入控件靠右。"""
+class _ParameterColumn(QFormLayout):
+    """参数列：输入框靠右，标签使用它左侧的全部剩余宽度。"""
 
     def addRow(self, *args):
         if len(args) == 2:
             label, control = args
-            field = QHBoxLayout()
-            field.setContentsMargins(0, 0, 0, 0)
-            field.setSpacing(0)
-            field.addStretch(1)
+            if isinstance(label, str):
+                label = QLabel(label)
+            label.setWordWrap(True)
+            policy = label.sizePolicy()
+            policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+            label.setSizePolicy(policy)
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(8)
+            row.addWidget(label, 1)
             if isinstance(control, QWidget):
-                field.addWidget(control)
+                label.setBuddy(control)
+                row.addWidget(control, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             else:
-                field.addLayout(control)
-            super().addRow(label, field)
+                row.addLayout(control)
+            super().addRow(row)
         else:
             # 无单独标签的复选框仍靠左，不作为右对齐输入框处理。
+            super().addRow(*args)
+
+
+def _parameter_columns():
+    """单参数行与双参数行共用列宽和列间距，空的右列也保留一半空间。"""
+    panel = QWidget()
+    row = QHBoxLayout(panel)
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(24)
+    columns = []
+    for _ in range(2):
+        cell = QWidget()
+        column = _ParameterColumn(cell)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setVerticalSpacing(0)
+        column.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        column.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(cell, 1)
+        columns.append(column)
+    return panel, tuple(columns)
+
+
+class _ParameterForm(QFormLayout):
+    """分类页中的单个输入项占左列；说明、分割线与复合选择器保持整行。"""
+
+    def addRow(self, *args):
+        if len(args) == 2 and isinstance(args[1], (QAbstractSpinBox, QComboBox, QLineEdit, QPushButton)):
+            panel, (left, _) = _parameter_columns()
+            left.addRow(*args)
+            super().addRow(panel)
+        else:
             super().addRow(*args)
 
 
@@ -148,6 +202,8 @@ class OracleSettingsDialog(QDialog):
         self.assets, self.commit = assets, commit
         self.saved_config = self.prepared_assets = self.worker = None
         self.controls = {}
+        self.reset_tab_buttons = []
+        self._reset_values = {}
         self._shutdown = False
         self._drag_offset = None
         self._workarea = None
@@ -187,12 +243,15 @@ class OracleSettingsDialog(QDialog):
         row.addWidget(self.game_dir, 1)
         row.addWidget(self.browse_button)
         game.addRow('雨世界目录', row)
-        hint = QLabel('请选择这台电脑上雨世界的安装目录\n'
+        hint = _DirectoryHint('请选择这台电脑上雨世界的安装目录\n'
                       '一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容\n'
                       '首次启动时，需要一点时间从安装目录中读取资源')
         hint.setStyleSheet(NOTE_STYLE)
         hint.setWordWrap(True)
-        hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        # 保留按实际宽度计算文字高度，避免 sizeHint 预留过多行高形成上下空白。
+        hint_policy = hint.sizePolicy()
+        hint_policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+        hint.setSizePolicy(hint_policy)
         self.directory_hint = hint
         self.game_dir.setToolTip(hint.text())
         game.addRow('', hint)
@@ -209,7 +268,7 @@ class OracleSettingsDialog(QDialog):
         general.addRow('桌宠显示大小', scale)
         self.check(general, '人偶想去哪去哪', 'desktop.autonomous', config.desktop.autonomous)
 
-        auto_note = QLabel('*勾选时，人偶会随机自主行动；关闭后会固定在当前位置休息')
+        auto_note = QLabel('*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化')
         auto_note.setStyleSheet(NOTE_STYLE)
         auto_note.setWordWrap(True)
         auto_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -357,8 +416,8 @@ class OracleSettingsDialog(QDialog):
         note.setWordWrap(True)
         note.setStyleSheet(NOTE_STYLE)
         watcher.addRow(note)
-        for prefix, labels, minimum in (('duration', ('持续时间 · 最短', '持续时间 · 最长'), .1),
-                                         ('cooldown', ('冷却时间 · 最短', '冷却时间 · 最长'), 0)):
+        for prefix, labels, minimum in (('duration', ('持续时间 - 最短', '持续时间 - 最长'), .1),
+                                         ('cooldown', ('冷却时间 - 最短', '冷却时间 - 最长'), 0)):
             for column, suffix, label in zip(self.two_columns(watcher), ('min', 'max'), labels):
                 key = prefix+'_'+suffix
                 self.spin(column, label, 'overseer.'+key, getattr(c, key), minimum,
@@ -376,7 +435,7 @@ class OracleSettingsDialog(QDialog):
                   1, 10000, decimals=1, suffix=' px')
         self.spin(watcher, '缩回后换位概率', 'overseer.relocation_probability', c.relocation_probability*100,
                   0, 100, decimals=1, suffix=' %')
-        hint = QLabel('*安全距离须大于对应的缩回距离；完整避让缩回后抽签一次，未换位则原地等待。')
+        hint = QLabel('*安全距离应当大于缩回距离')
         hint.setWordWrap(True)
         hint.setStyleSheet(NOTE_STYLE)
         watcher.addRow(hint)
@@ -400,6 +459,10 @@ class OracleSettingsDialog(QDialog):
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        self.reset_all_button = self.buttons.addButton('恢复全部默认设置', QDialogButtonBox.ButtonRole.ResetRole)
+        self.reset_all_button.setAutoDefault(False)
+        self.reset_all_button.setToolTip('恢复所有分类及游戏目录的默认设置，点击保存后生效。')
+        self.reset_all_button.clicked.connect(lambda: self.restore_defaults())
         self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
         self.save_button.setText('保存并启动' if first_run else '保存并应用')
         self.save_button.setProperty('primary', True)
@@ -413,9 +476,9 @@ class OracleSettingsDialog(QDialog):
         footer.addWidget(QSizeGrip(self), 0, Qt.AlignmentFlag.AlignBottom)
         layout.addLayout(footer)
         apply_settings_style(self)
-        self.resize(620, 650)
+        self.resize(800, 750)
         self._texts = WidgetTexts(self, exclude=(self.status,))
-        # Qt 会在 LanguageChange 中恢复标准按钮文字，在它处理完后重设自定义标题。
+        # Qt 会在 LanguageChange 中恢复标准按钮文字，在它处理完后重设自定义标题
         self.buttons.installEventFilter(self)
         language_manager().changed.connect(self.retranslate)
         self.retranslate()
@@ -431,7 +494,7 @@ class OracleSettingsDialog(QDialog):
         self.original = replace(self.original, ui=UiConfig(language))
         if hasattr(self, 'pending'):
             self.pending = replace(self.pending, ui=self.original.ui)
-        self.setFont(pixel_font(language))
+        self.setFont(settings_font())
         self.status.setFont(self.font())
         for control in self.controls.values():
             if isinstance(control, QComboBox):
@@ -440,15 +503,14 @@ class OracleSettingsDialog(QDialog):
                 widest = max(control.fontMetrics().horizontalAdvance(control.textFromValue(value) + control.suffix())
                              for value in (control.minimum(), control.maximum()))
                 control.setFixedWidth(max(100, widest + 30))
-        # 长英文标签可换行，列内的数值仍靠右；不重建控件或修改输入值。
+        # 长英文标签可换行，列内的数值仍靠右；不重建控件或修改输入值
         for label in self.form.findChildren(QLabel):
-            label.setFont(self.font())  # 带局部字号样式的说明也更新字体族。
+            label.setFont(self.font())  # 带局部字号样式的说明也更新字体族
             label.setWordWrap(True)
         if language == 'en' and self.width() < 780:
             rect = self._workarea if self._workarea is not None else self.screen().availableGeometry()
-            width = min(780, rect.width()-32)
-            self.resize(max(self.width(), width), self.height())
-            # 加宽不能把原本靠屏幕右侧的关闭按钮推到工作区外。
+            self.resize(max(self.width(), min(780, rect.width()-32)), self.height())
+            # 加宽不能把原本靠屏幕右侧的关闭按钮推到工作区外
             self.move(max(rect.left(), min(self.x(), rect.right()-self.width()+1)),
                       max(rect.top(), min(self.y(), rect.bottom()-self.height()+1)))
 
@@ -458,38 +520,70 @@ class OracleSettingsDialog(QDialog):
         area.setFrameShape(QScrollArea.Shape.NoFrame)
         area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         panel = QWidget()
-        form = QFormLayout(panel)
+        form = _ParameterForm(panel)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         form.setContentsMargins(18, 22, 18, 22)
         form.setHorizontalSpacing(18)
         form.setVerticalSpacing(20)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         area.setWidget(panel)
-        self.tabs.addTab(area, title)
+        index = self.tabs.addTab(area, title)
+        reset = QPushButton('恢复本页默认设置')
+        reset.setAutoDefault(False)
+        reset.clicked.connect(lambda checked=False, i=index: self.restore_defaults(i))
+        self.reset_tab_buttons.append(reset)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(reset)
+        form.addRow(row)
         return form
+
+    def restore_defaults(self, index=None):
+        """仅重置面板字段；按控件所属页划分，不按共享的 oracle 配置组划分"""
+        if self.worker is not None:
+            return
+        try:
+            defaults = load_defaults()
+        except (OSError, ValueError, TypeError) as exc:
+            self.set_status(Message('无法读取默认设置：{error}', error=exc))
+            return
+        page = self.tabs.widget(index) if index is not None else None
+        for key, control in self.controls.items():
+            if page is not None and not page.isAncestorOf(control):
+                continue
+            group, field = key.split('.')
+            value = getattr(getattr(defaults, group), field)
+            shown = value * 100 if key in PERCENTAGES else value
+            if isinstance(control, QCheckBox):
+                control.setChecked(shown)
+            elif isinstance(control, QComboBox):
+                control.setCurrentIndex(control.findData(shown))
+            else:
+                if isinstance(control, (QSpinBox, QDoubleSpinBox)):
+                    if isinstance(control, QSpinBox):
+                        shown = round(shown)
+                    control.setRange(min(control.minimum(), shown), max(control.maximum(), shown))
+                control.setValue(shown)
+            # 重置也是一次显式编辑，默认值即使显示成同一个舍入值，也必须替换旧值；
+            # 随后未编辑的控件则继续保留 TOML 原始精度
+            self._reset_values[key] = value
+            self.initial_values[key] = self.value(control)
+        if page is None or page.isAncestorOf(self.start_edge_group.checkedButton()):
+            self.start_edge_buttons[defaults.oracle.base_side].setChecked(True)
+            for edge, check in self.edge_checks.items():
+                check.setChecked(edge in defaults.oracle.allowed_edges)
+        if page is None:
+            self.game_dir.setText(str(defaults.game_dir))
+        self.sync_dependencies()
+        self.set_status('已恢复全部默认设置，点击保存后生效。' if page is None else
+                        '已恢复本页默认设置，点击保存后生效。')
 
     @staticmethod
     def two_columns(form):
-        """添加等宽双列行；标签/复选框靠左，输入框靠列右侧。"""
-        panel = QWidget()
-        row = QHBoxLayout(panel)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(24)
-        columns = []
-        for _ in range(2):
-            cell = QWidget()
-            column = _TwoColumnForm(cell)
-            column.setContentsMargins(0, 0, 0, 0)
-            column.setHorizontalSpacing(8)
-            column.setVerticalSpacing(0)
-            column.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-            column.setRowWrapPolicy(QFormLayout.RowWrapPolicy.DontWrapRows)
-            column.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            column.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            row.addWidget(cell, 1)
-            columns.append(column)
+        """添加等宽双列行；标签/复选框靠左，输入框靠列右侧"""
+        panel, columns = _parameter_columns()
         form.addRow(panel)
-        return tuple(columns)
+        return columns
 
     def check(self, form, label, key, value):
         control = QCheckBox(label)
@@ -513,7 +607,7 @@ class OracleSettingsDialog(QDialog):
                 lambda checked, name=edge: self.edge_checks[name].setChecked(True) if checked else None)
             row.addWidget(button)
         row.addStretch(1)
-        form.addRow('启动时所在屏幕边缘', row)
+        form.addRow('启动时所在边缘', row)
         self.spin(form, '启动时在边上的位置', 'oracle.base_fraction', config.base_fraction*100,
                   0, 100, decimals=1, step=1, suffix=' %')
         pos_note = QLabel('*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中')
@@ -548,7 +642,7 @@ class OracleSettingsDialog(QDialog):
         if decimals:
             control.setDecimals(decimals)
         shown_value = value if decimals else round(value)
-        # 合法的 TOML 高级数值可能超出面板常用范围；打开时不能被钳成另一个值。
+        # 合法的 TOML 高级数值可能超出面板常用范围；打开时不能被钳成另一个值
         control.setRange(min(minimum, shown_value), max(maximum, shown_value))
         control.setSingleStep(step)
         control.setValue(shown_value)
@@ -603,18 +697,14 @@ class OracleSettingsDialog(QDialog):
         base_side = self.start_edge_group.checkedButton().property('edge')
         edges = [edge for edge, check in self.edge_checks.items() if check.isChecked()]
         groups['oracle'].update(base_side=base_side, allowed_edges=validate_edges(edges, base_side))
-        percentages = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity',
-                       'oracle.edge_fraction', 'oracle.base_fraction',
-                       'oracle.arm_scale',
-                       'oracle.cross_edge_probability', 'oracle.antigravity_probability',
-                       'oracle.pearl_playback_probability', 'oracle.drag_projection_probability', 'overseer.appearance_probability',
-                       'overseer.relocation_probability'}
         for key, control in self.controls.items():
             value = self.value(control)
-            if value == self.initial_values[key]:
-                continue  # 不把未编辑的精确数值按控件显示位数重新舍入
             group, field = key.split('.')
-            groups[group][field] = value / 100 if key in percentages else value
+            if value == self.initial_values[key]:
+                if key in self._reset_values:
+                    groups[group][field] = self._reset_values[key]
+                continue  # 不把未编辑的精确数值按控件显示位数重新舍入
+            groups[group][field] = value / 100 if key in PERCENTAGES else value
         return replace(self.original, game_dir=directory,
                        **{name: replace(getattr(self.original, name), **values) for name, values in groups.items()})
 
@@ -698,7 +788,7 @@ class OracleSettingsDialog(QDialog):
     def eventFilter(self, watched, event):
         if watched is getattr(self, 'buttons', None) and event.type() == QEvent.Type.LanguageChange:
             QTimer.singleShot(0, self, self._texts.retranslate)
-        if watched is self.header:
+        if watched is getattr(self, 'header', None):
             if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
                 if self.windowHandle() is None or not self.windowHandle().startSystemMove():
                     self._drag_offset = event.globalPosition().toPoint() - self.pos()
@@ -712,5 +802,5 @@ class OracleSettingsDialog(QDialog):
 
     def fit_workarea(self, rect):
         self._workarea = rect
-        self.resize(min(self.width(), max(320, rect.width() - 32)), min(self.height(), max(320, rect.height() - 48)))
-        self.move(rect.center().x() - self.width() // 2, rect.center().y() - self.height() // 2)
+        self.resize(min(self.width(), max(320, rect.width()-32)), min(self.height(), max(320, rect.height()-48)))
+        self.move(rect.center().x()-self.width()//2, rect.center().y()-self.height()//2)

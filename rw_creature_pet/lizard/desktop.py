@@ -117,7 +117,7 @@ class DesktopWindow(QWidget):
         self.menu.addSeparator()
         self.menu.addAction('退出桌宠', QApplication.instance().quit)
         self.tray.setContextMenu(self.menu)
-        self.tray.setToolTip('WhiteLizard · 右键切换活动、暂停或退出')
+        self.tray.setToolTip('WhiteLizard - 右键切换活动、暂停或退出')
         self.tray.show()
         self.timer = QTimer(self)
         self.timer.setTimerType(Qt.TimerType.PreciseTimer)

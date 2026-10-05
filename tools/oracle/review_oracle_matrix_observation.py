@@ -75,7 +75,7 @@ def main():
     window = OracleDebugWindow(replace(config, oracle=settings), load_atlas=False)
     window.timer.stop()
     window.renderer = window.canvas.renderer = renderer
-    window.asset_message = '本机原版图集与缓存字形 · 矩阵抽取观察'
+    window.asset_message = '本机原版图集与缓存字形 - 矩阵抽取观察'
     window.assets.setText(window.asset_message)
     window.set_paused(True)
     window.observe_matrix_pearl()

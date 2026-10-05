@@ -67,7 +67,7 @@ def main():
     window.timer.stop()
     window.set_paused(True)
     window.canvas.renderer = window.renderer = renderer
-    window.assets.setText('本机原版图集 · 光环 1× 像素化预览')
+    window.assets.setText('本机原版图集 - 光环 1× 像素化预览')
     window.show()
     app.processEvents()
     window.grab().save(str(out/'oracle-halo-debug.png'))

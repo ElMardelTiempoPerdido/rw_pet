@@ -29,14 +29,26 @@ Bell 桌面模式的合并优先级为：**用户已有字段 > 当前默认 TOM
 
 百分比字段在 TOML 中以 0～1 保存，在界面显示为百分数。数值控件按其显示精度展示，未编辑时保留配置原始精度。合法的高级数值超过面板常用范围时，控件会扩大范围以显示当前值，不把它钳制成另一数值。
 
+## 恢复默认设置
+
+- 窗口底部的“恢复全部默认设置”重置面板内全部设置项，包括顶部的游戏目录。
+- 各分类顶部的“恢复本页默认设置”只重置该页的控件；“移动”页同时重置启动边缘、位置百分比和允许活动边缘。其他页尚未保存的修改会保留。
+- 每次点击都重新读取当前默认 TOML，来源及相对路径解析规则与启动时一致。不从用户保存的 JSON 取默认值，也不修改 TOML。未在面板中展示的高级参数和托盘语言选择保持原值。
+- 重置只修改本次表单，仍需“保存并应用”（首次启动为“保存并启动”）后才会生效并写入用户文件；“取消”会放弃。默认模板读取失败时保留当前输入并显示错误。重置后的未编辑数值保留 TOML 原始精度。
+
 拖动投影新增 `drag_projection_probability`（默认 `0.20`）和
 `drag_projection_cooldown_seconds`（默认 `45.0`），旧配置按上述规则补齐。
 设置页分别显示百分比和秒数；概率为 0 时禁用，不影响已有摆手或语音配置。
 
 ## 回归验证
 
+设置面板的布局与字体跟随系统缩放，不再对整个窗口进行 100% 显示补偿。
+中英文使用随程序提供的文泉驿字体，关闭文字抗锯齿；字号仍为正文 14px、说明文字 12px（逻辑像素）。
+轮廓固定为 1 个物理像素；标题下的虚线厚 2px、页内分隔虚线厚 1px，点长 2px、间距 4px，均不随 DPI 放大。
+窗口尺寸随工作区约束，底部保存按钮保持可达；不改变桌宠、托盘或行动工具栏的缩放。
+
 ```powershell
-python -m unittest tests.test_settings_store tests.test_app_desktop tests.oracle.test_settings_defaults tests.oracle.test_settings tests.overseer.test_config -v
+python -m unittest tests.test_settings_store tests.test_app_desktop tests.oracle.test_settings_defaults tests.oracle.test_settings tests.oracle.test_settings_style tests.overseer.test_config -v
 ```
 
 默认值检查覆盖新用户、旧用户升级、逐项替换 TOML 数值、保存后重开；存储检查覆盖嵌套合并、路径来源、零值／关闭项、重复启动、备份与写入失败、显式配置和模拟打包资源路径。Qt 设置面板在离屏模式下验证，没有改写开发者的本地用户配置，也不需要重新打包。

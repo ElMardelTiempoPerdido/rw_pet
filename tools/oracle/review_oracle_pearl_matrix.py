@@ -110,7 +110,7 @@ def main():
     window = OracleDebugWindow(replace(config, oracle=settings), load_atlas=False)
     window.timer.stop()
     window.renderer = window.canvas.renderer = renderer
-    window.asset_message = '本机原版图集与缓存字形 · 珍珠矩阵'
+    window.asset_message = '本机原版图集与缓存字形 - 珍珠矩阵'
     window.assets.setText(window.asset_message)
     window.zoom_box.setChecked(False)
     window.scale_input.setCurrentIndex(window.scale_input.findData(1.))

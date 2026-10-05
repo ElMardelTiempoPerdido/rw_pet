@@ -17,7 +17,7 @@ from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.appearance import OracleAppearance, perpendicular, rotate
 from rw_creature_pet.oracle.settings import OracleSettingsDialog
-from rw_creature_pet.oracle.settings_style import pixel_font
+from rw_creature_pet.oracle.settings_style import settings_font
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 
@@ -31,7 +31,7 @@ def main():
     sheet.fill(QColor('#17232e'))
     painter = QPainter(sheet)
     try:
-        painter.setFont(pixel_font('en'))
+        painter.setFont(settings_font())
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         cases = (('Normal', 'normal', 0, Vec2()), ('Maid - front', 'maid', 0, Vec2()),
                  ('Maid - turn', 'maid', 30, Vec2(.7, -.4)), ('Maid - upside down', 'maid', 180, Vec2()))
@@ -62,7 +62,7 @@ def main():
     sheet.fill(QColor('#17232e'))
     painter = QPainter(sheet)
     try:
-        painter.setFont(pixel_font('en'))
+        painter.setFont(settings_font())
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         for row, (label, outfit, angle, swing) in enumerate((('Normal', 'normal', 0, 0), ('Maid', 'maid', 0, 0),
                 ('Maid - tilt', 'maid', 30, 0), ('Maid - inverted', 'maid', 180, 0),

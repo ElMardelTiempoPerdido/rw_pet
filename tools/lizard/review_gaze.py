@@ -31,8 +31,8 @@ scenes = [placed(), walking(), walking(tracking=True), floor]
 for s in scenes:
     for _ in range(220): s.step()
 scenes[1].appearance.observe(scenes[1].body.chunks[0].position+Vec2(160, -95), 600)
-titles = ('趴墙停留 · 自动保持空间观察点', '直行 · 保持右键指定的观察点',
-          '掉头 · 头颈连续跟随', '平地抬胸 · 自动观察 / 指定观察')
+titles = ('趴墙停留 - 自动保持空间观察点', '直行 - 保持右键指定的观察点',
+          '掉头 - 头颈连续跟随', '平地抬胸 - 自动观察 / 指定观察')
 
 
 def panel(p, s, rect, title):

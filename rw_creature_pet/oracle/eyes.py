@@ -11,6 +11,7 @@ class OracleEyes:
         self.random = Random(seed)
         self.observing = False
         self.target = 0.
+        self.attention_target = None  # 临时窗口注视覆盖；基础观察继续维护自己的目标。
         self.openness = self.previous_openness = 0.
         self.revision = 0
 
@@ -30,18 +31,23 @@ class OracleEyes:
         self.target = float(opened)
 
     @property
+    def effective_target(self):
+        return self.target if self.attention_target is None else self.attention_target
+
+    @property
     def moving(self):
-        return self.openness != self.target or self.previous_openness != self.openness
+        return self.openness != self.effective_target or self.previous_openness != self.openness
 
     def step(self):
         previous = self.previous_openness
         self.previous_openness = self.openness
-        if self.target > self.openness:
-            self.openness = min(self.target, self.openness+1/self.OPEN_TICKS)
+        target = self.effective_target
+        if target > self.openness:
+            self.openness = min(target, self.openness+1/self.OPEN_TICKS)
         else:
-            self.openness = max(self.target, self.openness-1/self.CLOSE_TICKS)
-        if abs(self.openness-self.target) < 1e-9:
-            self.openness = self.target
+            self.openness = max(target, self.openness-1/self.CLOSE_TICKS)
+        if abs(self.openness-target) < 1e-9:
+            self.openness = target
         # 包括插值终帧，防止窗口停在尚未完全开/合的画面。
         if previous != self.previous_openness or self.previous_openness != self.openness:
             self.revision += 1

@@ -144,9 +144,9 @@ def write_reports(output, report, *, has_plot=False):
                 f"{item['left_seconds']:.2f}s / {item['right_seconds']:.2f}s | {LABELS[item['category']]} |")
             buttons.append(f'<button type="button" data-audio="a{index}" data-start="{max(0., item["cut_seconds"]-1.2):.4f}" '
                 f'data-end="{min(entry["duration_seconds"], item["cut_seconds"]+1.2):.4f}">'
-                f'试听 {item["cut_seconds"]:.2f}s 前后 · {LABELS[item["category"]]}</button>')
+                f'试听 {item["cut_seconds"]:.2f}s 前后 - {LABELS[item["category"]]}</button>')
         encoded = base64.b64encode(Path(entry['source']).read_bytes()).decode('ascii')
-        sections.append(f'<section><h2>{escape(entry["file"])} · {entry["duration_seconds"]:.2f}s</h2>'
+        sections.append(f'<section><h2>{escape(entry["file"])} - {entry["duration_seconds"]:.2f}s</h2>'
             f'<audio id="a{index}" controls preload="metadata" src="data:audio/wav;base64,{encoded}"></audio>'
             '<div>'+(''.join(buttons) or '本轮未发现合适的内部候选。')+'</div></section>')
     lines.extend(['', '可先选择低能量核心较长的候选试听，再考虑进一步缩短。',
@@ -163,7 +163,7 @@ def write_reports(output, report, *, has_plot=False):
 body{max-width:1050px;margin:32px auto;padding:0 20px;background:#f8fafb;color:#20333f;font:16px/1.65 system-ui}
 h1{font-size:26px}h2{font-size:19px}section{background:white;border:1px solid #dce3e8;border-radius:8px;margin:18px 0;padding:16px}
 audio{width:100%}button{padding:9px 12px;margin:10px 8px 0 0;background:#f1f6f5;border:1px solid #b8d2c8;border-radius:5px;cursor:pointer}
-img{width:100%;height:auto}p{max-width:900px}</style><h1>Bell 语音 · 停顿候选</h1>
+img{width:100%;height:auto}p{max-width:900px}</style><h1>Bell 语音 - 停顿候选</h1>
 <p>使用当前已处理的五段音频；所有时间从各段开头计算。按钮播放候选点前后各约 1.2 秒，播放器也支持完整试听。
 候选仅表示能量降低，不保证一句结束。当前播放资源未修改。</p>'''+figure+''.join(sections)+'''
 <script>

@@ -12,6 +12,7 @@ from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..shared.desktop import configure_desktop_overlay
 from ..interaction.desktop import DragInputWindow
 from ..interaction.config import AudioConfig
+from ..interaction.windows import desktop_window_tracker
 from ..overseer.desktop import OverseerDesktopLayer
 from ..overseer.events import EventPhase
 from .voice_assets import make_bell_voice_player
@@ -66,6 +67,10 @@ class OracleDesktopViewport:
 
     def to_world(self, point):
         return (point-Vec2(self.x, self.y))*(1/self.scale)
+
+    def physical_to_world(self, point, work_area):
+        # Win32 与 Qt 均映射到同一工作区；直接在物理像素间换算，避免混合 DPI 二次缩放。
+        return (point-Vec2(work_area.left, work_area.top))*(1/self.physical_scale)
 
 
 def current_anchor(scene):
@@ -128,6 +133,7 @@ class OracleDesktopMotion:
             self.scene.behavior.last_matrix_slot = previous.behavior.last_matrix_slot
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
             self.scene.eyes.random.setstate(previous.eyes.random.getstate())
+            self.scene.window_reaction.attention.random.setstate(previous.window_reaction.attention.random.getstate())
             for name in ('random', 'eye_random', 'voice_random'):
                 getattr(self.scene.drag_reactions, name).setstate(getattr(previous.drag_reactions, name).getstate())
             self.scene.halo.random.setstate(previous.halo.random.getstate())
@@ -139,6 +145,7 @@ class OracleDesktopMotion:
             self.scene.behavior.drift_cooldown = previous.behavior.drift_cooldown
         autonomous = True if previous is None else (
             previous.drag.resume_autonomy if previous.drag.controlling else previous.behavior.enabled)
+        self.scene.behavior.movement_enabled = True if previous is None else previous.behavior.movement_enabled
         self.scene.set_autonomous(autonomous)
 
     def step(self):
@@ -197,6 +204,8 @@ class OracleDesktopWindow(QWidget):
         self.action_toolbar = None
         self.drag_input = DragInputWindow(self)
         self.drag_hit = PuppetHitMap()
+        self.window_tracker = desktop_window_tracker(QApplication.platformName())
+        self._next_window_poll = 0.
         self.overseer_layer = OverseerDesktopLayer(self, config.overseer, renderer.atlas)
         self.rebuild_timer = QTimer(self)
         self.rebuild_timer.setSingleShot(True)
@@ -356,6 +365,7 @@ class OracleDesktopWindow(QWidget):
                           and old.height == viewport.height and old.dpr == viewport.dpr
                           and old.requested_scale == viewport.requested_scale)
             if same_world:
+                self.motion.scene.window_reaction.cancel(self.motion.scene)
                 self.motion.viewport = viewport
             else:
                 settings = self.config.oracle
@@ -363,7 +373,7 @@ class OracleDesktopWindow(QWidget):
                 self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
                 self.motion.scene.projection.available = bool(self.renderer.projection_images)
                 if previous is None:
-                    self.motion.scene.set_autonomous(self.config.desktop.autonomous)
+                    self.motion.scene.set_autonomous_movement(self.config.desktop.autonomous)
                 pass
             self.motion.scene.drag.set_enabled(self.drag_action.isChecked())
             self.voice_player.sync(self.motion.scene.drag_reactions.voice, paused=self.clock.paused)
@@ -422,8 +432,7 @@ class OracleDesktopWindow(QWidget):
 
     def current_settings(self):
         scene = self.motion.scene if self.motion is not None else None
-        autonomous = self.config.desktop.autonomous if scene is None else (
-            scene.drag.resume_autonomy if scene.drag.controlling else scene.behavior.enabled)
+        autonomous = self.config.desktop.autonomous if scene is None else scene.behavior.movement_enabled
         return replace(self.config,
             desktop=replace(self.config.desktop, scale=self.requested_scale, autonomous=autonomous),
             interaction=replace(self.config.interaction, drag_enabled=self.drag_action.isChecked()),
@@ -513,7 +522,7 @@ class OracleDesktopWindow(QWidget):
             self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
             self.motion.scene.projection.available = bool(self.renderer.projection_images)
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
-                self.motion.scene.set_autonomous(config.desktop.autonomous)
+                self.motion.scene.set_autonomous_movement(config.desktop.autonomous)
             self.motion.scene.drag.set_enabled(config.interaction.drag_enabled)
         self.drag_hit = PuppetHitMap()
         self.last_time = perf_counter()
@@ -556,6 +565,9 @@ class OracleDesktopWindow(QWidget):
         if self.clock.paused:
             self.voice_player.stop()
             self.drag_input.suspend()
+            if self.motion is not None:
+                self.motion.scene.window_reaction.cancel(self.motion.scene)
+            self.window_tracker.reset()
         self.overseer_layer.refresh(self.clock.alpha,
             allowed=self._screen_valid and self.debug_window is None and not self._closing)
         self.sync_toolbar()
@@ -650,8 +662,27 @@ class OracleDesktopWindow(QWidget):
         self.sync_pause()
         self.update()
 
+    def poll_window_attention(self, now):
+        if self._closing or now < self._next_window_poll:
+            return
+        self._next_window_poll = now+.15
+        update = self.window_tracker.poll()
+        if self.motion is None:
+            return
+        scene = self.motion.scene
+        enabled = (not self.clock.paused and self._screen_valid and self.debug_window is None
+                   and scene.window_reaction.allowed(scene))
+        target, identity = None, None
+        if enabled and update.window is not None:
+            work = self.window_tracker.reader.work_area(int(self.winId()))
+            if work is not None:
+                target = self.motion.viewport.physical_to_world(update.window.center, work)
+                identity = update.window.identity
+        scene.window_reaction.notice(scene, identity, target, changed=update.changed, enabled=enabled)
+
     def advance(self):
         now = perf_counter()
+        self.poll_window_attention(now)
         if self.motion is not None:
             self.clock.advance(now-self.last_time, self.step_scene)
         self.last_time = now
@@ -727,7 +758,7 @@ class OracleDesktopWindow(QWidget):
             debug.canvas.overseer = self.overseer_layer.model
             debug.canvas.overseer_renderer.atlas = self.renderer.atlas
             debug.asset_message = self.asset_message
-            debug.assets.setText(self.asset_message+' · 独立调试；关闭窗口返回桌宠')
+            debug.assets.setText(self.asset_message+' - 独立调试；关闭窗口返回桌宠')
             debug.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
             self.debug_window = debug
             debug.destroyed.connect(self.debug_closed)

@@ -27,6 +27,8 @@ drag_enabled = true
 `rw_creature_pet/interaction/` 不导入任何生物模块：
 
 - `drag.py`：按下命中、抓取会话、偏移、限速阻尼跟随，不依赖 Qt。
+- `windows.py`：只读前台窗口身份、可见矩形、所属屏幕与工作区，提供切换快照，不依赖 Qt 或生物。
+- `window_attention.py`：通用的切换抽签、中心点追踪和限时观察，不依赖具体头部/眼睛实现。
 - `hitmap.py`：将目标自身的透明度轮廓转换为命中图和窗口 mask。
 - `desktop.py`：局部输入窗口、鼠标捕获与取消；原有全屏绘制窗口仍完全穿透。
 - `config.py`：共用交互配置。

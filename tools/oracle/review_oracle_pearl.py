@@ -58,8 +58,8 @@ def main(timing_only=False):
                 p.setFont(QFont('Microsoft YaHei UI', 10))
                 for i, (scene, r) in enumerate(zip(scenes, renderers)):
                     p.setPen(QColor('#dae5ea'))
-                    p.drawText(QPointF(18+i*540, 26), f'{labels[i]} · {scene.behavior.state.value} · {tick/40:.1f}s')
-                    p.drawText(QPointF(18+i*540, 46), '3× · 原版字形裁图 · 悬浮点保持不变')
+                    p.drawText(QPointF(18+i*540, 26), f'{labels[i]} - {scene.behavior.state.value} - {tick/40:.1f}s')
+                    p.drawText(QPointF(18+i*540, 46), '3× - 原版字形裁图 - 悬浮点保持不变')
                     p.save()
                     p.setClipRect(i*540, 55, 540, 425)
                     p.translate(i*540+110, 275)

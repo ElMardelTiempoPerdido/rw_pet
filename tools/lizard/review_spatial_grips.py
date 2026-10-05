@@ -55,12 +55,12 @@ p = QPainter(sheet)
 for i, angle in enumerate((0, pi/4, -pi/2)):
     s = placed(angle)
     for _ in range(80): s.step()
-    panel(p, s, QRectF(i*400, 0, 400, 350), f'首次抓附 · {int(angle*180/pi)}° · 绿圈为固定抓点', True)
+    panel(p, s, QRectF(i*400, 0, 400, 350), f'首次抓附 - {int(angle*180/pi)}° - 绿圈为固定抓点', True)
     s = walking(angle, tracking=True)
     for _ in range(237): s.step()
     s.background.set_direction(Vec2())
     for _ in range(160): s.step()
-    panel(p, s, QRectF(i*400, 350, 400, 350), '行走后停止 · 保留各脚实际抓点', True)
+    panel(p, s, QRectF(i*400, 350, 400, 350), '行走后停止 - 保留各脚实际抓点', True)
 p.end()
 sheet.save(str(root/'spatial-grips-rest.png'))
 
@@ -75,7 +75,7 @@ for frame in range(140):
     img.fill(QColor('#17222d'))
     p = QPainter(img)
     for i, s in enumerate(scenes):
-        title = ('慢行' if i == 0 else '积极追踪') if frame < 100 else '停止 · 保持落脚位置'
+        title = ('慢行' if i == 0 else '积极追踪') if frame < 100 else '停止 - 保持落脚位置'
         panel(p, s, QRectF(i*420, 0, 420, 400), title)
     p.end()
     frames.append(Image.frombytes('RGBA', (840, 400), bytes(img.constBits())).convert('RGB'))

@@ -46,7 +46,7 @@ p = QPainter(sheet)
 for i in range(8):
     s = scene(i*pi/4, True)
     for _ in range(260): s.step()
-    panel(p, s, QRectF((i%4)*360, (i//4)*320, 360, 320), f'{i*45}° · 积极追踪 · 抓地 {s.background.grip_count}/4', 2.1)
+    panel(p, s, QRectF((i%4)*360, (i//4)*320, 360, 320), f'{i*45}° - 积极追踪 - 抓地 {s.background.grip_count}/4', 2.1)
 p.end()
 sheet.save(str(root/'wall-rhythm-directions.png'))
 
@@ -59,7 +59,7 @@ for tick in range(160):
     img.fill(QColor('#17222d'))
     p = QPainter(img)
     for i, s in enumerate(scenes):
-        title = ('慢行 · 约 32 单位/秒' if i<2 else '积极追踪 · 约 52 单位/秒')
+        title = ('慢行 - 约 32 单位/秒' if i<2 else '积极追踪 - 约 52 单位/秒')
         panel(p, s, QRectF((i%2)*440, (i//2)*320, 440, 320), title)
     p.end()
     frames.append(Image.frombytes('RGBA', (880, 640), bytes(img.constBits())).convert('RGB'))

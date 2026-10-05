@@ -29,9 +29,11 @@ def main():
     for name in ('config.toml', 'PySide6/plugins/platforms/qwindows.dll', 'UnityPy/resources/lzma.tpk',
                  'archspec/json/cpu/microarchitectures.json',
                  'rw_creature_pet/translations/en.qm', 'rw_creature_pet/translations/qtbase_zh_CN.qm',
+                 'rw_creature_pet/fonts/WenQuanYi Bitmap Song 14px.ttf',
                  'fmod_toolkit/libfmod/Windows/x64/fmod.dll', 'rw_creature_pet/ico/bell_icon_16.png'):
         assert name in entries, f'缺少包内依赖：{name}'
-    for name in ('config.toml', 'rw_creature_pet/translations/en.qm'):
+    for name in ('config.toml', 'rw_creature_pet/translations/en.qm',
+                 'rw_creature_pet/fonts/WenQuanYi Bitmap Song 14px.ttf'):
         stored_name = next(key for key in archive.toc if key.replace('\\', '/') == name)
         assert archive.extract(stored_name) == (ROOT/name).read_bytes(), f'包内文件不是当前版本：{name}'
     assert not any(name.endswith(('.wav', '.assets')) or name.startswith(('artifacts/', 'tests/'))

@@ -25,7 +25,7 @@ class DragInputWindow(QWidget):
                          | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setWindowTitle('桌宠 · 人偶拖拽输入')
+        self.setWindowTitle('桌宠 - 人偶拖拽输入')
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.adapter = self.hit = self.viewport = None
         self._captured = False

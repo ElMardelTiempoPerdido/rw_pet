@@ -3,6 +3,30 @@
   <context>
     <name>BellPet</name>
     <message>
+      <source>恢复全部默认设置</source>
+      <translation>Reset All to Defaults</translation>
+    </message>
+    <message>
+      <source>恢复本页默认设置</source>
+      <translation>Reset This Tab to Defaults</translation>
+    </message>
+    <message>
+      <source>恢复所有分类及游戏目录的默认设置，点击保存后生效。</source>
+      <translation>Restore defaults for every tab and the game directory. Save to apply.</translation>
+    </message>
+    <message>
+      <source>已恢复全部默认设置，点击保存后生效。</source>
+      <translation>All settings have been reset to defaults. Save to apply.</translation>
+    </message>
+    <message>
+      <source>已恢复本页默认设置，点击保存后生效。</source>
+      <translation>This tab has been reset to defaults. Save to apply.</translation>
+    </message>
+    <message>
+      <source>无法读取默认设置：{error}</source>
+      <translation>Could not read default settings: {error}</translation>
+    </message>
+    <message>
       <location filename="../oracle/settings.py" line="323" />
       <location filename="../oracle/settings.py" line="335" />
       <location filename="../oracle/settings.py" line="347" />
@@ -26,12 +50,12 @@
     </message>
     <message>
       <location filename="../oracle/settings.py" line="212" />
-      <source>*勾选时，人偶会随机自主行动；关闭后会固定在当前位置休息</source>
-      <translation>*When enabled, Iterator acts on its own. Otherwise, Iterator rests in place.</translation>
+      <source>*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化</source>
+      <translation>*When enabled, Iterator moves on its own. When disabled, Iterator can still read pearls and watch window changes in place.</translation>
     </message>
     <message>
       <location filename="../oracle/settings.py" line="361" />
-      <source>*安全距离须大于对应的缩回距离；完整避让缩回后抽签一次，未换位则原地等待。</source>
+      <source>*安全距离应当大于缩回距离</source>
       <translation>*Safe distances must exceed the matching retreat distances. After retreating, the Overseer may relocate or wait in place.</translation>
     </message>
     <message>
@@ -421,12 +445,12 @@ Original names, characters and assets belong to their respective owners. Please 
     </message>
     <message>
       <location filename="../oracle/settings.py" line="343" />
-      <source>冷却时间 · 最短</source>
+      <source>冷却时间 - 最短</source>
       <translation>Min. cooldown</translation>
     </message>
     <message>
       <location filename="../oracle/settings.py" line="343" />
-      <source>冷却时间 · 最长</source>
+      <source>冷却时间 - 最长</source>
       <translation>Max. cooldown</translation>
     </message>
     <message>
@@ -510,7 +534,7 @@ Original names, characters and assets belong to their respective owners. Please 
     </message>
     <message>
       <location filename="../oracle/settings.py" line="498" />
-      <source>启动时所在屏幕边缘</source>
+      <source>启动时所在边缘</source>
       <translation>Starting edge</translation>
     </message>
     <message>
@@ -703,12 +727,12 @@ You can continue for now. Check write permissions for the settings file and try 
     </message>
     <message>
       <location filename="../oracle/settings.py" line="342" />
-      <source>持续时间 · 最短</source>
+      <source>持续时间 - 最短</source>
       <translation>Min. duration</translation>
     </message>
     <message>
       <location filename="../oracle/settings.py" line="342" />
-      <source>持续时间 · 最长</source>
+      <source>持续时间 - 最长</source>
       <translation>Max. duration</translation>
     </message>
     <message>

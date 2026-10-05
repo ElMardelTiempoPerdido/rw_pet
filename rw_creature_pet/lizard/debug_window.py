@@ -104,7 +104,7 @@ class SceneCanvas(QWidget):
             painter.setPen(pen("#79b79e", 2))
             line(Vec2(0, world.floor_y), Vec2(world.width, world.floor_y))
             if not self.follow_body:
-                label(5, 10, "原点 (0, 0) · x → / y ↓")
+                label(5, 10, "原点 (0, 0) - x → / y ↓")
             label(left, world.floor_y + 14, f"平地 y = {world.floor_y:g}", "#9dd7be")
 
             if self.renderer is not None:
@@ -169,10 +169,10 @@ class SceneCanvas(QWidget):
                         line(tip, tip - direction * 3 + normal * 2)
                         line(tip, tip - direction * 3 - normal * 2)
                 draw_legs(1)
-                label(left, bottom, "蓝线 Normal · 橙虚线 Push · 绿足支撑 / 橙足迈步 · "
+                label(left, bottom, "蓝线 Normal - 橙虚线 Push - 绿足支撑 / 橙足迈步 - "
                       + ("两侧四肢，背部朝向镜头" if self.scene.background_mode else "虚线腿为远侧"))
             else:
-                label(left, bottom, "白蜥蜴 · 原版图集 / 五节尾巴 · 可开启骨架叠加")
+                label(left, bottom, "白蜥蜴 - 原版图集 / 五节尾巴 - 可开启骨架叠加")
             goal = self.scene.background.goal if self.scene.background_mode else None
             if goal is not None:
                 painter.setPen(pen('#82d8bc' if self.scene.background.arrived else '#f1bd70', 2))
@@ -199,7 +199,7 @@ class DebugWindow(QMainWindow):
         self.scene.gait.enabled = True
         self.scene.gait.set_speed(FlatGait.MAX_SPEED * FlatGait.SLOW_INTENT)
         self.clock = FixedStepper(config.debug.tick_rate)
-        self.setWindowTitle("WhiteLizard · 平地步态调试 / 阶段 4")
+        self.setWindowTitle("WhiteLizard - 平地步态调试 / 阶段 4")
         self.resize(1040, 740)
         self.setMinimumSize(720, 620)
         root = QWidget()
@@ -382,7 +382,7 @@ class DebugWindow(QMainWindow):
         note = QLabel("数值表为最新 tick；画面使用前后 tick 插值。暂停/单步显示最新状态。固定调试个体，尚不支持原版 ID。")
         note.setWordWrap(True)
         layout.addWidget(note)
-        path_label = QLabel(f"图集加载失败，显示骨架：{self.asset_error}" if self.asset_error else f"游戏图集：{config.game_dir} · 本机提取并缓存")
+        path_label = QLabel(f"图集加载失败，显示骨架：{self.asset_error}" if self.asset_error else f"游戏图集：{config.game_dir} - 本机提取并缓存")
         path_label.setWordWrap(True)
         path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(path_label)
@@ -511,7 +511,7 @@ class DebugWindow(QMainWindow):
         self.apply_posture()
         colors = self.scene.appearance.colors
         colors.excitement = self.excitement_input.value()
-        self.effect_status.setText(f"闪白 {colors.flash*self.clock.dt:.2f}s · 眩晕 {colors.stun*self.clock.dt:.2f}s · 展示 {colors.dominance:.0%}" + (" · 暂停中，单步可预览" if self.clock.paused else ""))
+        self.effect_status.setText(f"闪白 {colors.flash*self.clock.dt:.2f}s - 眩晕 {colors.stun*self.clock.dt:.2f}s - 展示 {colors.dominance:.0%}" + (" - 暂停中，单步可预览" if self.clock.paused else ""))
         self.pause_button.setText("继续 [Space]" if self.clock.paused else "暂停 [Space]")
         error = max(self.scene.body.connection_error(c) for c in self.scene.body.connections)
         gait = self.scene.gait
@@ -520,7 +520,7 @@ class DebugWindow(QMainWindow):
                   ("转向左" if gait.turn_target < 0 else "转向右") if gait.turning else
                   "减速待转" if desired != gait.facing else "边界停步" if gait.blocked else
                   "向右行走" if gait.speed > 0 else "向左行走" if gait.speed < 0 else "站立")
-        self.gait_status.setText(f"{action} · 抓地 {gait.grip_count if gait.enabled else 0}/4")
+        self.gait_status.setText(f"{action} - 抓地 {gait.grip_count if gait.enabled else 0}/4")
         if self.scene.background_mode:
             bg = self.scene.background
             action = "背景抓附" if bg.attached else "失附下落" if not all(c.grounded for c in self.scene.body.chunks) else "已落地"
@@ -528,15 +528,15 @@ class DebugWindow(QMainWindow):
                 action = "边界停步" if bg.blocked else "背景爬行 / 对准方向"
             if bg.attached and bg.goal is not None:
                 action = '已到达目标' if bg.arrived else '追踪目标'
-            self.gait_status.setText(f"{action} · 抓点 {bg.grip_count}/4")
+            self.gait_status.setText(f"{action} - 抓点 {bg.grip_count}/4")
         for widget in (*self.background_buttons, self.direction_angle, self.angle_button):
             widget.setEnabled(self.scene.background_mode and self.scene.background.enabled)
-        self.physics_status.setText(f"接地 {sum(c.grounded for c in self.scene.body.chunks)}/3 · "
-                                    f"最大连接误差 {error:.5f} · "
+        self.physics_status.setText(f"接地 {sum(c.grounded for c in self.scene.body.chunks)}/3 - "
+                                    f"最大连接误差 {error:.5f} - "
                                     + (" / ".join(f"足{i} {f.phase.value}" for i, f in enumerate(self.scene.feet)) if gait.enabled or self.scene.background_mode else "四肢已关闭"))
         self.status.setText(
-            f"{'暂停' if self.clock.paused else '运行'} · {self.config.debug.tick_rate} Hz · "
-            f"tick {self.scene.ticks} · t={self.scene.ticks * self.clock.dt:.3f}s · "
+            f"{'暂停' if self.clock.paused else '运行'} - {self.config.debug.tick_rate} Hz - "
+            f"tick {self.scene.ticks} - t={self.scene.ticks * self.clock.dt:.3f}s - "
             f"丢弃积压 {self.clock.dropped_seconds:.3f}s")
         for row, chunk in enumerate(self.scene.body.chunks):
             values = (str(row), f"{chunk.position.x:.3f}, {chunk.position.y:.3f}",

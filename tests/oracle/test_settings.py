@@ -356,7 +356,8 @@ class OracleSettingsTests(unittest.TestCase):
         d.save()
         self.assertIsNone(w.settings_dialog)
         self.assertIsNot(w.motion.scene, old)
-        self.assertFalse(w.motion.scene.behavior.enabled)
+        self.assertTrue(w.motion.scene.behavior.enabled)
+        self.assertFalse(w.motion.scene.behavior.movement_enabled)
         self.assertEqual(w.requested_scale, 1.5)
         self.assertEqual(w.motion.scene.config.pearl_matrix_count, 9)
         self.assertEqual(w.motion.scene.config.pearl_inner_count, 6)
@@ -517,4 +518,25 @@ class OracleSettingsTests(unittest.TestCase):
             self.wait_worker(d)
         self.assertIs(w.renderer, new_assets.renderer)
         self.assertEqual(w.voice_player.clips, new_assets.voice_paths)
+        self.assertEqual(self.store.load().game_dir, new_game)
+
+    def test_reset_game_directory_prepares_defaults_assets_before_applying(self):
+        w = self.desktop()
+        new_game = self.config.game_dir.parent/'默认游戏'
+        (new_game/'RainWorld_Data').mkdir(parents=True)
+        (new_game/'RainWorld_Data/resources.assets').touch()
+        defaults = replace(self.config, game_dir=new_game)
+        new_assets = OracleAssets(OracleRenderer(), 'default assets', {}, '')
+        w.open_settings()
+        d = w.settings_dialog
+        with patch('rw_creature_pet.oracle.settings.load_defaults', return_value=defaults):
+            d.reset_all_button.click()
+        self.assertEqual(d.game_dir.text(), str(new_game))
+        self.assertIs(w.renderer, self.assets.renderer)
+        with patch('rw_creature_pet.oracle.settings.prepare_oracle_assets', return_value=new_assets) as prepare:
+            d.save()
+            self.assertIs(w.renderer, self.assets.renderer)
+            self.wait_worker(d)
+        prepare.assert_called_once_with(defaults)
+        self.assertIs(w.renderer, new_assets.renderer)
         self.assertEqual(self.store.load().game_dir, new_game)

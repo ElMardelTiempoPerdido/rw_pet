@@ -1,6 +1,7 @@
 """从真实 TOML 到启动配置、全部设置控件和保存文件的默认值链路。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from dataclasses import replace
 import json
 from pathlib import Path
 import tempfile
@@ -8,7 +9,7 @@ import tomllib
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QApplication, QDoubleSpinBox, QSpinBox
+from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QSpinBox
 
 from rw_creature_pet.oracle.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
@@ -157,6 +158,117 @@ class SettingsDefaultsTests(unittest.TestCase):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
         self.audit(config)
+
+    def test_each_tab_restores_its_defaults_and_preserves_other_unsaved_edits(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        self.store.save(config)
+        saved = self.store.path.read_bytes()
+        per_tab = (
+            {'desktop.scale': 1.5, 'audio.enabled': False, 'audio.volume': .33333,
+             'oracle.glow_enabled': True, 'oracle.glow_color': '#123456', 'oracle.glow_opacity': .654321},
+            {'oracle.outfit': 'maid', 'oracle.arm_scale': .623456},
+            {'oracle.pearl_matrix_count': 13, 'oracle.pearl_playback_probability': .123456,
+             'oracle.pearl_bubble_color': '#654321'},
+            {'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15, 'oracle.projection_opacity': .334455},
+            {'oracle.base_side': 'left', 'oracle.allowed_edges': ('top', 'left'),
+             'oracle.base_fraction': .713456, 'oracle.float_speed': 1.23456},
+            {'overseer.enabled': True, 'overseer.check_interval': 90000.,
+             'overseer.color': '#abcdef', 'overseer.appearance_probability': .54321},
+        )
+        for values in per_tab:
+            for key, value in values.items():
+                group, field = key.split('.')
+                self.data[group][field] = value
+        # 打开窗口后再修改模板，按钮必须读取当前 TOML，而非用户文件或代码默认值。
+        for index, defaults in enumerate(per_tab):
+            with self.subTest(tab=index):
+                dialog = self.audit(config)
+                dialog.controls['audio.volume'].setValue(19)
+                dialog.controls['oracle.arm_scale'].setValue(70)
+                dialog.controls['oracle.pearl_matrix_count'].setValue(23)
+                dialog.controls['oracle.halo_scale'].setValue(.9)
+                dialog.controls['oracle.float_speed'].setValue(1.4)
+                dialog.controls['overseer.check_interval'].setValue(99)
+                before = dialog.candidate()
+                write_toml(self.source, self.data)
+                dialog.tabs.setCurrentIndex(index)
+                self.app.processEvents()
+                bar = dialog.tabs.currentWidget().verticalScrollBar()
+                bar.setValue(15)
+                scroll = bar.value()
+                dialog.reset_tab_buttons[index].click()
+                expected = before
+                for key, value in defaults.items():
+                    group, field = key.split('.')
+                    expected = replace(expected, **{group: replace(getattr(expected, group), **{field: value})})
+                self.assertEqual(dialog.candidate(), expected)
+                self.assertEqual(dialog.tabs.currentIndex(), index)
+                self.assertEqual(bar.value(), scroll)
+                self.assertEqual(self.store.path.read_bytes(), saved)
+                if index == 0:
+                    self.assertFalse(dialog.controls['audio.volume'].isEnabled())
+                    self.assertTrue(dialog.controls['oracle.glow_opacity'].isEnabled())
+                elif index == 3:
+                    self.assertFalse(dialog.controls['oracle.halo_arc_max_count'].isEnabled())
+                dialog.close()
+
+    def test_reset_all_is_a_draft_and_preserves_hidden_settings_then_saves_exact_defaults(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        config = replace(config, oracle=replace(config.oracle, colors=replace(config.oracle.colors, skin='#123456')))
+        self.store.save(config)
+        saved = self.store.path.read_bytes()
+        dialog = self.audit(config)
+        dialog.game_dir.setText('missing directory')
+        dialog.controls['desktop.scale'].setCurrentIndex(2)
+        self.data['audio']['volume'] = .701234  # 与旧值显示相同，仍须替换成新的精确默认值。
+        self.data['oracle'].update(arm_scale=.623456, glow_opacity=.401234,
+                                   base_side='left', allowed_edges=['left'], base_fraction=.713456)
+        write_toml(self.source, self.data)
+        template_bytes = self.source.read_bytes()
+        from rw_creature_pet.settings_store import load_defaults
+        defaults = load_defaults()
+        expected = replace(defaults, oracle=replace(defaults.oracle, colors=config.oracle.colors), ui=config.ui)
+        dialog.reset_all_button.click()
+        self.assertEqual(dialog.candidate(), expected)
+        self.assertEqual(self.store.path.read_bytes(), saved)
+        self.assertEqual(dialog.original, config)
+        dialog.reject()
+        self.assertEqual(self.store.path.read_bytes(), saved)
+
+        dialog = self.audit(config)
+        dialog.reset_all_button.click()
+        # 重置后继续编辑；其余默认字段保留精度，保存失败时也不清空草稿。
+        dialog.controls['audio.volume'].setValue(23)
+        expected = replace(expected, audio=replace(expected.audio, volume=.23))
+        dialog.assets = object()
+        with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
+            dialog.save()
+        self.assertEqual(dialog.candidate(), expected)
+        self.assertEqual(self.store.path.read_bytes(), saved)
+        dialog.save()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+        self.assertEqual(self.store.load(), expected)
+        self.assertEqual(self.source.read_bytes(), template_bytes)
+        self.audit(expected)
+
+    def test_bad_template_preserves_draft_and_reset_buttons_are_disabled_while_saving(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        dialog = self.audit(config)
+        dialog.controls['audio.volume'].setValue(27)
+        before = dialog.candidate()
+        self.source.write_text('[broken', encoding='utf-8')
+        for button in (dialog.reset_all_button, *dialog.reset_tab_buttons):
+            button.click()
+            self.assertEqual(dialog.candidate(), before)
+            self.assertEqual(dialog._status_message.source, '无法读取默认设置：{error}')
+        self.assertFalse(self.store.path.exists())
+        dialog.busy(True)
+        self.assertTrue(all(not button.isEnabled() for button in (dialog.reset_all_button, *dialog.reset_tab_buttons)))
+        dialog.busy(False)
+        self.assertTrue(all(button.isEnabled() for button in (dialog.reset_all_button, *dialog.reset_tab_buttons)))
 
 
 if __name__ == '__main__':

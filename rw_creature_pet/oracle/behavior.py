@@ -58,6 +58,7 @@ class OracleBehavior:
         self.last_matrix_slot = None
         self.last_fixed_index = None
         self.enabled = False
+        self.movement_enabled = True  # 自主选路许可，与行为循环/原地互动分开。
         self.state = Activity.IDLE
         self.state_ticks = 0
         self.duration = self.random.randint(*self.IDLE_TICKS)
@@ -131,6 +132,29 @@ class OracleBehavior:
             scene.eyes.end_observation()
             self.enter(Activity.IDLE, self.random.randint(*self.IDLE_TICKS))
 
+    def set_movement_enabled(self, scene, enabled):
+        enabled = bool(enabled)
+        if enabled == self.movement_enabled:
+            return
+        self.movement_enabled = enabled
+        if enabled or scene.drag.controlling:
+            return
+        moving = self.state in (Activity.ROAM, Activity.CROSS_EDGE, Activity.DRIFT,
+                               Activity.DRIFT_CROSS_EDGE, Activity.MEDITATE,
+                               Activity.APPROACH, Activity.ORBIT)
+        if moving or self.drift_active:
+            self.end_drift(scene)
+            scene._move_to(scene.body.chunks[0].position)
+        if self.state == Activity.NOTICE:
+            self.mode = 'recall'
+        elif self.state in (Activity.APPROACH, Activity.ORBIT):
+            # 保留已经选中的珠子与阅读意愿，改为珠子过来，而非中断后重抽。
+            self.mode = 'recall'
+            scene.observed_pearl.move_to(self.recall_point(scene))
+            self.enter(Activity.RECALL, self.movement_budget(scene))
+        elif moving:
+            self.resume_or_idle(scene)
+
     def release_observation(self):
         """离队珠子的归队由矩阵继续推进，不依赖当前行为仍在观察。"""
         if self.observation_pearl is not None:
@@ -182,7 +206,8 @@ class OracleBehavior:
             self.last_fixed_index = index
             self.observation_pearl = fixed[index]
         self.finish_drift_crossing(scene)
-        self.mode = mode or self.detail_random.choices(('approach', 'recall', 'orbit'), (.35, .35, .30))[0]
+        self.mode = ('recall' if not manual and not self.movement_enabled else
+                     mode or self.detail_random.choices(('approach', 'recall', 'orbit'), (.35, .35, .30))[0])
         self.orbit_sign = self.detail_random.choice((-1, 1))
         self.drift_pause_ticks = 0
         scene._move_to(scene.body.chunks[0].position)
@@ -208,17 +233,20 @@ class OracleBehavior:
         value = self.random.random()
         cross = scene.config.cross_edge_probability
         if value < cross:
-            return Activity.CROSS_EDGE if scene.navigator and self.cross_cooldown == 0 else Activity.IDLE
+            return (Activity.CROSS_EDGE if self.movement_enabled and scene.navigator
+                    and self.cross_cooldown == 0 else Activity.IDLE)
         value = (value-cross)/max(1e-9, 1-cross)
         drift = scene.config.antigravity_probability
         if value < drift:
-            return Activity.DRIFT if self.drift_cooldown == 0 else Activity.IDLE
+            return Activity.DRIFT if self.movement_enabled and self.drift_cooldown == 0 else Activity.IDLE
         value = (value-drift)/max(1e-9, 1-drift)
         if value < self.MEDITATE_SHARE:
             return Activity.MEDITATE
         if value < .40:
             return Activity.IDLE
-        return Activity.ROAM if value < .75 else Activity.NOTICE
+        if value < .75:
+            return Activity.ROAM if self.movement_enabled else Activity.IDLE
+        return Activity.NOTICE
 
     def matrix_clear(self, scene, point):
         """只筛选自主目的地；矩阵当前中心和跟随后的悬浮点都要留出间距。"""
@@ -523,7 +551,7 @@ class OracleBehavior:
         else:
             self.enter(Activity.IDLE, self.random.randint(*self.IDLE_TICKS))
 
-    def start_meditation(self, scene):
+    def start_meditation(self, scene, *, stationary=False):
         self.release_observation()
         self.finish_drift_crossing(scene)
         edge = self.drift_edge if self.drift_active else self.current_edge(scene)
@@ -533,8 +561,8 @@ class OracleBehavior:
         offset = ((box.left+box.right)/2-start.x if edge % 2 else
                   (box.top+box.bottom)/2-start.y)
         offset = max(-24., min(24., offset))
-        point = scene.project_target(start+(Vec2(offset, 0) if edge % 2 else Vec2(0, offset)))
-        if not self.matrix_clear(scene, point):
+        point = start if stationary else scene.project_target(start+(Vec2(offset, 0) if edge % 2 else Vec2(0, offset)))
+        if not stationary and not self.matrix_clear(scene, point):
             point = self.short_point(scene)
             if point is None:
                 self.resume_or_idle(scene)
@@ -600,7 +628,7 @@ class OracleBehavior:
                 return
             # 矩阵迁移或手动拖动可能留下重合；下次常规决策时尝试同边让开。
             # 无可达空位则继续停留，不逐帧重抽，也不改变低概率跨边规则。
-            if not self.matrix_clear(scene, scene.body.chunks[0].position):
+            if self.movement_enabled and not self.matrix_clear(scene, scene.body.chunks[0].position):
                 if not self.start_roam(scene):
                     self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
                 return
@@ -608,7 +636,7 @@ class OracleBehavior:
             if activity == Activity.NOTICE:
                 self.notice(scene)
             elif activity == Activity.MEDITATE:
-                self.start_meditation(scene)
+                self.start_meditation(scene, stationary=not self.movement_enabled)
             elif activity == Activity.DRIFT:
                 self.start_drift(scene)
             elif activity == Activity.IDLE or not self.start_roam(scene, adjacent=activity == Activity.CROSS_EDGE):

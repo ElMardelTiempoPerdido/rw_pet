@@ -21,6 +21,7 @@ from .pearl_fixed import FixedPearls
 from .pose import OraclePose
 from .drag import OracleDrag
 from .drag_reactions import OracleDragReactions
+from .window_reaction import OracleWindowReaction
 
 
 def unit(v: Vec2, fallback=Vec2(0, -1)) -> Vec2:
@@ -338,6 +339,7 @@ class OracleScene:
     def reset(self):
         drag_enabled = self.drag.enabled if hasattr(self, 'drag') else False
         previous_projection = getattr(self, 'projection', None)
+        previous_window_reaction = getattr(self, 'window_reaction', None)
         self.pose = OraclePose()
         self.navigator = None
         base = self.world.anchor_position(self.anchor)
@@ -363,6 +365,9 @@ class OracleScene:
         self.previous_look_direction = Vec2()
         self.behavior = OracleBehavior()
         self.eyes = OracleEyes()
+        self.window_reaction = OracleWindowReaction()
+        if previous_window_reaction is not None:
+            self.window_reaction.attention.random.setstate(previous_window_reaction.attention.random.getstate())
         self.drag_reactions = OracleDragReactions(self.config.drag_reactions)
         self.projection = self.drag_reactions.projection
         if previous_projection is not None:
@@ -479,10 +484,16 @@ class OracleScene:
             self.eyes.begin_observation()
 
     def set_autonomous(self, enabled):
+        """调试/接管用的完整行为循环开关；桌面选项使用 set_autonomous_movement。"""
         if self.drag.controlling:
             self.drag.resume_autonomy = bool(enabled)
             return
         self.behavior.set_enabled(self, enabled)
+
+    def set_autonomous_movement(self, enabled):
+        """桌面设置只限制自主位移；原地行为循环继续，拖拽结束后再恢复。"""
+        self.behavior.set_movement_enabled(self, enabled)
+        self.set_autonomous(True)
 
     def set_pearl_matrix(self, enabled):
         """关闭时结束矩阵观察；单珠行为和自主/失重开关保持不变。"""
@@ -646,6 +657,7 @@ class OracleScene:
                 and (self.navigator is None or (self.navigator.done and abs(self.navigator.base.velocity) < .01)))
 
     def step(self):
+        self.window_reaction.step(self)
         if self.drag.controlling:
             self.drag.step_body()
         else:
@@ -723,6 +735,7 @@ class OracleScene:
             self.look_target = self.observed_pearl.position
         self.previous_look_direction = self.look_direction
         desired_look = limited((self.look_target - upper.position) * .01, 1) if self.look_target is not None else Vec2()
+        desired_look = self.window_reaction.desired_look(self, desired_look)
         self.look_direction = self.look_direction.lerp(desired_look, .12)
         self.head.step(upper, self.body.direction, self.look_direction)
         if self.pearl_orbits is not None:
