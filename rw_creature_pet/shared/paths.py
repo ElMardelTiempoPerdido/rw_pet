@@ -2,4 +2,5 @@
 from pathlib import Path
 
 
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_GAME_DIR = Path(r"D:\steam\steamapps\common\Rain World")

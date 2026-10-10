@@ -21,8 +21,8 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.cords import OracleCords
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.cords import OracleCords
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def before_class():
@@ -35,7 +35,7 @@ def before_class():
 
 
 def create_scene(config, cords):
-    with patch('rw_creature_pet.oracle.appearance.OracleCords', cords):
+    with patch('rw_creature_pet.oracle.graphics.appearance.OracleCords', cords):
         return OracleScene(config.oracle)
 
 

@@ -10,7 +10,7 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 from rw_creature_pet.oracle.config import DragReactionConfig, OracleConfig
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
+from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
 from rw_creature_pet.shared.geometry import Vec2
 from tools.oracle.cut_bell_voice import cut_clips
 

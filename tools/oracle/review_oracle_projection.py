@@ -17,10 +17,10 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import DragReactionConfig
-from rw_creature_pet.oracle.projection_assets import prepare_projection
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.effects.projection_assets import prepare_projection
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 

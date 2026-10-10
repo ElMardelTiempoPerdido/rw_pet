@@ -8,9 +8,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
-from rw_creature_pet.oracle.appearance import perpendicular, rotate
+from rw_creature_pet.oracle.graphics.appearance import perpendicular, rotate
 from rw_creature_pet.oracle.config import OracleColors, OracleConfig
-from rw_creature_pet.oracle.render import OracleRenderer, mixed, point, unit
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, mixed, point, unit
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
 

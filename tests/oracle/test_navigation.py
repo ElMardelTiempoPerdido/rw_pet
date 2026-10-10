@@ -16,8 +16,8 @@ from rw_creature_pet.shared.paths import DEFAULT_GAME_DIR
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene, RailSide, dot
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.navigation import RoundedRail
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.motion.navigation import RoundedRail
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.shared.timing import FixedStepper
 
 

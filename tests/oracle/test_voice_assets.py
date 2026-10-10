@@ -11,9 +11,9 @@ import wave
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
-from rw_creature_pet.oracle.voice_processing import prepare_clips
-from rw_creature_pet.oracle.voice_assets import (LEGACY_DIRECTORY, VoiceAssetError, _extract_interview,
+from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
+from rw_creature_pet.oracle.audio.processing import prepare_clips
+from rw_creature_pet.oracle.audio.assets import (LEGACY_DIRECTORY, VoiceAssetError, _extract_interview,
                                                 _find_source, ensure_bell_voice, make_bell_voice_player)
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 
@@ -52,7 +52,7 @@ class VoiceAssetsTests(unittest.TestCase):
         self.loose.touch()  # 复现游戏的空占位文件。
 
     def prepare(self):
-        with patch('rw_creature_pet.oracle.voice_assets._extract_interview', return_value=self.wav) as extract:
+        with patch('rw_creature_pet.oracle.audio.assets._extract_interview', return_value=self.wav) as extract:
             directory = ensure_bell_voice(self.game, cache_root=self.cache)
         return directory, extract.call_count
 
@@ -73,8 +73,8 @@ class VoiceAssetsTests(unittest.TestCase):
             with wave.open(str(directory/clip.filename), 'rb') as audio:
                 self.assertEqual(audio.getnframes(), round(clip.duration*1000))
                 self.assertEqual((audio.getnchannels(), audio.getsampwidth()), (2, 2))
-        with patch('rw_creature_pet.oracle.voice_assets._extract_interview', side_effect=AssertionError('warm extract')), \
-             patch('rw_creature_pet.oracle.voice_assets.prepare_clips', side_effect=AssertionError('warm processing')):
+        with patch('rw_creature_pet.oracle.audio.assets._extract_interview', side_effect=AssertionError('warm extract')), \
+             patch('rw_creature_pet.oracle.audio.assets.prepare_clips', side_effect=AssertionError('warm processing')):
             self.assertEqual(ensure_bell_voice(self.game, cache_root=self.cache), directory)
 
     def test_corrupt_missing_or_partial_cache_is_rebuilt(self):
@@ -98,7 +98,7 @@ class VoiceAssetsTests(unittest.TestCase):
         new, calls = self.prepare()
         self.assertNotEqual(new, old)
         self.assertEqual(calls, 1)
-        with patch('rw_creature_pet.oracle.voice_assets.PROCESSING_VERSION', 999):
+        with patch('rw_creature_pet.oracle.audio.assets.PROCESSING_VERSION', 999):
             future, calls = self.prepare()
         self.assertNotEqual(future, new)
         self.assertEqual(calls, 1)
@@ -108,8 +108,8 @@ class VoiceAssetsTests(unittest.TestCase):
             output.mkdir()
             (output/'bell_01.wav').write_bytes(b'incomplete')
             raise ValueError('processing failed')
-        with patch('rw_creature_pet.oracle.voice_assets._extract_interview', return_value=self.wav), \
-             patch('rw_creature_pet.oracle.voice_assets.prepare_clips', side_effect=fail):
+        with patch('rw_creature_pet.oracle.audio.assets._extract_interview', return_value=self.wav), \
+             patch('rw_creature_pet.oracle.audio.assets.prepare_clips', side_effect=fail):
             with self.assertRaisesRegex(VoiceAssetError, 'processing failed'):
                 ensure_bell_voice(self.game, cache_root=self.cache)
         self.assertEqual(list(self.cache.iterdir()), [])
@@ -143,7 +143,7 @@ class VoiceAssetsTests(unittest.TestCase):
         for clip in BELL_VOICE_CLIPS:
             (custom/clip.filename).write_bytes(b'user audio')
         config = AppConfig(game_dir=self.game, oracle=OracleConfig(voice_directory='custom'))
-        with patch('rw_creature_pet.oracle.voice_assets.ensure_bell_voice', side_effect=AssertionError('custom extraction')):
+        with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', side_effect=AssertionError('custom extraction')):
             player = make_bell_voice_player(config, config_path)
             self.assertFalse(player.asset_error)
             self.assertEqual(player.clips['bell_04_02'].read_bytes(), b'user audio')
@@ -151,7 +151,7 @@ class VoiceAssetsTests(unittest.TestCase):
             failed = make_bell_voice_player(config, config_path)
             self.assertIn('bell_04_02.wav', failed.asset_error)
         for directory in ('auto', LEGACY_DIRECTORY):
-            with patch('rw_creature_pet.oracle.voice_assets.ensure_bell_voice', return_value=custom) as ensure:
+            with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', return_value=custom) as ensure:
                 config = replace(config, oracle=OracleConfig(voice_directory=directory))
                 player = make_bell_voice_player(config, config_path)
                 ensure.assert_called_once_with(self.game)
@@ -171,7 +171,7 @@ class VoiceAssetsTests(unittest.TestCase):
 
     def test_geometry_preview_skips_extraction_and_debug_handoff_reuses_paths(self):
         config = AppConfig(game_dir=self.game)
-        with patch('rw_creature_pet.oracle.voice_assets.ensure_bell_voice', side_effect=AssertionError('preview extraction')):
+        with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', side_effect=AssertionError('preview extraction')):
             preview = make_bell_voice_player(config, initialize=False)
             self.assertTrue(preview.asset_error)
             preview.clips = {'bell_01': self.root/'prepared.wav'}

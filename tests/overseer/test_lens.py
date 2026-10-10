@@ -11,9 +11,9 @@ from rw_creature_pet.shared.geometry import Bounds, Vec2
 from rw_creature_pet.shared.timing import FixedStepper
 from rw_creature_pet.overseer.config import OverseerConfig
 from rw_creature_pet.overseer.events import EventPhase, OverseerEvents, SpawnContext
-from rw_creature_pet.overseer.lens import ObservationLens
+from rw_creature_pet.overseer.graphics.lens import ObservationLens
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 
 
 class ObservationTests(unittest.TestCase):
@@ -62,7 +62,7 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual((self.lens.random.getstate(), self.lens.visual_random.getstate()), rng)
 
     def test_friend_uses_longer_duration_and_switching_back_restores_normal_range(self):
-        from rw_creature_pet.overseer.friend_light import OBSERVATION_DURATION
+        from rw_creature_pet.overseer.graphics.friend.light import OBSERVATION_DURATION
         model = Overseer(config=self.config, seed=53)
         for appearance, limits in (('friend', OBSERVATION_DURATION),
                                    ('standard', ObservationLens.DURATION),

@@ -17,16 +17,16 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import OracleColors, OracleConfig
-from rw_creature_pet.oracle.appearance import OracleAppearance, perpendicular
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.input import PuppetHitMap
-from rw_creature_pet.oracle.outfits import (MAID_LACE_OFFSETS, MAID_RIBBON_UP_OFFSETS, MAID_RIBBON_DOWN_OFFSETS,
+from rw_creature_pet.oracle.graphics.appearance import OracleAppearance, perpendicular
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
+from rw_creature_pet.oracle.graphics.outfits import (MAID_LACE_OFFSETS, MAID_RIBBON_UP_OFFSETS, MAID_RIBBON_DOWN_OFFSETS,
                                            load_maid_head, load_maid_lace, maid_apron_layer,
                                            maid_head_layer, maid_lace_layers, maid_ribbon_up_layer,
                                            maid_ribbon_down_layer)
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.ui_config import UiConfig
@@ -65,7 +65,7 @@ class OutfitTests(unittest.TestCase):
             transparent = ribbon.copy()
             transparent.fill(0)
             # 单独检查后方头巾；新增蝴蝶结按要求覆盖头部，另行验证其前景层。
-            with patch('rw_creature_pet.oracle.render.maid_ribbon_up_layer', return_value=(transparent, rect)):
+            with patch('rw_creature_pet.oracle.graphics.render.maid_ribbon_up_layer', return_value=(transparent, rect)):
                 maid = self.paint_head(renderer, scale, 'maid')
             points = lambda img: [(x, y) for x in range(img.width()) for y in range(img.height())
                                   if img.pixelColor(x, y).alpha()]
@@ -461,7 +461,7 @@ class OutfitTests(unittest.TestCase):
             store = SettingsStore(Path(temp)/'settings.json')
             config = AppConfig(ui=UiConfig('zh'))
             assets = OracleAssets(OracleRenderer(), '', {}, '')
-            with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+            with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
                 window = OracleDesktopWindow(config, config_store=store, assets=assets)
             window.timer.stop()
             try:

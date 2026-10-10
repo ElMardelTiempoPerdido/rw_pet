@@ -11,8 +11,8 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.appearance import rotate
-from rw_creature_pet.oracle.render import OracleRenderer, PaintCommands
+from rw_creature_pet.oracle.graphics.appearance import rotate
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, PaintCommands
 
 
 class OracleCostumeTests(unittest.TestCase):

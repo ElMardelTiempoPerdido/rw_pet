@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.cords import Rope
-from rw_creature_pet.oracle import numeric
+from rw_creature_pet.oracle.graphics.cords import Rope
+from rw_creature_pet.oracle.motion import numeric
 
 
 class NumericTests(unittest.TestCase):

@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.config import DragReactionConfig
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.geometry import Vec2
 

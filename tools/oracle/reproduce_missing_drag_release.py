@@ -12,8 +12,8 @@ from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def main():
@@ -22,7 +22,7 @@ def main():
     config = replace(config, interaction=replace(config.interaction, drag_enabled=True),
                      oracle=replace(config.oracle,
                          drag_reactions=replace(config.oracle.drag_reactions, voice_probability=1.)))
-    with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+    with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
         window = OracleDesktopWindow(config, renderer=OracleRenderer())
     window.timer.stop()
     try:

@@ -12,11 +12,11 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene, OracleWorld
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.halo import OracleHalo
-from rw_creature_pet.oracle.halo_arcs import HaloArcs, curve_length_bound
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
-from rw_creature_pet.oracle.render import OracleRenderer, bezier
-from rw_creature_pet.oracle.damage import visual_bounds
+from rw_creature_pet.oracle.effects.halo import OracleHalo
+from rw_creature_pet.oracle.effects.halo_arcs import HaloArcs, curve_length_bound
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, bezier
+from rw_creature_pet.oracle.graphics.damage import visual_bounds
 
 
 def sampled_length(curve, count=512):
@@ -114,7 +114,7 @@ class HaloArcTests(unittest.TestCase):
         halo.center += Vec2(-2, 1)
         previous = None
         for i in range(11):
-            with patch('rw_creature_pet.oracle.halo_arcs.curve_length_bound', side_effect=AssertionError('显示期间不细分曲线')):
+            with patch('rw_creature_pet.oracle.effects.halo_arcs.curve_length_bound', side_effect=AssertionError('显示期间不细分曲线')):
                 points = arc.controls(halo, i/10, arcs.MAX_DISTANCE)
             self.assertIsNotNone(points)
             self.assertLessEqual(sampled_length(points), arcs.MAX_DISTANCE)

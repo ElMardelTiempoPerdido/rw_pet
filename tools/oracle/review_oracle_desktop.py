@@ -24,9 +24,9 @@ from PIL import Image
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport, OracleDesktopWindow, current_anchor
-from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport, OracleDesktopWindow, current_anchor
+from rw_creature_pet.oracle.pearls.glyphs import load_pearl_glyphs
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def replay(config, renderer):

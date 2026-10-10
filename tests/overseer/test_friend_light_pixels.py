@@ -11,11 +11,11 @@ import numpy as np
 from PySide6.QtGui import QImage, QPainter
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer.friend_light import draw_pixels, light_extent
-from rw_creature_pet.overseer.friend_light_pixels import FriendLightPixels, SPARK_COUNT, Spark
-from rw_creature_pet.overseer.hologram import LensHologramRenderer
+from rw_creature_pet.overseer.graphics.friend.light import draw_pixels, light_extent
+from rw_creature_pet.overseer.graphics.friend.pixels import FriendLightPixels, SPARK_COUNT, Spark
+from rw_creature_pet.overseer.graphics.hologram import LensHologramRenderer
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 
@@ -104,7 +104,7 @@ class FriendPixelLightTests(unittest.TestCase):
         state = model.friend_light_pixels
         state.sparks = [None]*SPARK_COUNT
         state.line_show = (0.,)*5
-        with patch('rw_creature_pet.overseer.friend_light_pixels.RAY_SIGNAL_RANGE', (1., 1.)):
+        with patch('rw_creature_pet.overseer.graphics.friend.pixels.RAY_SIGNAL_RANGE', (1., 1.)):
             before = self.paint(model)[:, :, 3]
         after = self.paint(model)[:, :, 3]
         self.assertLess(np.count_nonzero(after), np.count_nonzero(before))
@@ -148,8 +148,8 @@ class FriendPixelLightTests(unittest.TestCase):
         self.assertFalse(model.friend_light_pixels.active)
 
     def test_rotating_cone_and_sparks_fit_extent_at_all_four_edges(self):
-        from rw_creature_pet.overseer.friend_head import view_matrix
-        from rw_creature_pet.overseer.friend_light import (
+        from rw_creature_pet.overseer.graphics.friend.head import view_matrix
+        from rw_creature_pet.overseer.graphics.friend.light import (
             BEAM_LENGTH, BEAM_ROOT_RADIUS, RAY_HALF_ANGLE, SPARK_HALF_ANGLE)
         for edge in Edge:
             model = self.model(edge)

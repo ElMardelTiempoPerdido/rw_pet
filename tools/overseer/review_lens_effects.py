@@ -17,9 +17,9 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer.hologram import noise_masks
+from rw_creature_pet.overseer.graphics.hologram import noise_masks
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 

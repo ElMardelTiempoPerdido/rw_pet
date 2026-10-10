@@ -18,8 +18,8 @@ from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.arm_graphics import base_outline
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.arm import base_outline
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def main():

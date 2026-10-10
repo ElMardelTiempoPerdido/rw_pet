@@ -5,7 +5,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from rw_creature_pet.oracle.voice_processing import cut_clips
+from rw_creature_pet.oracle.audio.processing import cut_clips
 
 
 def main():

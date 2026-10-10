@@ -14,10 +14,10 @@ from PIL import Image, ImageDraw
 from PySide6.QtGui import QColor, QImage, QPainter
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer.friend_light import light_images
-from rw_creature_pet.overseer.friend_light_pixels import SPARK_FRAMES
+from rw_creature_pet.overseer.graphics.friend.light import light_images
+from rw_creature_pet.overseer.graphics.friend.pixels import SPARK_FRAMES
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 OUT = ROOT/'artifacts/overseer'

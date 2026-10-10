@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT))
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QFontDatabase
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.behavior import Activity
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.behavior.controller import Activity
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from review_oracle_autonomy import check_pixels
 
 

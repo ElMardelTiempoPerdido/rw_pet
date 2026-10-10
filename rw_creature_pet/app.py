@@ -56,7 +56,7 @@ def main(argv=None, *, default_desktop=False):
     if bell_desktop:
         app.setQuitOnLastWindowClosed(False)
         from .settings_store import validate_game_directory
-        from .oracle.settings import OracleSettingsDialog
+        from .oracle.ui.settings import OracleSettingsDialog
         try:
             validate_game_directory(config.game_dir)
         except (OSError, ValueError) as exc:
@@ -76,7 +76,7 @@ def main(argv=None, *, default_desktop=False):
         from PySide6.QtWidgets import QMessageBox
         try:
             if args.creature == 'oracle':
-                from .oracle.desktop import OracleDesktopWindow
+                from .oracle.ui.desktop import OracleDesktopWindow
                 window = OracleDesktopWindow(config, config.desktop.scale, path, config_store=store, assets=assets)
             else:
                 from .lizard.desktop import DesktopWindow
@@ -85,7 +85,7 @@ def main(argv=None, *, default_desktop=False):
             QMessageBox.critical(None, tr('桌宠启动失败'), tr(exc))
             return 1
     elif args.creature == 'oracle':
-        from .oracle.debug_window import OracleDebugWindow
+        from .oracle.ui.debug_window import OracleDebugWindow
         window = OracleDebugWindow(config, path)
     else:
         from .lizard.debug_window import DebugWindow

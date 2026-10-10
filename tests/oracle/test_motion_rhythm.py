@@ -4,9 +4,9 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.navigation import normalized
+from rw_creature_pet.oracle.motion.navigation import normalized
 from rw_creature_pet.oracle.scene import OracleScene, dot
 from rw_creature_pet.shared.geometry import Vec2
 

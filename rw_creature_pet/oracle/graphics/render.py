@@ -1,0 +1,1431 @@
+"""以完好 Moon 为基础的 Bell 外观预览；绘制只读，不推进次级运动。"""
+from math import atan2, ceil, cos, degrees, floor, hypot, radians, sin
+from functools import lru_cache
+
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPainterPathStroker, QPen, QPolygonF
+
+from ...shared.geometry import Vec2
+from ..config import OracleColors
+from ..scene import unit
+from .appearance import HangingHand, perpendicular, rotate
+from .arm import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
+from .damage import body_bounds, point_bounds
+from .raster import (aligned_sprite, attached_sprite_rect, local_canvas, painter_density, painter_scale,
+                     pixel_density, stable_pixel_angle)
+from .glow import GlowLayer
+from .outfits import (maid_apron_layer, maid_head_layer, maid_lace_layers, maid_ribbon_down_layer,
+                      maid_ribbon_up_layer, maid_scale)
+
+
+def point(v):
+    return QPointF(v.x, v.y)
+
+
+def mixed(a, b, t):
+    a, b = QColor(a), QColor(b)
+    return QColor.fromRgbF(a.redF()*(1-t)+b.redF()*t,
+                          a.greenF()*(1-t)+b.greenF()*t,
+                          a.blueF()*(1-t)+b.blueF()*t)
+
+
+def bezier(a, b, c, d, t):
+    u = 1-t
+    aa, bb, cc, dd = u*u*u, 3*u*u*t, 3*u*t*t, t*t*t
+    return Vec2(a.x*aa+b.x*bb+c.x*cc+d.x*dd, a.y*aa+b.y*bb+c.y*cc+d.y*dd)
+
+
+class PaintCommands:
+    """帧内只建立一次 Qt 几何对象，两个视图分别重放；不序列化贴图。"""
+    def __init__(self):
+        self.commands = []
+        self.names = set()
+
+    def __getattr__(self, name):
+        commands = self.commands
+        self.names.add(name)
+        def record(*args):
+            commands.append((name, args))
+        setattr(self, name, record)
+        return record
+
+    def replay(self, painter):
+        if isinstance(painter, PaintCommands):
+            # 引用已完成的子层，而非每帧重新记录上千条身体绘图指令。
+            painter.commands.append((None, self))
+            return
+        methods = {name: getattr(painter, name) for name in self.names}
+        painter.save()
+        for name, args in self.commands:
+            if name is None:
+                args.replay(painter)
+            else:
+                methods[name](*args)
+        painter.restore()
+
+
+class PhoneParts:
+    """耳壳与方头支架：在头部局部像素网格内对齐，再随头部旋转。"""
+    def __init__(self, segments, color, widths, cosmetic, *, shell=None):
+        self.segments, self.color = segments, QColor(color)
+        self.widths, self.cosmetic = widths, cosmetic
+        self.shell = shell
+
+    def replay(self, painter):
+        transform = painter.deviceTransform()
+        density = round(hypot(transform.m11(), transform.m12()), 6)
+        origin = transform.map(QPointF())
+
+        def nearest(value):
+            # 先压到 1/64 显示像素精度，给恰好落在半像素边界的坐标
+            # 一个极小的稳定区；避免视线经过 0 时浮点微动改变整列取整。
+            return floor(round(value*64)/64+.5)
+
+        def snapped(p):
+            return QPointF((nearest(p.x*density+origin.x())-origin.x())/density,
+                           (nearest(p.y*density+origin.y())-origin.y())/density)
+
+        painter.save()
+        painter.setPen(Qt.PenStyle.NoPen)
+        if self.shell is not None:
+            rect, color = self.shell
+            painter.setBrush(QColor(color))
+            painter.drawPolygon(QPolygonF([snapped(Vec2(p.x(), p.y())) for p in (
+                rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft())]))
+        painter.setBrush(self.color)
+        for index, (start, end) in enumerate(self.segments):
+            width = self.widths[min(index, 1)] / (density if self.cosmetic else 1.)
+            along = unit(end-start)*(width/2)
+            side = perpendicular(along)
+            # 共用原始端点，方头轮廓边缘对齐像素边界；不让 Qt 的斜线笔画
+            # 栅格规则在微小正负角度之间改选整列/整行像素。
+            painter.drawPolygon(QPolygonF([snapped(p) for p in (
+                start-along-side, start-along+side, end+along+side, end+along-side)]))
+        painter.restore()
+
+
+class OracleRenderer:
+    SPRITES = ('Circle20', 'pixel', 'haloGlyph-1',
+               'MirosLegSmallPart', 'deerEyeB', 'CentipedeSegment', 'JetFishEyeA', 'tinyStar')
+    # Bell 的试用外观尺寸，与原版 Moon / Pebbles 的分支取值独立。
+    CORD_SEGMENT_SPACING = 12.  # 沿用用户实机校准；节纹长 7.2，间隙约 2.8。
+    SLEEVE_ROOT_HALF_WIDTH = 3.
+    SLEEVE_CUFF_HALF_WIDTH = 5.
+    SLEEVE_CUFF_RADIUS = 2.  # 逻辑像素；随身体几何缩放，不按屏幕像素固定削角。
+    SLEEVE_CUFF_DROP = 2.  # 抬臂时衣料相对手腕的最大下垂量；不移动手部质点。
+    SLEEVE_ROOT_RISE = HangingHand.SHOULDER_RISE
+    SLEEVE_SHOULDER_OUTSET = 3.
+    OPEN_EYE_WIDTH = 2.
+    OPEN_EYE_HEIGHT = 2.
+    HEAD_CROWN_RISE = 1.  # 仅增加头顶空间；椭圆下缘及五官锚点不动。
+    FACE_DOT_SIZE = 1.
+    FACE_DOT_HALF_SPACING = 4.
+    FACE_DOT_Y_OFFSETS = (2., 4.)  # 圆环中心比上方侧点高 2；两侧点相隔 2。
+    FOREHEAD_CENTER_Y = -4.
+    # 5×5 圆环和中央横径；两根 1×2 竖条与圆环下缘共用第一格。
+    FOREHEAD_PIXELS = ('.###.', '#...#', '#####', '#...#', '.###.', '.#.#.')
+    # 1.5× 下的像素折点，左半侧整体左移 1px，横径与上下横段加长
+    # 1px，视觉中心随之左移半像素。换回逻辑坐标后再随面部投影。
+    FOREHEAD_STROKE_GRID = 1.5
+    FOREHEAD_STROKES = (
+        ((-2, -3), (1, -3), (3, -1), (3, 1), (1, 3), (-2, 3),
+         (-4, 1), (-4, -1), (-2, -3)),
+        ((-4, 0), (3, 0)), ((-2, 3), (-2, 4)), ((1, 3), (1, 4)),
+    )
+    FACE_MARK_PIXEL_WIDTHS = {1.5: 1.}  # 额头笔画与四个侧点的屏幕像素宽度。
+    PHONE_CORE_INSET = 1.  # 耳壳向脸侧收进，给外侧的两段支架留出空间。
+    PHONE_CORE_WIDTH = 2.  # 略加宽矢量轮廓，让 1.5× / 2× 保留更饱满的耳壳。
+    PHONE_ROD_TOP = -1.  # 可见坠饰从耳壳中部开始，不再伸出耳壳上方。
+    PHONE_ROD_BOTTOM = 6.
+    PHONE_BAR_LENGTH = 1.
+    PHONE_BAR_SPACING = 2.
+    PHONE_OUTER_BAR_Y = 2.
+    PHONE_OUTER_BAR_LENGTH = 1.
+    PHONE_OUTER_ROD_TOP = -3.
+    PHONE_OUTER_ROD_LENGTH = 3.
+    PHONE_OUTER_ROD_OFFSET = 1.
+    # 特定显示精度下的屏幕像素宽度：(主竖杆，其余短竖杆/横杆)。
+    PHONE_PIXEL_WIDTHS = {1.5: (2., 1.)}
+    HEAD_PIXELS = 33
+    INNER_NECK_HEAD_GAP = 6.5  # 平领口距头部中心，沿实际颈部方向测量。
+    INNER_NECK_HALF = 1.5
+    CHEST_TOP_DROP = 1.  # 胸肩上缘降低 1；宽度和下缘保持原来的范围。
+    TORSO_CHEST_HALF = 6.
+    TORSO_HEM_HALF = 7.  # 放松状态两腿外缘最宽处约 ±6.9，内搭覆盖至此。
+    TORSO_HEM_DEPTH = 4.  # 下身中心沿身体轴向脚延伸；省去腿间圆弧底部。
+    GOWN_NECK_HALF = .38  # 网格 UV 空间；开口略加宽、变浅，使 V 角稍展开。
+    GOWN_NECK_DEPTH = .28
+    GOWN_TRIM_HALF = .70  # 相对开口的半宽差 .08→.32，深度差 .04→.16。
+    GOWN_TRIM_DEPTH = .44
+
+    def __init__(self, atlas=None, colors=OracleColors(), *, glyphs=None, playback_curve=None):
+        self.atlas = atlas
+        self.colors = colors
+        self.glyphs = glyphs
+        self.playback_curve = playback_curve
+        self.projection_images = ()
+        self._projection_key = None
+        self._projection_frames = ()
+        self._pearl_palette_key = None
+        self._pearl_layer_key = None
+        self._pearl_palette = ()
+        self._arm_geometry_key = None
+        self._arm_frames = ()
+        self._frame_key = None
+        self._frame = None
+        self._body_key = None
+        self._body_pose = ()
+        self._arc_key = None
+        self._body_origin = Vec2()
+        self._body_frame = None
+        self._sleeve_frame = None
+        self._collar_frame = None
+        self._body_front_frame = None
+        self._apron_geometry_key = None
+        self._apron_key = None
+        self._head_key = None
+        self._head_image = None
+        self._head_geometry_key = None
+        self._head_frame = None
+        self._chest_ribbon_key = None
+        self._bead_key = None
+        self._bead_images = ()
+        self._raster_key = None
+        self._raster_image = None
+        self._halo_key = None
+        self._halo_image = None
+        self._gown_colors_key = None
+        self._gown_colors = ()
+        self._body_glow = GlowLayer()
+        self._head_glow = GlowLayer()
+        self._chest_ribbon_glow = GlowLayer()
+        self._pearl_glow = GlowLayer()
+        self._pearl_glow_source_key = None
+        if atlas is not None:
+            for name in self.SPRITES:
+                atlas.sprite(name)
+
+    def sprite(self, painter, name, center, width, height, color, rotation=0, mirror=False):
+        painter.save()
+        painter.translate(center.x, center.y)
+        painter.rotate(rotation)
+        if mirror:
+            painter.scale(-1, 1)
+        rect = QRectF(-width / 2, -height / 2, width, height)
+        if self.atlas is not None:
+            painter.drawImage(rect, self.atlas.sprite(name, color if isinstance(color, str) else color.name()))
+        else:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(color))
+            if name in ('pixel', 'MirosLegSmallPart'):
+                painter.drawRect(rect)
+            elif name == 'LizardScaleA1':
+                path = QPainterPath(QPointF(0, -height / 2))
+                path.lineTo(width / 2, height / 2)
+                path.lineTo(-width / 2, height / 2)
+                path.closeSubpath()
+                painter.drawPath(path)
+            else:
+                painter.drawEllipse(rect)
+        painter.restore()
+
+    @staticmethod
+    def line(painter, a, b, color, width):
+        painter.setPen(QPen(QColor(color), width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(point(a), point(b))
+
+    @staticmethod
+    def polyline(painter, points, color, width):
+        path = QPainterPath(point(points[0]))
+        for p in points[1:]:
+            path.lineTo(point(p))
+        painter.setPen(QPen(QColor(color), width, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+
+    def part_between(self, painter, name, start, end, width, color, mirror=False):
+        v = end-start
+        self.sprite(painter, name, start.lerp(end, .5), width, max(.01, v.length()),
+                    color, degrees(atan2(v.y, v.x))-90, mirror=mirror)
+
+    @staticmethod
+    def polygon(painter, vertices, color):
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(color))
+        painter.drawPolygon(QPolygonF([point(v) for v in vertices]))
+
+    def arm_frames(self, scene, alpha):
+        joints = tuple(j.previous_position.lerp(j.position, alpha) for j in scene.arm.joints)
+        lower = scene.body.chunks[1].previous_position.lerp(scene.body.chunks[1].position, alpha)
+        key = (joints, lower, scene.config.arm_scale, scene.world.width,
+               scene.world.height, scene.world.edge_fraction)
+        # 主视图和放大镜共享只读几何，不重复求曲线边界，也不推进转动相位。
+        if key != self._arm_geometry_key:
+            self._arm_frames = tuple(make_arm_frame(a, b, scene.arm.lengths[i], i,
+                                                    scene.config.arm_scale, scene.arm_region)
+                for i, (a, b) in enumerate(zip(joints, (*joints[1:], lower))))
+            self._arm_geometry_key = key
+        return self._arm_frames
+
+    def draw_arm_base(self, painter, scene, base, normal, elbow, front):
+        c, scale = self.colors, scene.config.arm_scale
+        ds = detail_scale(scale)
+        body, highlight = c.arm, c.arm_highlight
+        self.polygon(painter, base_outline(base, normal, scale), body)
+        tangent = perpendicular(normal)
+        origin = base-normal*(10*ds)
+        if front:
+            self.polygon(painter, base_outline(base, normal, scale, 24, 15, 30), highlight)
+            for sign in (-1, 1):
+                center = origin+tangent*(17*ds*sign)
+                self.sprite(painter, 'Circle20', center, 10*ds, 10*ds, body)
+                self.sprite(painter, 'Circle20', center-tangent*ds+normal*ds,
+                            9*ds, 9*ds, highlight)
+            return
+        # 原版底座两侧各有 25/45 比例的折叠支架，连接首段肘部方向。
+        target = base.lerp(elbow, .25)
+        region = base_support_region(scene.world)
+        for sign in (-1, 1):
+            anchor = origin+normal*(11*ds)+tangent*(17*ds*sign)
+            knee = ik_bend(anchor, target, 25*ds, 45*ds, sign, region)
+            self.part_between(painter, 'pixel', anchor, knee, 2*ds, c.joints)
+            self.part_between(painter, 'pixel', knee, target, 2*ds, c.joints)
+            self.sprite(painter, 'deerEyeB', knee, 5*ds, 5*ds, c.joints)
+
+    def draw_arm(self, painter, scene, alpha):
+        c = self.colors
+        frames = self.arm_frames(scene, alpha)
+        ds = detail_scale(scene.config.arm_scale)
+        normal = scene.base_normal(alpha)
+        base = frames[0].start
+        self.draw_arm_base(painter, scene, base, normal, frames[0].elbow, front=False)
+        for index, frame in enumerate(frames):
+            a, b, elbow = frame.start, frame.end, frame.elbow
+            turns = (scene.appearance.previous_cog_turns[index]
+                     + (scene.appearance.cog_turns[index]-scene.appearance.previous_cog_turns[index])*alpha)
+            angle = degrees(atan2((elbow-a).y, (elbow-a).x))-90+turns*360
+            for spoke in range(3):
+                self.sprite(painter, 'pixel', frame.root_circle, (5-index*.5)*ds,
+                            (18-index*2)*ds, c.joints, angle+60*spoke)
+            self.part_between(painter, 'MirosLegSmallPart', elbow, frame.metal_end,
+                              4*(1.5 if index == 0 else 1 if index == 1 else .8)*ds,
+                              c.joints, mirror=index % 2 == 0)
+            rod_width = (2 if index == 0 else 1)*ds
+            self.part_between(painter, 'pixel', elbow, frame.piston, rod_width, c.joints)
+            self.part_between(painter, 'pixel', b, frame.piston, rod_width, c.joints)
+            self.sprite(painter, 'deerEyeB', frame.piston, 5*ds, 5*ds, c.joints)
+            # 肘部圆盘先画，外壳从两边覆盖；主关节圆盘在外壳前。
+            diameter = (6-index*1.5)*2*ds
+            self.sprite(painter, 'Circle20', elbow, diameter, diameter, c.joints)
+            self.sprite(painter, 'deerEyeB', elbow, 5*ds, 5*ds,
+                        mixed(c.joints, c.arm_highlight, .5))
+            for strip in frame.strips:
+                self.polygon(painter, strip.outline(), c.arm)
+                self.polygon(painter, strip.outline(.5), c.arm_highlight)
+            diameter = (7-index*.5)*2*ds
+            self.sprite(painter, 'Circle20', frame.root_circle, diameter, diameter, c.joints)
+            self.sprite(painter, 'deerEyeB', frame.root_circle, 5*ds, 5*ds,
+                        mixed(c.joints, c.arm_highlight, .5))
+        self.draw_arm_base(painter, scene, base, normal, frames[0].elbow, front=True)
+
+    def draw_cords(self, painter, scene, alpha):
+        if scene.config.hide_cords or scene.appearance.cords is None:
+            return
+        c = self.colors
+        appearance = scene.appearance
+        main = [p.sample(alpha) for p in appearance.main_cord]
+        metal = mixed('#000000', c.joints, .55)
+        self.polyline(painter, main, metal, 2.4)
+        # 原版双层 CentipedeSegment，桌面节纹取 0.8 比例。按弧长放置，
+        # 绳索物理采样密度改变时不会挤成一根实心亮杆。
+        distance = self.CORD_SEGMENT_SPACING*.5
+        dark = mixed(c.arm, metal, .6)
+        bright = mixed(c.arm_highlight, metal, .45)
+        for a, b in zip(main, main[1:]):
+            delta = b-a
+            length = delta.length()
+            if length < 1e-9:
+                continue
+            while distance <= length:
+                center = a.lerp(b, distance/length)
+                # 节纹长轴是贴图 X 轴，直接对齐切线；减 90° 仅适用于纵向贴图。
+                angle = degrees(atan2(delta.y, delta.x))
+                self.sprite(painter, 'CentipedeSegment', center, 7.2, 3.6, dark, angle)
+                self.sprite(painter, 'CentipedeSegment', center, 5.76, 1.8, bright, angle)
+                distance += self.CORD_SEGMENT_SPACING
+            distance -= length
+        cord_colors = (metal, mixed('#ff0000', metal, .55), mixed('#0000ff', metal, .55))
+        for index, cord in enumerate(appearance.small_cords):
+            self.polyline(painter, [p.sample(alpha) for p in cord],
+                          cord_colors[appearance.cords.colors[index]], 1.)
+        self.sprite(painter, 'Circle20', main[-1], 4., 4., dark)
+        self.sprite(painter, 'Circle20', main[-1], 2.5, 2.5, bright)
+
+    def ribbon(self, painter, a, b, c, d, start_width, end_width, top_color, bottom_color,
+               across=False, side_sign=1):
+        points = [bezier(a, b, c, d, i/7) for i in range(8)]
+        edges = []
+        for i, p in enumerate(points):
+            side = perpendicular(unit(points[min(i+1, 7)]-points[max(i-1, 0)])) * side_sign
+            half = start_width+(end_width-start_width)*(i/7)**.5
+            edges.append((p-side*half, p+side*half))
+        if across:
+            self.transverse_strip(painter, edges, top_color, bottom_color)
+            return
+        for i in range(7):
+            color = mixed(top_color, bottom_color, max(0., (i-3)/3))
+            painter.setBrush(color)
+            painter.setPen(QPen(color, .15))
+            painter.drawPolygon(QPolygonF([point(p) for p in
+                (edges[i][0], edges[i][1], edges[i+1][1], edges[i+1][0])]))
+
+    def transverse_strip(self, painter, edges, dark, bright):
+        # 三角形的三个顶点严格落在 0/1 色值上。弯袖子的每一段单独横向
+        # 画矩形渐变会让共用顶点出现色差，这里用顶点到对边的投影求梯度。
+        def projection(p, a, b):
+            v = b-a
+            return a+v*(((p-a).x*v.x+(p-a).y*v.y)/max(v.x*v.x+v.y*v.y, 1e-12))
+        painter.save()
+        outline = [a for a, _ in edges]+[b for _, b in reversed(edges)]
+        self.polygon(painter, outline, mixed(dark, bright, .5))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for (a, b), (d, c) in zip(edges, edges[1:]):
+            # MakeLongMesh 的三角形顺序：暗/亮/暗，再亮/暗/亮。
+            for vertices, start, end in (((a, b, d), projection(b, a, d), b),
+                                         ((b, d, c), d, projection(d, b, c))):
+                gradient = QLinearGradient(point(start), point(end))
+                gradient.setColorAt(0, QColor(dark))
+                gradient.setColorAt(1, QColor(bright))
+                painter.setBrush(gradient)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawPolygon(QPolygonF([point(v) for v in vertices]))
+        painter.restore()
+
+    def sleeve_edges(self, shoulder, end, direction, sign):
+        """原版七段袖根/段间延伸构造，截面沿 Bell 的袖宽平滑展开。"""
+        outward = perpendicular(direction)*sign
+        # 原版向外伸 5；Bell 收到 3，让肩部转折靠近衣袍，形成较缓的溜肩。
+        a = shoulder+outward*self.SLEEVE_SHOULDER_OUTSET
+        b = end+unit(shoulder-end)*3+direction
+        arm = unit(end-shoulder, direction*(-1))
+        raised = max(0., min(1., (arm.x*direction.x+arm.y*direction.y+.85)/.8))
+        raised = raised*raised*(3-2*raised)
+        cuff_forward = unit(end-bezier(shoulder, a, b, end, 5/6), outward)
+        # 将画面向下的方向投影到袖口截面。接近竖直时自然归零，不能
+        # 归一化投影，否则手臂经过竖直方向时衣料会突然跳到另一侧。
+        drop = (Vec2(0, 1)-cuff_forward*cuff_forward.y)*(self.SLEEVE_CUFF_DROP*raised)
+        previous = shoulder-outward*2
+        edges = []
+        for i in range(7):
+            t = i/6
+            center = bezier(shoulder, a, b, end, t)
+            tangent = unit(center-previous, outward)
+            normal = perpendicular(tangent)*(-sign)
+            half = (self.SLEEVE_ROOT_HALF_WIDTH
+                    + (self.SLEEVE_CUFF_HALF_WIDTH-self.SLEEVE_ROOT_HALF_WIDTH)*t*t*(3-2*t))
+            back = center-tangent*((center-previous).length()*.3)
+            # 袖根的前三分之一不动；只让远端衣料下垂。每对截面同移，
+            # 保留末端切向与开口平面，使手掌仍由袖口遮住靠腕的一半。
+            drape = max(0., (t-1/3)*1.5)
+            offset = drop*(drape*drape*(3-2*drape))
+            edges.extend(((back+offset-normal*half, back+offset+normal*half),
+                          (center+offset-normal*half, center+offset+normal*half)))
+            previous = center
+        return edges
+
+    @staticmethod
+    def strip_path(edges):
+        path = QPainterPath()
+        path.addPolygon(QPolygonF([point(a) for a, _ in edges]
+                                  + [point(b) for _, b in reversed(edges)]))
+        path.closeSubpath()
+        return path
+
+    def sleeve_path(self, edges):
+        """只向内修圆袖口两角，保留原网格、横向渐变和袖口中央的手腕遮挡。"""
+        outline = self.strip_path(edges)
+        a, b = edges[-1]
+        center = a.lerp(b, .5)
+        previous = edges[-2][0].lerp(edges[-2][1], .5)
+        forward = unit(center-previous)
+        radius = min(self.SLEEVE_CUFF_RADIUS, (b-a).length()*.25,
+                     (center-edges[0][0].lerp(edges[0][1], .5)).length()*.25)
+        if radius <= 1e-9:
+            return outline
+        cuts = QPainterPath()
+        for corner, inward in ((a, unit(b-a)), (b, unit(a-b))):
+            side, front = corner-forward*radius, corner+inward*radius
+            cuts.moveTo(point(side))
+            cuts.lineTo(point(corner))
+            cuts.lineTo(point(front))
+            # 四分之一圆的三次贝塞尔近似。剪掉的是角外的小块，不是整条袖口。
+            cuts.cubicTo(point(front-inward*(radius*.55228475)),
+                         point(side+forward*(radius*.55228475)), point(side))
+            cuts.closeSubpath()
+        return outline.subtracted(cuts)
+
+    def draw_sleeve(self, painter, edges):
+        painter.save()
+        painter.setClipPath(self.sleeve_path(edges), Qt.ClipOperation.IntersectClip)
+        c = self.colors
+        self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
+        painter.restore()
+
+    def draw_hand(self, painter, end):
+        # 图集恢复了透明留白：10×10 画布中实际有色部分约 4×4。
+        # 按原生画布尺寸绘制，避免整张再缩成 4×4 后只剩 1.6×1.6。
+        width = height = 4.
+        if self.atlas is not None:
+            texture = self.atlas.sprite('haloGlyph-1')
+            width, height = texture.width(), texture.height()
+        self.sprite(painter, 'haloGlyph-1', end, width, height, self.colors.skin)
+
+    def draw_limbs(self, painter, scene, alpha, upper, lower, direction, hands):
+        c = self.colors
+        side = perpendicular(direction)
+        points = scene.appearance.hands if hands else scene.appearance.feet
+        for sign, p in zip((-1, 1), points):
+            end = p.sample(alpha)
+            if hands:
+                # 沿身体轴抬高袖根，倾斜时仍与衣领保持同样的相对位置。
+                shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
+                self.draw_hand(painter, end)
+                # 对应 Gown.Color(0.4) / Color(0)，从现有衣袍配色取色。
+                # 原版顺序是先手掌再袖子，袖口自然覆盖靠手腕的一部分。
+                self.draw_sleeve(painter, self.sleeve_edges(shoulder, end, direction, sign))
+            else:
+                knee = lower.lerp(end, .5)+side*(4*sign)
+                self.ribbon(painter, lower, lower.lerp(knee, .9), end.lerp(knee, .9),
+                            end, 3.5, 1.6, c.skin, c.skin)
+                self.sprite(painter, 'haloGlyph-1', end, 4, 4, c.skin,
+                            degrees(atan2(direction.x, -direction.y)))
+
+    @staticmethod
+    def gown_point(cloth, n, u, v):
+        """与衣袍三角形相同的重心插值，让领边随布料变形。"""
+        if not 0 <= u <= 1:
+            # 只为跨到袖根的领端沿布料边缘方向外推；实际覆盖范围稍后
+            # 由衣袍/袖根轮廓裁剪。先取合法采样点，避免负索引读到另一行。
+            edge = 0. if u < 0 else 1.
+            inside = 1/(n-1) if u < 0 else 1-1/(n-1)
+            a = OracleRenderer.gown_point(cloth, n, edge, v)
+            b = OracleRenderer.gown_point(cloth, n, inside, v)
+            return a+(a-b)*(abs(u-edge)*(n-1))
+        x, y = u*(n-1), v*(n-1)
+        ix, iy = min(n-2, int(x)), min(n-2, int(y))
+        fx, fy = x-ix, y-iy
+        a, b = cloth[iy*n+ix:iy*n+ix+2]
+        d, e = cloth[(iy+1)*n+ix:(iy+1)*n+ix+2]
+        return (a*(1-fx)+b*(fx-fy)+e*fy if fy <= fx
+                else a*(1-fy)+e*fx+d*(fy-fx))
+
+    @staticmethod
+    @lru_cache(maxsize=32)
+    def neck_uv(n, half, depth, clip_to_gown):
+        # 领口顶部沿原有网格边；V 的两边在网格边界/对角线处分段。
+        # 不重建物理网格，也不使用固定在屏幕上的三角形遮盖。
+        if clip_to_gown:
+            corners = [(max(0., .5-half), 0.), (min(1., .5+half), 0.)]
+            if half > .5:
+                corners.append((1., depth*(1-.5/half)))
+            corners.append((.5, depth))
+            if half > .5:
+                corners.append((0., depth*(1-.5/half)))
+        else:
+            corners = [(.5-half, 0.), (.5+half, 0.), (.5, depth)]
+        uv = [corners[0]]
+        for a, b in zip(corners, corners[1:]+corners[:1]):
+            cuts = {1.}
+            for start, end in ((a[0], b[0]), (a[1], b[1]), (a[0]-a[1], b[0]-b[1])):
+                if abs(end-start) > 1e-9:
+                    cuts.update(t for i in range(-(n-1), n)
+                                if 0 < (t := (i/(n-1)-start)/(end-start)) < 1)
+            uv.extend((a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t) for t in sorted(cuts))
+        return tuple(uv)
+
+    def neck_opening(self, cloth, n, half, depth, *, clip_to_gown=True):
+        uv = self.neck_uv(n, half, depth, clip_to_gown)
+        path = QPainterPath()
+        path.addPolygon(QPolygonF([point(self.gown_point(cloth, n, u, v)) for u, v in uv]))
+        path.closeSubpath()
+        return path
+
+    def torso_path(self, upper, lower, direction, lower_direction=None):
+        """胸肩保留原朝向，腰侧平滑弯向下身，平下摆垂直于下身轴。"""
+        lower_direction = direction if lower_direction is None else lower_direction
+        side = perpendicular(direction)
+        hem_side = perpendicular(lower_direction)
+        chest = upper-direction*(self.CHEST_TOP_DROP*.5)
+        height = (16-self.CHEST_TOP_DROP)*.5
+        width = self.TORSO_CHEST_HALF
+        hem = lower-lower_direction*self.TORSO_HEM_DEPTH
+        k = .5522847498307936  # 四分之一椭圆的三次曲线控制点。
+        top = chest+direction*height
+        path = QPainterPath(point(top))
+        path.cubicTo(point(top+side*(width*k)),
+                     point(chest+side*width+direction*(height*k)), point(chest+side*width))
+        # 直立时保持两点连线；弯腰时控制点随上下身轴偏转，让两侧连续过渡。
+        span = (hem-chest).length()/3
+        bend = (direction-lower_direction)*span
+        right, left = hem+hem_side*self.TORSO_HEM_HALF, hem-hem_side*self.TORSO_HEM_HALF
+        shoulder = chest+side*width
+        path.cubicTo(point(shoulder.lerp(right, 1/3)-bend), point(shoulder.lerp(right, 2/3)-bend), point(right))
+        path.lineTo(point(left))
+        shoulder = chest-side*width
+        path.cubicTo(point(shoulder.lerp(left, 2/3)-bend), point(shoulder.lerp(left, 1/3)-bend), point(shoulder))
+        path.cubicTo(point(chest-side*width+direction*(height*k)),
+                     point(top-side*(width*k)), point(top))
+        path.closeSubpath()
+        return path
+
+    def inner_collar(self, upper, direction, head):
+        return head-unit(head-upper, direction)*self.INNER_NECK_HEAD_GAP
+
+    def neck_skin_clip(self, upper, direction, head):
+        neck = unit(head-upper, direction)
+        side = perpendicular(neck)
+        collar = self.inner_collar(upper, direction, head)
+        coverage = QPainterPath()
+        coverage.addPolygon(QPolygonF([point(p) for p in (
+            collar-side*24, collar+side*24,
+            collar+side*24+neck*50, collar-side*24+neck*50)]))
+        coverage.closeSubpath()
+        return coverage
+
+    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None):
+        # 胸肩沿真实身体轴，下身随衣袍弯曲，仍共用连续轮廓。
+        # 领口距头部保持固定距离，随真实头颈伸缩、偏转，并保持平直截面。
+        c = self.colors
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(c.inner_robe))
+        painter.drawPath(self.torso_path(upper, lower, direction, lower_direction))
+        self.line(painter, upper, head, c.inner_robe, 2*self.INNER_NECK_HALF)
+        painter.save()
+        painter.setClipPath(self.neck_skin_clip(upper, direction, head), Qt.ClipOperation.IntersectClip)
+        # 只在领口以上画皮肤，避免颈部抗锯齿边缘透出底层肤色细线。
+        self.line(painter, upper, head, c.skin, 2*self.INNER_NECK_HALF)
+        painter.restore()
+
+    def apron_geometry(self, scene, alpha, upper, lower, direction, head, opening, gown, offset):
+        # 内搭范围与实际躯干、圆头颈线一致；领口以上已经覆盖为肤色，排除于蒙版。
+        neck = QPainterPath(point(upper))
+        neck.lineTo(point(head))
+        stroke = QPainterPathStroker()
+        stroke.setWidth(2*self.INNER_NECK_HALF)
+        stroke.setCapStyle(Qt.PenCapStyle.RoundCap)
+        neck = stroke.createStroke(neck)
+        waist_direction = scene.appearance.waist_direction(direction, alpha)
+        mask = gown.subtracted(opening)
+        mask.addPath(self.torso_path(upper, lower, direction, waist_direction))
+        mask.addPath(neck.subtracted(self.neck_skin_clip(upper, direction, head)))
+        # 用非零绕组组合轮廓，保留躯干的原始贝塞尔曲线；布尔并集会
+        # 将曲线折线化，1× 时可能多覆盖衣料边缘的一格像素。
+        mask.setFillRule(Qt.FillRule.WindingFill)
+        origin, axis = self.gown_axis(scene, alpha, upper, direction, head, offset)
+        return mask, origin, degrees(atan2(axis.x, -axis.y))
+
+    def gown_axis(self, scene, alpha, upper, direction, head, offset=Vec2()):
+        # 围裙与胸口配饰共用衣袍中轴、领口高度，随下摆摆动。
+        app, n = scene.appearance, scene.appearance.CLOTH_DIVS
+        top = app.cloth[n//2].sample(alpha)-offset
+        bottom = app.cloth[-n+n//2].sample(alpha)-offset
+        axis = unit(top-bottom, direction)
+        collar = self.inner_collar(upper, direction, head)-top
+        origin = top+axis*(collar.x*axis.x+collar.y*axis.y)
+        return origin, axis
+
+    def draw_apron(self, painter, scene, alpha, upper, lower, direction, head, opening, gown,
+                   density, *, offset=Vec2(), cache_key=None):
+        if cache_key is None or cache_key is not self._apron_geometry_key:
+            self._apron_geometry = self.apron_geometry(
+                scene, alpha, upper-offset, lower-offset, direction, head-offset, opening, gown, offset)
+            self._apron_geometry_key = cache_key
+        mask, origin, angle = self._apron_geometry
+        texture, rect = maid_apron_layer(density)
+        angle = stable_pixel_angle(angle)
+        key = (texture.cacheKey(), density, rect.getRect(), angle)
+        if key != self._apron_key:
+            self._apron_image = aligned_sprite(texture, rect, density, angle)
+            self._apron_key = key
+        # 缓存身体时已有局部平移；在最终世界网格对齐，而不是把平移再量化一次。
+        target = attached_sprite_rect(self._apron_image, origin+offset, density)
+        target.translate(-offset.x, -offset.y)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setClipPath(mask, Qt.ClipOperation.IntersectClip)
+        painter.drawImage(target, self._apron_image)
+        painter.restore()
+
+    def draw_gown(self, painter, scene, alpha):
+        c, n = self.colors, scene.appearance.CLOTH_DIVS
+        color_key = (c.robe_top, c.robe_bottom, n)
+        if color_key != self._gown_colors_key:
+            self._gown_colors = tuple(mixed(c.robe_top, c.robe_bottom, (y/(n-1))**2) for y in range(n))
+            self._gown_colors_key = color_key
+        cloth = [p.sample(alpha) for p in scene.appearance.cloth]
+        vertices = [point(p) for p in cloth]
+        painter.save()
+        # 外轮廓单独抗锯齿。内部三角形关闭边缘抗锯齿，避免重复混合透出
+        # 背景，造成静止时也能看到整片三角形接缝的伪“网格纹理”。
+        outline = (cloth[:n] + [cloth[y*n+n-1] for y in range(1, n)]
+                   + list(reversed(cloth[(n-1)*n:(n-1)*n+n-1])))
+        outline += [cloth[y*n] for y in range(n-2, 0, -1)]
+        outer = QPainterPath()
+        outer.addPolygon(QPolygonF([point(p) for p in outline]))
+        outer.closeSubpath()
+        opening = self.neck_opening(cloth, n, self.GOWN_NECK_HALF, self.GOWN_NECK_DEPTH)
+        trim = self.neck_opening(cloth, n, self.GOWN_TRIM_HALF, self.GOWN_TRIM_DEPTH,
+                                 clip_to_gown=False)
+        # 同时裁掉轮廓底色和内部网格，内搭才会从真实开口露出。
+        painter.setClipPath(outer.subtracted(opening), Qt.ClipOperation.IntersectClip)
+        gradient = QLinearGradient(point(cloth[n//2]), point(cloth[-n+n//2]))
+        gradient.setColorAt(0, QColor(c.robe_top))
+        gradient.setColorAt(1, QColor(c.robe_bottom))
+        painter.setBrush(gradient)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPolygon(QPolygonF([point(p) for p in outline]))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for y in range(n-1):
+            top, bottom = self._gown_colors[y:y+2]
+            for x in range(n-1):
+                a, b = cloth[y*n+x:y*n+x+2]
+                d, e = cloth[(y+1)*n+x:(y+1)*n+x+2]
+                gradient = QLinearGradient(point(a.lerp(b, .5)), point(d.lerp(e, .5)))
+                gradient.setColorAt(0, top)
+                gradient.setColorAt(1, bottom)
+                painter.setBrush(gradient)
+                painter.setPen(Qt.PenStyle.NoPen)
+                i, j = y*n+x, (y+1)*n+x
+                painter.drawPolygon(QPolygonF([vertices[i], vertices[i+1], vertices[j+1]]))
+                painter.drawPolygon(QPolygonF([vertices[i], vertices[j+1], vertices[j]]))
+        painter.restore()
+        return opening, trim.subtracted(opening), outer
+
+    def draw_collar(self, painter, scene, alpha, upper, direction, trim, gown):
+        # 领边最后覆盖袖根；允许跨越衣袍边缘，但不能新增肩部外轮廓。
+        coverage = gown
+        side = perpendicular(direction)
+        for sign, hand in zip((-1, 1), scene.appearance.hands):
+            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
+            edges = self.sleeve_edges(shoulder, hand.sample(alpha), direction, sign)
+            # 每个采样点有两个截面；前六个截面覆盖袖子曲线最靠肩的 1/3。
+            coverage = coverage.united(self.strip_path(edges[:6]))
+        painter.save()
+        painter.setClipPath(coverage, Qt.ClipOperation.IntersectClip)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self.colors.collar_trim))
+        painter.drawPath(trim)
+        painter.restore()
+
+    def bead_images(self):
+        if self._bead_key != self.colors.beads:
+            base = QColor(self.colors.beads)
+            small = QImage(2, 2, QImage.Format.Format_ARGB32_Premultiplied)
+            small.fill(base)
+            small.setPixelColor(1, 0, QColor('#ffffff'))
+            large = QImage(3, 3, QImage.Format.Format_ARGB32_Premultiplied)
+            large.fill(Qt.GlobalColor.transparent)
+            for x, y in ((1, 0), (0, 1), (2, 1), (1, 2)):
+                large.setPixelColor(x, y, base)
+            large.setPixelColor(1, 1, mixed(self.colors.beads, '#163c42', .55))
+            self._bead_key, self._bead_images = self.colors.beads, (small, large)
+        return self._bead_images
+
+    def draw_shoulder_lace(self, painter, upper, direction, head, density):
+        # 与内搭共用领口高度，但投影回身体中轴；转头不会使两侧花边整体横移。
+        collar = self.inner_collar(upper, direction, head)
+        offset = collar-upper
+        origin = upper+direction*(offset.x*direction.x+offset.y*direction.y)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.translate(origin.x, origin.y)
+        painter.rotate(degrees(atan2(direction.x, -direction.y)))
+        for image, rect in maid_lace_layers(density):
+            painter.drawImage(rect, image)
+        painter.restore()
+
+    def draw_necklace(self, painter, scene, alpha):
+        # 单独一层，只读插值；项链摆动不使整片衣袍/袖子缓存失效。
+        positions = [p.sample(alpha) for p in scene.appearance.necklace]
+        painter.save()
+        # 隐藏承重细绳，保留短链物理及珠子之间的距离约束。
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        images = self.bead_images()
+        beads = positions[1:-1]
+        for i, center in enumerate(beads):
+            # 两侧各为方珠/十字珠/方珠；移除正中央十字珠后仍左右对称。
+            image = images[min(i, len(beads)-1-i) % 2]
+            size = image.width()
+            # 珠子固定朝向，保持右上高光和十字轮廓，不追随绳段切线旋转。
+            painter.drawImage(QRectF(center.x-size/2, center.y-size/2, size, size), image)
+        painter.restore()
+
+    def draw_chest_ribbon(self, painter, scene, alpha=1., *, raster_scale=None):
+        if scene.config.outfit != 'maid':
+            return
+        if scene.appearance.sleeping:
+            alpha = 1.
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+        upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
+        app = scene.appearance
+        direction = rotate(unit(upper-lower), app.previous_sway+(app.sway-app.previous_sway)*alpha)
+        origin, axis = self.gown_axis(scene, alpha, upper, direction, app.head.sample(alpha))
+        texture, rect = maid_ribbon_down_layer(density)
+        angle = stable_pixel_angle(degrees(atan2(axis.x, -axis.y)))
+        key = (texture.cacheKey(), density, rect.getRect(), angle)
+        if key != self._chest_ribbon_key:
+            self._chest_ribbon_image = aligned_sprite(texture, rect, density, angle)
+            self._chest_ribbon_key = key
+        image = self._chest_ribbon_image
+        self._chest_ribbon_target = attached_sprite_rect(image, origin, density)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._chest_ribbon_target, image)
+        painter.restore()
+
+    def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False,
+                  raster_scale=1., outfit='normal', near_phone=None):
+        head_direction = unit(head-upper, direction)
+        side_axis = perpendicular(head_direction)
+        gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
+        gy = max(-1., min(1., look.x*head_direction.x+look.y*head_direction.y))
+        angle = degrees(atan2(head_direction.x, -head_direction.y))
+        # 视线舍入消除坐标相减的尾差；极小倾角平滑归轴，抑制回正收尾的像素跳变。
+        # 不按绘制帧保存或推进朝向状态，主画面、放大镜和命中图得到相同结果。
+        gx, gy, angle = round(gx, 6), round(gy, 6), stable_pixel_angle(angle)
+        openness = max(0., min(1., openness))
+        density = pixel_density('adaptive', raster_scale)
+        phone_pixels = self.PHONE_PIXEL_WIDTHS.get(density)
+        phone_widths = phone_pixels or (1., 1.)
+        phone_cosmetic = phone_pixels is not None
+        mark_pixels = self.FACE_MARK_PIXEL_WIDTHS.get(density)
+        # 场景传入固定步更新后的滞回状态；独立静态预览按当前视线决定层级。
+        near_phone = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
+        geometry_key = (gx, gy, openness, self.colors, phone_widths, phone_cosmetic, mark_pixels, near_phone)
+        if geometry_key != self._head_geometry_key:
+            commands = PaintCommands()
+            self.draw_head_parts(commands, gx, gy, openness,
+                                 phone_widths=phone_widths, phone_cosmetic=phone_cosmetic,
+                                 mark_pixels=mark_pixels, near_phone=near_phone)
+            self._head_geometry_key, self._head_frame = geometry_key, commands
+        key = (geometry_key, angle, density, outfit)
+        if key != self._head_key:
+            # 在当前显示精度下完成投影、倾斜和遮挡；只有线宽档位变化
+            # 才因倍率重建几何。世界平移复用小图，旋转重放已有几何。
+            pixels = ceil(self.HEAD_PIXELS*density)
+            image = QImage(pixels, pixels, QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(Qt.GlobalColor.transparent)
+            local = QPainter(image)
+            try:
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                local.translate(pixels/2, pixels/2)
+                local.scale(density, density)
+                local.rotate(angle)
+                if outfit == 'maid':
+                    cap, rect = maid_head_layer(density, -50/11-self.HEAD_CROWN_RISE)
+                    local.drawImage(rect, cap)  # 整个头部（包括两侧耳机）覆盖在头饰前方。
+                self._head_frame.replay(local)
+                if outfit == 'maid':
+                    ribbon, rect = maid_ribbon_up_layer(density, -50/11-self.HEAD_CROWN_RISE)
+                    local.drawImage(rect, ribbon)  # 单侧头饰在脸部、耳机与头巾前方。
+            finally:
+                local.end()
+            self._head_key, self._head_image = key, image
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        size = self._head_image.width()/density
+        x, y = head.x-size/2, head.y-size/2
+        if pixelated:
+            # 与躯干图层使用同一世界像素网格；只对最终图像落点取整。
+            x, y = floor(x*density+.5)/density, floor(y*density+.5)/density
+        self._head_target = QRectF(x, y, size, size)
+        painter.drawImage(self._head_target, self._head_image)
+        painter.restore()
+
+    def phone_segments(self, sign, gx, gy):
+        """坠饰及外侧短横杆/平行短竖杆，共享耳侧刚性架的透视。"""
+        bottom = self.PHONE_ROD_BOTTOM
+        yaw, pitch = radians(gx*35), radians(gy*20)
+        ear = Vec2(sign*(7-2*abs(gx)), 0)
+        def project(y, inward=0.):
+            # 高度不再改变横向位置或深度，两根竖杆始终平行于头部竖轴。
+            x = sign*(.25-inward)
+            depth = -x*sin(yaw)
+            return ear+Vec2(x*cos(yaw), y*cos(pitch)-depth*sin(pitch))
+        # 横杆在局部平面垂直于竖杆，而非投影后硬画成屏幕水平线。
+        segments = [(project(self.PHONE_ROD_TOP), project(bottom))]
+        for y in (bottom-self.PHONE_BAR_SPACING, bottom):
+            length = self.PHONE_BAR_LENGTH
+            segments.append((project(y), project(y, length)))
+        # 与下方内侧横杆同一构造，反向伸出；不连接上方短竖杆，保留间隔。
+        y, length = self.PHONE_OUTER_BAR_Y, self.PHONE_OUTER_BAR_LENGTH
+        segments.append((project(y), project(y, -length)))
+        y, offset = self.PHONE_OUTER_ROD_TOP, -self.PHONE_OUTER_ROD_OFFSET
+        segments.append((project(y, offset), project(y+self.PHONE_OUTER_ROD_LENGTH, offset)))
+        return segments
+
+    def draw_head_parts(self, painter, gx, gy, openness=0., *, phone_widths=(1., 1.),
+                        phone_cosmetic=False, mark_pixels=None, near_phone=None):
+        c = self.colors
+        head_rect = QRectF(-50/9, -50/11-self.HEAD_CROWN_RISE,
+                          100/9, 100/11+self.HEAD_CROWN_RISE)
+        def phone(sign):
+            ear = Vec2(sign*(7-self.PHONE_CORE_INSET-2*abs(gx)), 0)
+            # 耳壳使用原外层椭圆的包围矩形，统一为原亮面颜色；支架仍在上方。
+            w = self.PHONE_CORE_WIDTH+1.5*abs(gx)
+            parts = PhoneParts(self.phone_segments(sign, gx, gy), c.head_shell,
+                               phone_widths, phone_cosmetic,
+                               shell=(QRectF(ear.x-w/2, ear.y-2.75, w, 5.5), c.head_highlight))
+            if isinstance(painter, PaintCommands):
+                painter.commands.append((None, parts))
+            else:
+                parts.replay(painter)
+        # 原版 PhoneSprite 的近侧与转头方向相反；否则转头一侧的耳壳
+        # 会盖掉已经向该侧移动的眼睛，而背后的附件反倒浮在脸上。
+        near = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
+        phone(-near)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(c.skin))
+        painter.drawEllipse(head_rect)
+        painter.drawEllipse(QRectF(gx*2-10/3, 1.8-10/3, 20/3, 20/3))
+        painter.setBrush(QColor(c.eyes))
+        for sign in (-1, 1):
+            # Bell 双眼相对原版沿面部局部向下平移 1，随头部一起旋转。
+            eye = Vec2(max(-5., min(5., gx*3+2.5*sign)), 2-gy*3)
+            # 原版 InverseLerp：正面及轻微侧视保留宽 2，超过半侧视后
+            # 对应一眼逐渐缩至 1。闭眼高 1，完全睁眼高 2；保持二值像素轮廓。
+            foreshortening = max(0., min(1., (sign*gx-.5)*2))
+            width = self.OPEN_EYE_WIDTH-foreshortening
+            height = 1+(self.OPEN_EYE_HEIGHT-1)*openness
+            painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
+        mark = Vec2(gx*2.5, self.FOREHEAD_CENTER_Y-gy*1.5)
+        # Bell 两侧的小标记与额头图案共享面部坐标和透视，不增加物理节点。
+        # 大幅侧视时让标记自然隐入头部轮廓，避免像附件一样突出脸侧。
+        face = QPainterPath()
+        face.addEllipse(head_rect)
+        painter.save()
+        painter.setClipPath(face, Qt.ClipOperation.IntersectClip)
+        sx, sy = 1-abs(gx)*.25, 1-max(0., gy)*.75
+        if mark_pixels is None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(c.third_eye))
+            for row, cells in enumerate(self.FOREHEAD_PIXELS):
+                for column, cell in enumerate(cells):
+                    if cell == '#':
+                        painter.drawRect(QRectF(mark.x+(column-2.5)*sx,
+                                                mark.y+(row-2.5)*sy, sx, sy))
+        else:
+            pen = QPen(QColor(c.third_eye), mark_pixels, Qt.PenStyle.SolidLine,
+                       Qt.PenCapStyle.SquareCap, Qt.PenJoinStyle.BevelJoin)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for stroke in self.FOREHEAD_STROKES:
+                painter.drawPolyline(QPolygonF([
+                    point(mark+Vec2(x*sx/self.FOREHEAD_STROKE_GRID,
+                                    y*sy/self.FOREHEAD_STROKE_GRID)) for x, y in stroke]))
+        for sign in (-1, 1):
+            for down in self.FACE_DOT_Y_OFFSETS:
+                dot = mark+Vec2(sign*self.FACE_DOT_HALF_SPACING*sx, down*sy)
+                if mark_pixels is None:
+                    width, height = self.FACE_DOT_SIZE*sx, self.FACE_DOT_SIZE*sy
+                    painter.drawRect(QRectF(dot.x-width/2, dot.y-height/2, width, height))
+                else:
+                    if sign < 0:
+                        # 与加宽圆环的左半侧一起移 1px；只在细线档位生效。
+                        dot -= Vec2(sx/self.FOREHEAD_STROKE_GRID, 0)
+                    painter.drawPoint(point(dot))
+        painter.restore()
+        phone(near)
+
+    def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True,
+             raster_scale=None):
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+        app = scene.appearance
+        cords = cords and not scene.config.hide_cords and app.cords is not None
+        eye_alpha = pearl_alpha = alpha
+        if app.sleeping:
+            alpha = 1.
+        outfit_scale = maid_scale(density) if scene.config.outfit == 'maid' else None
+        key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale)
+        if key != self._frame_key:
+            commands = PaintCommands()
+            self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
+                               include_head=False, halo=False, raster_scale=density, include_chest_ribbon=False)
+            self._frame_key, self._frame = key, commands
+        # 先准备实体，不改变原有合成顺序；发光只读取这些实体层的 alpha。
+        head = PaintCommands()
+        self.draw_scene_head(head, scene, alpha, eye_alpha, pixelated=pixelated, raster_scale=density)
+        ribbon = PaintCommands()
+        self.draw_chest_ribbon(ribbon, scene, alpha, raster_scale=density)
+        if scene.config.glow_enabled:
+            self.draw_glow(painter, scene, pearl_alpha, density)
+        self.draw_projection(painter, scene, pearl_alpha, raster_scale=density)
+        self.draw_halo(painter, scene, pearl_alpha, raster_scale=density)
+        # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
+        self.draw_pearl(painter, scene, pearl_alpha, raster_scale=raster_scale)
+        # 身体几何与显示倍率无关；衣装按倍率选原图。放大镜可指定
+        # 主视图的 raster_scale，查看主视图已有的像素而不是重新细分。
+        # 非像素路径仅供几何缓存的回归对照；正常入口默认启用像素绘制。
+        if pixelated:
+            self.draw_pixel_layer(painter, scene, density)
+        else:
+            self._frame.replay(painter)
+        # 开合只刷新头部小图；身体休眠时不重建衣袍、机械臂或长线缆指令。
+        head.replay(painter)
+        ribbon.replay(painter)
+        if skeleton:
+            self.draw_skeleton(painter, scene, alpha)
+
+    def draw_projection(self, painter, scene, alpha=1., *, raster_scale=None):
+        projection = scene.projection
+        if not projection.visible or not self.projection_images or scene.config.projection_opacity <= 0:
+            return
+        center = projection.previous_position.lerp(projection.position, alpha)
+        opacity = projection.previous_alpha+(projection.alpha-projection.previous_alpha)*alpha
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+        size = (round(projection.WIDTH*density), round(projection.HEIGHT*density))
+        key = (tuple(image.cacheKey() for image in self.projection_images), size)
+        if key != self._projection_key:
+            # 先缩成固定像素图再平移；直接缩绘原图会随亚像素位置漏采样细边框。
+            self._projection_frames = tuple(image.scaled(
+                *size, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.FastTransformation)
+                for image in self.projection_images)
+            self._projection_key = key
+        image = self._projection_frames[projection.frame_index]
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*opacity*scene.config.projection_opacity)
+        painter.drawImage(QRectF(floor(center.x*density-image.width()/2+.5)/density,
+                                floor(center.y*density-image.height()/2+.5)/density,
+                                image.width()/density, image.height()/density), image)
+        painter.restore()
+
+    def prepare_pixel_layer(self, scene, density=1.):
+        """按显示精度绘制局部透明画布，保留硬像素边缘。"""
+        key = (self._frame_key, density)
+        if key != self._raster_key:
+            # 包含真实线缆节点，不能用活动带裁掉自然下垂的线束。
+            image, target = local_canvas(body_bounds(scene), density)
+            local = QPainter(image)
+            try:
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                self._frame.replay(local)
+            finally:
+                local.end()
+            self._raster_image = image
+            self._raster_target = target
+            self._raster_key = key
+
+    def draw_pixel_layer(self, painter, scene, density=1.):
+        self.prepare_pixel_layer(scene, density)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._raster_target, self._raster_image)
+        painter.restore()
+
+    def draw_glow(self, painter, scene, alpha, density):
+        config = scene.config
+        if config.glow_opacity <= 0:
+            return
+        color, radius = config.glow_color, config.glow_radius
+        self.prepare_pixel_layer(scene, density)
+        self._body_glow.prepare(self._raster_image, self._raster_key, color, radius, density)
+        self._head_glow.prepare(self._head_image, self._head_key, color, radius, density)
+        if config.outfit == 'maid':
+            self._chest_ribbon_glow.prepare(self._chest_ribbon_image, self._chest_ribbon_key, color, radius, density)
+        # 所有珍珠复用一枚实体光斑，轨道/卫星移动只需平移，不模糊整块屏幕。
+        key = (self.atlas, density)
+        if key != self._pearl_glow_source_key:
+            source, target = local_canvas(QRectF(-5, -5, 10, 10), density)
+            local = QPainter(source)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                self.draw_pearl_at(local, Vec2(), 0, None, 0)
+            finally:
+                local.end()
+            self._pearl_glow_source = source
+            self._pearl_glow_source_target = target
+            self._pearl_glow_source_key = key
+        self._pearl_glow.prepare(self._pearl_glow_source, key, color, radius, density)
+        # 不透明度只影响柔光合成，复用模糊缓存；恢复画笔后再绘制实体及投影。
+        painter.save()
+        try:
+            painter.setOpacity(painter.opacity()*config.glow_opacity)
+            for group in (scene.pearl_matrix, scene.pearl_orbits, scene.fixed_pearls):
+                if group is not None:
+                    for position, _, _ in group.samples(alpha):
+                        self._pearl_glow.draw(painter, self._pearl_glow_source_target.translated(point(position)))
+            self._body_glow.draw(painter, self._raster_target)
+            self._head_glow.draw(painter, self._head_target)
+            if config.outfit == 'maid':
+                self._chest_ribbon_glow.draw(painter, self._chest_ribbon_target)
+        finally:
+            painter.restore()
+
+    def draw_pearl(self, painter, scene, alpha, *, raster_scale=None):
+        scale = painter_scale(painter) if raster_scale is None else raster_scale
+        if max(scale, painter_scale(painter)) > 2.:
+            # 高倍率先复用基础精度，避免贴图和音乐光泡绕过像素规则直接细化
+            density = pixel_density(scene.config.pixel_mode, scale, scene.config.coarse_pixels_4x)
+            self.draw_pearl_layer(painter, scene, alpha, density)
+            return
+        self.draw_pearl_sprites(painter, scene, alpha)
+
+    def draw_pearl_sprites(self, painter, scene, alpha):
+        glyph_color = None
+        if self.glyphs is not None and scene.config.projection_opacity > 0:
+            color = QColor(self.colors.pearl_glyph)
+            color.setAlphaF(scene.config.projection_opacity)
+            # alpha 随颜色进入现有字形缓存；不改变画笔或珍珠本体的不透明度。
+            glyph_color = color.name(QColor.NameFormat.HexArgb)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        if scene.pearl_matrix is not None:
+            for p, glyph_id, slot in scene.pearl_matrix.samples(alpha):
+                self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        if scene.pearl_orbits is not None:
+            for p, glyph_id, slot in scene.pearl_orbits.samples(alpha):
+                self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        for p, glyph_id, slot in scene.fixed_pearls.samples(alpha):
+            self.draw_pearl_at(painter, p, glyph_id, glyph_color, slot)
+        if scene.pearl_matrix is not None and scene.pearl_matrix.extracted is not None:
+            self.draw_pearl_playback(painter, scene.pearl_matrix.extracted, alpha, scene.config.projection_opacity,
+                                     max_size=scene.config.pearl_bubble_max_size,
+                                     color=scene.config.pearl_bubble_color)
+        painter.restore()
+
+    def draw_pearl_layer(self, painter, scene, alpha, density):
+        samples = tuple(sample for group in (scene.pearl_matrix, scene.pearl_orbits, scene.fixed_pearls)
+                        if group is not None for sample in group.samples(alpha))
+        if not samples:
+            return
+        pearl = scene.pearl_matrix.extracted if scene.pearl_matrix is not None else None
+        playback = pearl.playback if pearl is not None else None
+        pulse = (pearl.sample(alpha), playback.sample(alpha), playback.sample_fade(alpha)) if playback else None
+        config = scene.config
+        key = (samples, pulse, density, self.colors, self.atlas, self.glyphs,
+               config.projection_opacity, config.pearl_bubble_max_size, config.pearl_bubble_color)
+        if key != self._pearl_layer_key:
+            bounds = point_bounds((p for p, _, _ in samples), 20.)
+            if pulse is not None:
+                bounds = bounds.united(point_bounds((pearl.sample(alpha),), config.pearl_bubble_max_size/2+2))
+            image, target = local_canvas(bounds, density)
+            local = QPainter(image)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                self.draw_pearl_sprites(local, scene, alpha)
+            finally:
+                local.end()
+            self._pearl_layer_image, self._pearl_layer_target = image, target
+            self._pearl_layer_key = key
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._pearl_layer_target, self._pearl_layer_image)
+        painter.restore()
+
+    def draw_pearl_playback(self, painter, pearl, alpha=1., opacity=1., *, max_size=12., color='#ff0000'):
+        if pearl.playback is None or opacity <= 0:
+            return
+        strength = pearl.playback.sample(alpha)
+        fade = pearl.playback.sample_fade(alpha)
+        if fade <= 0:
+            return
+        # 最小与珍珠相当，最大直径由配置指定，默认保留原版最大尺寸 12px。
+        # 首尾淡入淡出只改变透明度，不再将 bubble 缩进珍珠内部。
+        # 属于半透明投影，不参与珍珠本体的外发光缓存。
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*opacity*(.25+strength*.65)*fade)
+        size = 6+(max_size-6)*strength
+        self.sprite(painter, 'LizardBubble6', pearl.sample(alpha), size, size, color)
+        painter.restore()
+
+    def draw_halo(self, painter, scene, alpha, *, raster_scale=None):
+        if not scene.halo_visible:
+            return
+        halo = scene.halo
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+        self.draw_halo_arcs(painter, scene, alpha, density)
+        # 光环自己动画；不进入身体/衣袍/线缆帧键。位移和透明度也不使
+        # 局部图案失效，重复主视图与放大镜仅合成同一张小图。
+        key = (halo, halo.revision, alpha, self.colors.pearl_glyph, density)
+        if key != self._halo_key:
+            scale, push, detail_scale = halo.geometry_at(alpha)
+            # 预留范围可很大，实际只栅格化当前外形，避免小光环也清空最大画布。
+            radius = int((5.5+push)*10*scale+5*detail_scale+3)
+            pixels = ceil(radius*density)
+            image = QImage(pixels*2+1, pixels*2+1, QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(Qt.GlobalColor.transparent)
+            local = QPainter(image)
+            try:
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                local.translate(pixels, pixels)
+                local.scale(density, density)
+                local.setPen(Qt.PenStyle.NoPen)
+                local.setBrush(QColor(self.colors.pearl_glyph))
+                for index in range(2):
+                    r = (3+index+push)*10*scale
+                    white = halo.white_at(alpha) if index == 0 else 0.
+                    inner = max(0., r-2*detail_scale)*(1-white)
+                    # VectorCircle 的 alpha 编码环宽；真实投影透明度在整层合成时应用。
+                    # 奇偶填充留下透明空洞，不能用背景色覆盖，以兼容透明桌面。
+                    path = QPainterPath()
+                    path.setFillRule(Qt.FillRule.OddEvenFill)
+                    path.addEllipse(QPointF(), r, r)
+                    if inner > 0:
+                        path.addEllipse(QPointF(), inner, inner)
+                    local.drawPath(path)
+                for index, (ring, row) in enumerate(zip(halo.rings, halo.bits)):
+                    r = (3.5+index+push)*10*scale
+                    angle = ring.previous+(ring.angle-ring.previous)*alpha
+                    for i, bit in enumerate(row):
+                        fill = bit.fill_at(alpha)
+                        if fill <= 0:
+                            continue
+                        theta = radians(angle+i*360/len(row))
+                        dx, dy = sin(theta), -cos(theta)
+                        # 原版矩形宽 4、长 8*Fill，长轴沿半径；先在局部
+                        # 光环画布栅格化，再整体按投影透明度合成，交点不加深。
+                        half = fill*4*detail_scale
+                        width = 1.4*detail_scale
+                        near, far = r-half, r+half
+                        local.drawPolygon(QPolygonF([
+                            QPointF(dx*near-dy*width, dy*near+dx*width),
+                            QPointF(dx*near+dy*width, dy*near-dx*width),
+                            QPointF(dx*far+dy*width, dy*far-dx*width),
+                            QPointF(dx*far-dy*width, dy*far+dx*width)]))
+            finally:
+                local.end()
+            self._halo_key, self._halo_image = key, image
+        center = halo.center_at(alpha)
+        image = self._halo_image
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*scene.config.projection_opacity)
+        painter.drawImage(QRectF(floor(center.x*density-image.width()/2+.5)/density,
+                                floor(center.y*density-image.height()/2+.5)/density,
+                                image.width()/density, image.height()/density), image)
+        painter.restore()
+
+    def draw_halo_arcs(self, painter, scene, alpha, density):
+        arcs = scene.halo_arcs
+        if not scene.halo_visible or not scene.config.halo_arcs_enabled or not arcs.arcs:
+            return
+        width = arcs.width_at(alpha)
+        if width <= 0.:
+            return
+        curves = arcs.curves(scene.halo, alpha)
+        if not curves:
+            return
+        key = (curves, density, self.colors.pearl_glyph, width)
+        if key != self._arc_key:
+            bounds = point_bounds((p for curve in curves for p in curve), arcs.LINE_WIDTH)
+            image, target = local_canvas(bounds, density)
+            local = QPainter(image)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                # Qt 的 QPen 在 <1px 时会自动降 alpha，即使关闭抗锯齿也是如此。
+                # 填充真实描边轮廓，让亚像素细线变成硬边缺口，而非透明度淡出。
+                local.setPen(Qt.PenStyle.NoPen)
+                local.setBrush(QColor(self.colors.pearl_glyph))
+                stroker = QPainterPathStroker()
+                stroker.setWidth(width)
+                stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+                for start, a, b, end in curves:
+                    path = QPainterPath(point(start))
+                    path.cubicTo(point(a), point(b), point(end))
+                    local.drawPath(stroker.createStroke(path))
+            finally:
+                local.end()
+            self._arc_key, self._arc_image, self._arc_target = key, image, target
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.setOpacity(painter.opacity()*scene.config.projection_opacity*arcs.OPACITY)
+        painter.drawImage(self._arc_target, self._arc_image)
+        painter.restore()
+
+    def pearl_palette(self):
+        if self._pearl_palette_key != self.colors:
+            colors = (self.colors.pearl_primary, self.colors.pearl, self.colors.pearl_secondary)
+            palette = []
+            for value in colors:
+                color = QColor(value)
+                # DataPearl 无闪烁/无暗度时的高光：Lerp(珠体色 * 1.3, 白, .5)。
+                highlight = QColor.fromRgbF(*(min(1., channel*.65+.5) for channel in
+                                               (color.redF(), color.greenF(), color.blueF())))
+                palette.append((value, highlight.name()))
+            self._pearl_palette = tuple(palette)
+            self._pearl_palette_key = self.colors
+        return self._pearl_palette
+
+    def draw_pearl_at(self, painter, p, glyph_id, glyph_color, color_slot):
+        if glyph_color is not None:
+            # 原版标签左下角锚在珠心。Qt 的 y 向下，15px 单元上移一格高度。
+            glyph = self.glyphs.sprite(glyph_id, glyph_color)
+            painter.drawImage(QPointF(round(p.x), round(p.y)-15), glyph)
+        color, highlight = self.pearl_palette()[color_slot]
+        self.sprite(painter, 'JetFishEyeA', p, 6, 6, color)
+        self.sprite(painter, 'tinyStar', p+Vec2(-.5, -1.5), 3, 3, highlight)
+
+    def draw_scene_head(self, painter, scene, alpha, eye_alpha=None, *, pixelated=False, raster_scale=None):
+        app = scene.appearance
+        upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
+        sway = app.previous_sway+(app.sway-app.previous_sway)*alpha
+        direction = rotate(unit(upper-lower), sway)
+        look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
+        self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
+                       scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
+                       raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
+                       outfit=scene.config.outfit, near_phone=app.near_phone)
+
+    def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
+                      include_head=True, halo=True, arm=True, raster_scale=None, include_chest_ribbon=True):
+        if halo:
+            self.draw_halo(painter, scene, alpha)
+        if pearl:
+            self.draw_pearl(painter, scene, alpha)
+        app = scene.appearance
+        upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
+        sway = app.previous_sway+(app.sway-app.previous_sway)*alpha
+        direction = rotate(unit(upper-lower), sway)
+        waist_direction = app.waist_direction(direction, alpha)
+        lower = upper-waist_direction*9
+        head = app.head.sample(alpha)
+        if arm:
+            self.draw_arm(painter, scene, alpha)
+        if cords and not scene.config.hide_cords and app.cords is not None:
+            self.draw_cords(painter, scene, alpha)
+        look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
+        outfit_density = (painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+                          if scene.config.outfit == 'maid' else None)
+        if cache_body:
+            # 匀速平移时不重建衣袍/袖子网格。只容忍 0.001 的亚像素变化；
+            # 参考姿态不跟随容差更新，累计形变仍使缓存失效。
+            pose = [direction.x, direction.y, waist_direction.x, waist_direction.y, look.x, look.y]
+            for p in (app.head, *app.hands, *app.feet, *app.cloth):
+                v = p.sample(alpha)
+                pose.extend((v.x-upper.x, v.y-upper.y))
+            key = (app, self.colors, self.atlas)
+            if (key != self._body_key or len(pose) != len(self._body_pose)
+                    or any(abs(a-b) > .001 for a, b in zip(pose, self._body_pose))):
+                self._body_frame = PaintCommands()
+                self._sleeve_frame, self._collar_frame = PaintCommands(), PaintCommands()
+                self._body_garment_paths = self.draw_body(
+                    self._body_frame, scene, alpha, upper, lower, direction, head, look,
+                    sleeves_painter=self._sleeve_frame, collar_painter=self._collar_frame)
+                self._body_front_frame = PaintCommands()
+                self.draw_body_front(self._body_front_frame, scene, alpha, upper, lower, direction, head, look,
+                                     include_head=False)
+                self._body_key, self._body_pose, self._body_origin = key, pose, upper
+            offset = upper-self._body_origin
+            painter.save()
+            painter.translate(offset.x, offset.y)
+            self._body_frame.replay(painter)
+            if outfit_density is not None:
+                # 女仆套装从后向前：衣料、领边、围裙、袖子/手掌、花边、念珠。
+                self._collar_frame.replay(painter)
+                self.draw_apron(painter, scene, alpha, upper, lower, direction, head,
+                                *self._body_garment_paths, outfit_density,
+                                offset=offset, cache_key=self._body_frame)
+                self._sleeve_frame.replay(painter)
+            else:
+                self._sleeve_frame.replay(painter)
+                self._collar_frame.replay(painter)
+            painter.restore()
+            if outfit_density is not None:
+                self.draw_shoulder_lace(painter, upper, direction, head, outfit_density)
+            self.draw_necklace(painter, scene, alpha)
+            if outfit_density is None:
+                painter.save()
+                painter.translate(offset.x, offset.y)
+                self._body_front_frame.replay(painter)
+                painter.restore()
+        else:
+            sleeves = PaintCommands() if outfit_density is not None else None
+            paths = self.draw_body(painter, scene, alpha, upper, lower, direction, head, look,
+                                   sleeves_painter=sleeves)
+            if outfit_density is not None:
+                self.draw_apron(painter, scene, alpha, upper, lower, direction, head, *paths, outfit_density)
+                sleeves.replay(painter)
+                self.draw_shoulder_lace(painter, upper, direction, head, outfit_density)
+            self.draw_necklace(painter, scene, alpha)
+            if outfit_density is None:
+                self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
+        if include_head:
+            self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
+                           raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
+                           outfit=scene.config.outfit, near_phone=app.near_phone)
+        if include_chest_ribbon:
+            self.draw_chest_ribbon(painter, scene, alpha, raster_scale=raster_scale)
+
+    def draw_body(self, painter, scene, alpha, upper, lower, direction, head, look, *,
+                  sleeves_painter=None, collar_painter=None):
+        waist_direction = scene.appearance.waist_direction(direction, alpha)
+        # 腿根在内搭后方，粉色平下摆完整覆盖近端，露出的双腿保持肤色。
+        self.draw_limbs(painter, scene, alpha, upper, lower, waist_direction, hands=False)
+        self.draw_inner_robe(painter, upper, lower, direction, head, lower_direction=waist_direction)
+        opening, trim, gown = self.draw_gown(painter, scene, alpha)
+        # 只拆分绘制指令，复用同一份袖子和领边几何；切换套装仅重排图层。
+        collar_painter = painter if collar_painter is None else collar_painter
+        painter = painter if sleeves_painter is None else sleeves_painter
+        # 袖根也是外衣的一部分，不能填回已经挖出的领口。下方手腕仍保留
+        # 手掌先画、袖口后盖的原有结构；项链随后覆盖上胸衣料。
+        sleeves = QPainterPath()
+        sleeves.addRect(QRectF(upper.x-30, upper.y-30, 60, 60))
+        painter.save()
+        painter.setClipPath(sleeves.subtracted(opening), Qt.ClipOperation.IntersectClip)
+        self.draw_limbs(painter, scene, alpha, upper, lower, direction, hands=True)
+        painter.restore()
+        self.draw_collar(collar_painter, scene, alpha, upper, direction, trim, gown)
+        return opening, gown
+
+    def draw_body_front(self, painter, scene, alpha, upper, lower, direction, head, look, *, include_head=True):
+        # 手掌仍在念珠前；只重放袖口外的可见部分，避免再次把手腕盖到袖子上。
+        side = perpendicular(direction)
+        for sign, hand in zip((-1, 1), scene.appearance.hands):
+            end = hand.sample(alpha)
+            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
+            edges = self.sleeve_edges(shoulder, end, direction, sign)
+            sleeve = self.sleeve_path(edges)
+            palm = QPainterPath()
+            palm.addRect(QRectF(end.x-6, end.y-6, 12, 12))
+            painter.save()
+            painter.setClipPath(palm.subtracted(sleeve), Qt.ClipOperation.IntersectClip)
+            self.draw_hand(painter, end)
+            painter.restore()
+        if include_head:
+            self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
+                           raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.outfit,
+                           near_phone=scene.appearance.near_phone)
+
+    def draw_skeleton(self, painter, scene, alpha):
+        pen = QPen(QColor('#8befcc'), 1, Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        nodes = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
+        painter.drawLine(point(nodes[0]), point(nodes[1]))
+        for c, position in zip(scene.body.chunks, nodes):
+            painter.drawEllipse(point(position), c.radius, c.radius)
+        head = scene.appearance.head.sample(alpha)
+        painter.drawLine(point(nodes[0]), point(head))
+        painter.drawEllipse(point(head), 5, 5)
+        for p in scene.appearance.hands+scene.appearance.feet:
+            painter.drawEllipse(point(p.sample(alpha)), 2, 2)
+        for j in scene.arm.joints:
+            painter.drawEllipse(point(j.previous_position.lerp(j.position, alpha)), 4, 4)

@@ -15,9 +15,9 @@ from PySide6.QtWidgets import QApplication, QDialogButtonBox
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import TRANSLATIONS, language_manager, tr
 from rw_creature_pet.oracle.assets import OracleAssets
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.messages import Message
 from rw_creature_pet.ui_config import UiConfig, system_language
@@ -104,7 +104,7 @@ class TranslationUiTests(unittest.TestCase):
         return d
 
     def desktop(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(self.config, config_store=self.store, assets=self.assets)
         w.timer.stop()
         w.bind_screen(FakeScreen(QRect(0, 0, 1280, 720), 1.))

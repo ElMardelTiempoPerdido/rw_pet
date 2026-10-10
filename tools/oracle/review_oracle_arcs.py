@@ -15,9 +15,9 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer, bezier
-from rw_creature_pet.oracle.halo_arcs import curve_length_bound
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, bezier
+from rw_creature_pet.oracle.effects.halo_arcs import curve_length_bound
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 
@@ -91,7 +91,7 @@ def main():
           'Bows:', [round(b, 2) for b in bows], 'Duration:', duration,
           'Widths:', [round(w, 3) for w in widths], flush=True)
 
-    with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+    with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
         window = OracleDesktopWindow(config, config_path=ROOT/'config.toml', renderer=renderer)
     try:
         window.timer.stop()

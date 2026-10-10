@@ -15,7 +15,7 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 
 
 class PixelMarker:

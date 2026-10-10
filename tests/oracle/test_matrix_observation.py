@@ -11,11 +11,11 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 
 

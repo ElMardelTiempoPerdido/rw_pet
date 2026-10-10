@@ -11,10 +11,10 @@ import numpy as np
 from PySide6.QtGui import QImage, QPainter
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer.friend_light import draw_light, light_extent, light_images
-from rw_creature_pet.overseer.lens import ObservationLens
+from rw_creature_pet.overseer.graphics.friend.light import draw_light, light_extent, light_images
+from rw_creature_pet.overseer.graphics.lens import ObservationLens
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 

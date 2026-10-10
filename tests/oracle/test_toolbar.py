@@ -9,8 +9,8 @@ from PySide6.QtCore import QCoreApplication, QEvent, QRect, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.overseer.events import EventPhase
 from tests.oracle.test_desktop import FakeScreen
@@ -23,7 +23,7 @@ class OracleToolbarTests(unittest.TestCase):
         cls.app.setQuitOnLastWindowClosed(False)
 
     def setUp(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             self.window = OracleDesktopWindow(AppConfig(), renderer=OracleRenderer())
         self.window.timer.stop()
         self.screen = FakeScreen(QRect(0, 0, 1280, 720), 1.5)

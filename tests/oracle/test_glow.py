@@ -12,10 +12,10 @@ from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.damage import visual_bounds
-from rw_creature_pet.oracle.glow import GlowLayer
-from rw_creature_pet.oracle.input import PuppetHitMap
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.damage import visual_bounds
+from rw_creature_pet.oracle.graphics.glow import GlowLayer
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
 

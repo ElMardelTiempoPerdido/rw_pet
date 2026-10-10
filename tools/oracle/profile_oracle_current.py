@@ -29,15 +29,15 @@ from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
-from rw_creature_pet.oracle.appearance import OracleAppearance
-from rw_creature_pet.oracle.behavior import OracleBehavior
-from rw_creature_pet.oracle.cords import Rope
-from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
-from rw_creature_pet.oracle.navigation import FloatNavigator
-from rw_creature_pet.oracle.pearl_fixed import FixedPearls
-from rw_creature_pet.oracle.pearl_matrix import PearlMatrix
-from rw_creature_pet.oracle.pearl_orbits import PearlOrbits
-from rw_creature_pet.oracle.render import OracleRenderer, PaintCommands
+from rw_creature_pet.oracle.graphics.appearance import OracleAppearance
+from rw_creature_pet.oracle.behavior.controller import OracleBehavior
+from rw_creature_pet.oracle.graphics.cords import Rope
+from rw_creature_pet.oracle.pearls.glyphs import load_pearl_glyphs
+from rw_creature_pet.oracle.motion.navigation import FloatNavigator
+from rw_creature_pet.oracle.pearls.fixed import FixedPearls
+from rw_creature_pet.oracle.pearls.matrix import PearlMatrix
+from rw_creature_pet.oracle.pearls.orbits import PearlOrbits
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, PaintCommands
 from rw_creature_pet.oracle.scene import FixedOracleArm, OracleScene
 
 
@@ -185,7 +185,7 @@ def benchmark(config, renderer, size, ticks, *, moving):
 def benchmark_desktop(app, config, renderer, seconds, output, prefix, idle=False):
     """Short-lived real click-through desktop window; exits automatically."""
     from PySide6.QtCore import QTimer
-    from rw_creature_pet.oracle.desktop import OracleDesktopWindow
+    from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
     paint_times, step_times, renderer_times = [], [], []
     state = {'active': False}
 

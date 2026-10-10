@@ -19,8 +19,8 @@ from rw_creature_pet.interaction.config import InteractionConfig
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.input import PuppetHitMap
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
 
 
 def visual():
@@ -70,7 +70,7 @@ def native(app):
     import ctypes
     import json
     from unittest.mock import patch
-    from rw_creature_pet.oracle.desktop import OracleDesktopWindow
+    from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
 
     user32 = ctypes.WinDLL('user32', use_last_error=True)
     user32.GetForegroundWindow.restype = ctypes.c_void_p
@@ -91,7 +91,7 @@ def native(app):
     back.setGeometry(app.primaryScreen().availableGeometry())
     back.show()
     back.activateWindow()
-    with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+    with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
         window = OracleDesktopWindow(AppConfig(interaction=InteractionConfig(True)), renderer=OracleRenderer())
     window.timer.stop()
     window.show()

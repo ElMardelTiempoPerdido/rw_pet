@@ -14,8 +14,8 @@ from PIL import Image, ImageDraw
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.appearance import perpendicular
-from rw_creature_pet.oracle.render import OracleRenderer, mixed
+from rw_creature_pet.oracle.graphics.appearance import perpendicular
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, mixed
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 

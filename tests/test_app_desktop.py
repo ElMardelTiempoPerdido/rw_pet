@@ -26,9 +26,9 @@ class DesktopEntryTests(unittest.TestCase):
                  patch('rw_creature_pet.app.QApplication', return_value=self.app), \
                  patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(config, False, '')) as startup, \
                  patch('rw_creature_pet.settings_store.validate_game_directory'), \
-                 patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
-                 patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as desktop, \
-                 patch('rw_creature_pet.oracle.debug_window.OracleDebugWindow') as debug, \
+                 patch('rw_creature_pet.oracle.ui.settings.OracleSettingsDialog') as dialog, \
+                 patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as desktop, \
+                 patch('rw_creature_pet.oracle.ui.debug_window.OracleDebugWindow') as debug, \
                  patch.object(self.app, 'exec', return_value=0):
                 with self.assertRaises(SystemExit) as result:
                     bell_main()
@@ -74,7 +74,7 @@ class DesktopEntryTests(unittest.TestCase):
                  patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(AppConfig(), False, '')), \
                  patch('rw_creature_pet.settings_store.validate_game_directory'), \
                  patch.object(self.app, 'exec', return_value=0), \
-                 patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as oracle, \
+                 patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as oracle, \
                  patch('rw_creature_pet.lizard.desktop.DesktopWindow') as lizard:
                 with self.assertRaises(SystemExit) as exit_result:
                     main()
@@ -96,8 +96,8 @@ class DesktopEntryTests(unittest.TestCase):
                  patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(config, first_run, '')), \
                  patch('rw_creature_pet.settings_store.validate_game_directory',
                        side_effect=ValueError('missing') if invalid_path else None), \
-                 patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
-                 patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as window, \
+                 patch('rw_creature_pet.oracle.ui.settings.OracleSettingsDialog') as dialog, \
+                 patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as window, \
                  patch.object(self.app, 'exec', return_value=0):
                 dialog.return_value.exec.return_value = QDialog.DialogCode.Accepted
                 dialog.return_value.DialogCode = QDialog.DialogCode
@@ -113,8 +113,8 @@ class DesktopEntryTests(unittest.TestCase):
         with patch('rw_creature_pet.app.QApplication', return_value=self.app), \
              patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(AppConfig(), True, '')), \
              patch('rw_creature_pet.settings_store.validate_game_directory'), \
-             patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
-             patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as window, \
+             patch('rw_creature_pet.oracle.ui.settings.OracleSettingsDialog') as dialog, \
+             patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as window, \
              patch.object(self.app, 'exec') as loop:
             dialog.return_value.exec.return_value = QDialog.DialogCode.Rejected
             dialog.return_value.DialogCode = QDialog.DialogCode
@@ -128,8 +128,8 @@ class DesktopEntryTests(unittest.TestCase):
         with patch('rw_creature_pet.app.QApplication', return_value=self.app), \
              patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(saved, False, '')), \
              patch('rw_creature_pet.settings_store.validate_game_directory'), \
-             patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
-             patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as window, \
+             patch('rw_creature_pet.oracle.ui.settings.OracleSettingsDialog') as dialog, \
+             patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as window, \
              patch.object(self.app, 'exec', return_value=0):
             with self.assertRaises(SystemExit):
                 main(['--creature', 'oracle', '--desktop'])
@@ -143,8 +143,8 @@ class DesktopEntryTests(unittest.TestCase):
         with patch('rw_creature_pet.app.QApplication', return_value=self.app), \
              patch('rw_creature_pet.settings_store.SettingsStore.startup', return_value=(saved, False, message)), \
              patch('rw_creature_pet.settings_store.validate_game_directory'), \
-             patch('rw_creature_pet.oracle.settings.OracleSettingsDialog') as dialog, \
-             patch('rw_creature_pet.oracle.desktop.OracleDesktopWindow') as window, \
+             patch('rw_creature_pet.oracle.ui.settings.OracleSettingsDialog') as dialog, \
+             patch('rw_creature_pet.oracle.ui.desktop.OracleDesktopWindow') as window, \
              patch('PySide6.QtWidgets.QMessageBox.warning') as warning, \
              patch.object(self.app, 'exec', return_value=0):
             with self.assertRaises(SystemExit):

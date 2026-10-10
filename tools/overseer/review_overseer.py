@@ -17,8 +17,8 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 
 
 def paint(renderer, model, guides=False):

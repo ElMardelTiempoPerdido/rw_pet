@@ -12,9 +12,9 @@ from PIL import Image, ImageDraw
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
-from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
+from rw_creature_pet.oracle.pearls.glyphs import load_pearl_glyphs
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from tools.oracle.review_oracle_pixels import render
 
 

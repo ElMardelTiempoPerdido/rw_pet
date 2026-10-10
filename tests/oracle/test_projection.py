@@ -15,12 +15,12 @@ from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.config import DragReactionConfig, OracleConfig
-from rw_creature_pet.oracle.damage import visual_bounds
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
-from rw_creature_pet.oracle.input import PuppetHitMap
-from rw_creature_pet.oracle.projection_assets import load_projection_images, prepare_projection
-from rw_creature_pet.oracle.projection_placement import ProjectionArmObstacles
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.damage import visual_bounds
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
+from rw_creature_pet.oracle.effects.projection_assets import load_projection_images, prepare_projection
+from rw_creature_pet.oracle.effects.projection_placement import ProjectionArmObstacles
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 

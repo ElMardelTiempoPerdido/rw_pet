@@ -14,9 +14,9 @@ from PIL import Image, ImageDraw
 from PySide6.QtGui import QColor, QImage, QPainter
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer import friend_filaments
+from rw_creature_pet.overseer.graphics.friend import filaments as friend_filaments
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 

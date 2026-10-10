@@ -17,9 +17,9 @@ from rw_creature_pet.shared.paths import DEFAULT_GAME_DIR
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.glyphs import PearlGlyphs, load_pearl_glyphs
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.pearls.glyphs import PearlGlyphs, load_pearl_glyphs
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 class OraclePearlRenderTests(unittest.TestCase):

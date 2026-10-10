@@ -3,7 +3,7 @@ import unittest
 
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import MotionPoint, OracleHead, OracleScene, dot
-from rw_creature_pet.oracle.appearance import rotate
+from rw_creature_pet.oracle.graphics.appearance import rotate
 
 
 class OracleHeadTests(unittest.TestCase):

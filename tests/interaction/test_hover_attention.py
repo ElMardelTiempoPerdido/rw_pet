@@ -63,6 +63,10 @@ class HoverAttentionTests(unittest.TestCase):
 
     def test_configuration_rejects_invalid_values_and_accepts_endpoints(self):
         config = InteractionConfig()
+        for value in (0, 1, 'true', None):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                replace(config, hover_avoidance_enabled=value)
+        replace(config, hover_avoidance_enabled=False)
         for name, bad_values in (
             ('hover_radius', (0, -1, 2001)), ('hover_dwell_seconds', (-1, 61)),
             ('hover_probability', (-.01, 1.01)), ('hover_open_probability', (-.01, 1.01))):

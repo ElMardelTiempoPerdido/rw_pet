@@ -3,94 +3,76 @@
   <context>
     <name>BellPet</name>
     <message>
-      <source>使用更加狗啃的像素化效果</source>
-      <translation>Extra crunchy pixels</translation>
-    </message>
-    <message>
-      <source>仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素</source>
-      <translation>4× only: enlarge 1× pixels instead of the default 2× pixels</translation>
-    </message>
-    <message>
-      <source>Oracle 缩放仅支持 1×、1.5×、2×、3×、4×</source>
-      <translation>Oracle supports only 1×, 1.5×, 2×, 3× and 4× scales</translation>
-    </message>
-    <message>
-      <source>desktop.scale 必须为 1、1.5、2、3 或 4</source>
-      <translation>desktop.scale must be 1, 1.5, 2, 3 or 4</translation>
-    </message>
-    <message>
-      <source>oracle.coarse_pixels_4x 必须为布尔值</source>
-      <translation>oracle.coarse_pixels_4x must be a boolean</translation>
-    </message>
-    <message>
-      <location filename="../oracle/settings.py" line="429" />
-      <location filename="../oracle/settings.py" line="553" />
-      <location filename="../oracle/settings.py" line="582" />
-      <location filename="../oracle/settings.py" line="599" />
-      <location filename="../oracle/settings.py" line="633" />
-      <location filename="../oracle/settings.py" line="611" />
+      <location filename="../oracle/ui/settings.py" line="439" />
+      <location filename="../oracle/ui/settings.py" line="563" />
+      <location filename="../oracle/ui/settings.py" line="593" />
+      <location filename="../oracle/ui/settings.py" line="610" />
+      <location filename="../oracle/ui/settings.py" line="644" />
+      <location filename="../oracle/ui/settings.py" line="622" />
       <source> 秒</source>
       <translation> s</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="505" />
+      <location filename="../oracle/ui/settings.py" line="515" />
       <source>*人偶会尽量与矩阵珍珠保持此距离，以避免重叠</source>
       <translation>*Iterator tries to keep this distance from the pearl matrix to avoid overlap.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="518" />
+      <location filename="../oracle/ui/settings.py" line="528" />
       <source>*人偶将珍珠拉进阅读时，触发播放音乐动画的概率（只有特效，并不会播放音乐</source>
       <translation>*Chance of a playback animation when Iterator reads a pearl. Visual effects only; no music is played.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="652" />
+      <location filename="../oracle/ui/settings.py" line="690" />
       <source>*修改显示大小、珍珠或活动参数时，人偶会重置位置</source>
       <translation>*Changing the scale, pearls or movement settings may reset Iterator's position.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="407" />
+      <location filename="../oracle/ui/settings.py" line="415" />
       <source>*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化</source>
       <translation>*When enabled, Iterator moves on its own. When disabled, Iterator can still read pearls and watch window changes in place.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="625" />
+      <location filename="../oracle/ui/settings.py" line="636" />
       <source>*安全距离应当大于缩回距离</source>
       <translation>*Safe distances must exceed the matching retreat distances. After retreating, the Overseer may relocate or wait in place.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="638" />
+      <location filename="../oracle/ui/settings.py" line="645" />
       <source>*完全探出并能跟随鼠标时，每隔此时间可能会进行观察</source>
       <translation>*Rolls at this interval while fully emerged and tracking the cursor; 0% disables observation. The interval restarts after observation ends.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="534" />
+      <location filename="../oracle/ui/settings.py" line="544" />
       <source>*此透明度应用于珍珠文字、光环、电弧等全息投影类特效</source>
       <translation>*Applies to pearl glyphs, the halo, electric arcs and other projections.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="602" />
+      <location filename="../oracle/ui/settings.py" line="613" />
       <source>*每个槽位独立检查；常驻模式下忽略出现概率、持续时间和冷却</source>
       <translation>*Each slot checks independently; resident mode ignores appearance chance, duration and cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="843" />
+      <location filename="../oracle/ui/settings.py" line="950" />
       <source>*至少选择一条边缘，选择多条边缘时，应当是连续的，以保证人偶能够正常到达</source>
       <translation>*Select at least one edge. Multiple edges must be connected so Iterator can reach them.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="821" />
+      <location filename="../oracle/ui/settings.py" line="928" />
       <source>*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中</source>
       <translation>*Top/bottom: left to right. Left/right: top to bottom. 50% is the center.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="431" />
+      <location filename="../oracle/ui/settings.py" line="441" />
       <source>*鼠标进入此范围时，人偶可能会观察鼠标</source>
       <translation>The radius uses logical pixels and scales with the pet. One chance is rolled after each continuous stay; leaving resets it. Set attention chance to 0 to disable.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="165" />
-      <source>Oracle 场景至少为 640 × 480</source>
-      <translation>The Oracle scene must be at least 640 × 480.</translation>
+      <location filename="../oracle/ui/desktop.py" line="55" />
+      <location filename="../oracle/ui/desktop.py" line="182" />
+      <location filename="../oracle/ui/desktop.py" line="466" />
+      <source>Oracle 缩放仅支持 1×、1.5×、2×、3×、4×</source>
+      <translation>Oracle supports only 1×, 1.5×, 2×, 3× and 4× scales</translation>
     </message>
     <message>
       <location filename="../shared/atlas.py" line="64" />
@@ -98,27 +80,27 @@
       <translation>Could not decode the PNG image.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="209" />
+      <location filename="../oracle/config.py" line="214" />
       <source>antigravity_duration_seconds 必须至少为 1 秒</source>
       <translation>antigravity_duration_seconds must be at least 1 second.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="207" />
+      <location filename="../oracle/config.py" line="212" />
       <source>antigravity_probability 必须在 0～1 之间</source>
       <translation>antigravity_probability must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../interaction/config.py" line="34" />
+      <location filename="../interaction/config.py" line="37" />
       <source>audio.enabled 必须为布尔值</source>
       <translation>audio.enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../interaction/config.py" line="37" />
+      <location filename="../interaction/config.py" line="40" />
       <source>audio.volume 必须在 0～1 之间</source>
       <translation>audio.volume must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="205" />
+      <location filename="../oracle/config.py" line="210" />
       <source>cross_edge_probability 必须在 0～1 之间</source>
       <translation>cross_edge_probability must be between 0 and 1.</translation>
     </message>
@@ -128,17 +110,22 @@
       <translation>desktop.autonomous must be a boolean.</translation>
     </message>
     <message>
+      <location filename="../config.py" line="23" />
+      <source>desktop.scale 必须为 1、1.5、2、3 或 4</source>
+      <translation>desktop.scale must be 1, 1.5, 2, 3 or 4</translation>
+    </message>
+    <message>
       <location filename="../config.py" line="27" />
       <source>desktop.screen 必须为字符串</source>
       <translation>desktop.screen must be a string</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="203" />
+      <location filename="../oracle/config.py" line="208" />
       <source>drift_speed 必须在 0.3～1.8</source>
       <translation>drift_speed must be between 0.3 and 1.8.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="201" />
+      <location filename="../oracle/config.py" line="206" />
       <source>float_speed 必须在 0.3～2.0；base_speed 必须在 1.5～4.0</source>
       <translation>float_speed must be between 0.3 and 2.0; base_speed between 1.5 and 4.0.</translation>
     </message>
@@ -148,132 +135,142 @@
       <translation>game_dir must be a non-empty path string.</translation>
     </message>
     <message>
-      <location filename="../interaction/config.py" line="17" />
+      <location filename="../interaction/config.py" line="18" />
       <source>interaction.drag_enabled 必须为布尔值</source>
       <translation>interaction.drag_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../interaction/config.py" line="23" />
+      <location filename="../interaction/config.py" line="20" />
+      <source>interaction.hover_avoidance_enabled 必须为布尔值</source>
+      <translation>interaction.hover_avoidance_enabled must be a boolean</translation>
+    </message>
+    <message>
+      <location filename="../interaction/config.py" line="26" />
       <source>interaction.{name} 必须在 {low}～{high} 之间</source>
       <translation>interaction.{name} must be between {low} and {high}.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="216" />
+      <location filename="../oracle/config.py" line="221" />
       <source>oracle 必须为配置表</source>
       <translation>oracle must be a configuration table.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="174" />
+      <location filename="../oracle/config.py" line="176" />
       <source>oracle.arm_scale 必须在 0.35～0.75 之间</source>
       <translation>oracle.arm_scale must be between 0.35 and 0.75.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="172" />
+      <location filename="../oracle/config.py" line="174" />
       <source>oracle.base_fraction 必须在 0～1 之间</source>
       <translation>oracle.base_fraction must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="169" />
+      <location filename="../oracle/config.py" line="171" />
       <source>oracle.base_side 必须为 top / right / bottom / left</source>
       <translation>oracle.base_side must be top / right / bottom / left.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="54" />
+      <location filename="../oracle/config.py" line="130" />
+      <source>oracle.coarse_pixels_4x 必须为布尔值</source>
+      <translation>oracle.coarse_pixels_4x must be a boolean</translation>
+    </message>
+    <message>
+      <location filename="../oracle/config.py" line="55" />
       <source>oracle.colors.{value0} 必须为 #RRGGBB 颜色</source>
       <translation>oracle.colors.{value0} must be a #RRGGBB color.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="68" />
+      <location filename="../oracle/config.py" line="69" />
       <source>oracle.drag_reactions.enabled 必须为布尔值</source>
       <translation>oracle.drag_reactions.enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="74" />
+      <location filename="../oracle/config.py" line="75" />
       <source>oracle.drag_reactions.{value0} 必须在 0～1 之间</source>
       <translation>oracle.drag_reactions.{value0} must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="167" />
-      <source>oracle.edge_fraction 必须在 0.20～0.35 之间</source>
-      <translation>oracle.edge_fraction must be between 0.20 and 0.35.</translation>
+      <location filename="../oracle/config.py" line="169" />
+      <source>oracle.edge_fraction 必须在 0.20～0.499 之间</source>
+      <translation>oracle.edge_fraction must be between 0.20 and 0.499</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="132" />
+      <location filename="../oracle/config.py" line="136" />
       <source>oracle.glow_enabled 必须为布尔值</source>
       <translation>oracle.glow_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="150" />
+      <location filename="../oracle/config.py" line="154" />
       <source>oracle.halo_arc_max_count 必须为 1～10 的整数</source>
       <translation>oracle.halo_arc_max_count must be an integer from 1 to 10.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="148" />
+      <location filename="../oracle/config.py" line="152" />
       <source>oracle.halo_arcs_enabled 必须为布尔值</source>
       <translation>oracle.halo_arcs_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="146" />
+      <location filename="../oracle/config.py" line="150" />
       <source>oracle.halo_enabled 必须为布尔值</source>
       <translation>oracle.halo_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="153" />
+      <location filename="../oracle/config.py" line="157" />
       <source>oracle.halo_scale 必须在 0.25～1.5</source>
       <translation>oracle.halo_scale must be between 0.25 and 1.5.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="130" />
+      <location filename="../oracle/config.py" line="134" />
       <source>oracle.hide_cords 必须为布尔值</source>
       <translation>oracle.hide_cords must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="128" />
+      <location filename="../oracle/config.py" line="132" />
       <source>oracle.outfit 必须为 normal / maid</source>
       <translation>oracle.outfit must be normal / maid.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="178" />
+      <location filename="../oracle/config.py" line="183" />
       <source>oracle.pearl_matrix_enabled 必须为布尔值</source>
       <translation>oracle.pearl_matrix_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="188" />
+      <location filename="../oracle/config.py" line="193" />
       <source>oracle.pearl_orbits_enabled 必须为布尔值</source>
       <translation>oracle.pearl_orbits_enabled must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="155" />
+      <location filename="../oracle/config.py" line="159" />
       <source>oracle.physics_backend 必须为 auto / python / numba</source>
       <translation>oracle.physics_backend must be auto / python / numba.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="142" />
+      <location filename="../oracle/config.py" line="146" />
       <source>oracle.pixel_mode 必须为 classic / adaptive</source>
       <translation>oracle.pixel_mode must be classic / adaptive.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="195" />
+      <location filename="../oracle/config.py" line="200" />
       <source>oracle.projection_opacity 必须在 0～1 之间</source>
       <translation>oracle.projection_opacity must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="176" />
+      <location filename="../oracle/config.py" line="181" />
       <source>oracle.sliding_base 必须为布尔值</source>
       <translation>oracle.sliding_base must be a boolean.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="144" />
+      <location filename="../oracle/config.py" line="148" />
       <source>oracle.voice_directory 必须为非空路径字符串</source>
       <translation>oracle.voice_directory must be a non-empty path string.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="193" />
+      <location filename="../oracle/config.py" line="198" />
       <source>oracle.{value0} 必须为 0～{value1} 的整数</source>
       <translation>oracle.{value0} must be an integer from 0 to {value1}.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="163" />
+      <location filename="../oracle/config.py" line="167" />
       <source>oracle.{value0} 必须为有限数值</source>
       <translation>oracle.{value0} must be a finite number.</translation>
     </message>
@@ -368,7 +365,7 @@
       <translation>ui.language must be auto, zh or en.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="466" />
+      <location filename="../oracle/ui/settings.py" line="476" />
       <source>【注意】当前桌宠为未开发完成的测试版本，可能出现各种问题
 如需反馈bug或蹲蹲功能更新/正式版，欢迎添加此群 → 672754728
 
@@ -386,7 +383,7 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Unsupported user settings file version.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="95" />
+      <location filename="../oracle/ui/settings.py" line="97" />
       <source>主屏幕（自动）</source>
       <translation>Primary (automatic)</translation>
     </message>
@@ -396,246 +393,283 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>The Overseer has left.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="621" />
+      <location filename="../oracle/ui/settings.py" line="426" />
+      <source>人偶可能会躲避鼠标</source>
+      <translation>Iterator may shy away from the mouse</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="632" />
       <source>人偶安全距离</source>
       <translation>Safe distance from Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="405" />
+      <location filename="../oracle/ui/settings.py" line="413" />
       <source>人偶想去哪去哪</source>
       <translation>Let Iterator act freely</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="842" />
+      <location filename="../oracle/ui/settings.py" line="949" />
       <source>人偶活动范围</source>
       <translation>Allowed edges</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="619" />
+      <location filename="../oracle/ui/settings.py" line="630" />
       <source>人偶缩回距离</source>
       <translation>Retreat distance from Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="502" />
+      <location filename="../oracle/ui/settings.py" line="512" />
       <source>人偶避让矩阵半径</source>
       <translation>Matrix avoidance radius</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="566" />
+      <location filename="../oracle/ui/settings.py" line="675" />
+      <source>仅填入机械臂缩放和活动带宽度，点击保存后生效</source>
+      <translation>Fill the arm scale and edge band width; changes take effect when saved</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="412" />
+      <source>仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素</source>
+      <translation>4× only: enlarge 1× pixels instead of the default 2× pixels</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="411" />
+      <source>使用更加狗啃的像素化效果</source>
+      <translation>Extra crunchy pixels</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="577" />
       <source>保存后将桌宠移至所选显示器。未连接时暂用主屏幕，重新连接后自动返回。</source>
       <translation>Saving moves the pet to the selected display. If disconnected, the pet temporarily uses the primary screen and returns when it reconnects.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="970" />
+      <location filename="../oracle/ui/settings.py" line="1083" />
       <source>保存失败：{error}</source>
       <translation>Could not save: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="664" />
+      <location filename="../oracle/ui/settings.py" line="702" />
       <source>保存并启动</source>
       <translation>Save and Start</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="664" />
+      <location filename="../oracle/ui/settings.py" line="702" />
       <source>保存并应用</source>
       <translation>Save and Apply</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="587" />
+      <location filename="../oracle/ui/settings.py" line="598" />
       <source>允许出现监视者</source>
       <translation>Allow Overseer visits</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="18" />
+      <location filename="../oracle/config.py" line="19" />
       <source>允许活动的边缘不能重复。</source>
       <translation>Allowed edges must not contain duplicates.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="14" />
+      <location filename="../oracle/config.py" line="15" />
       <source>允许活动的边缘必须为 top / right / bottom / left</source>
       <translation>Allowed edges must be top / right / bottom / left.</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="63" />
+      <location filename="../oracle/ui/toolbar.py" line="63" />
       <source>光环关闭或投影透明度为 0</source>
       <translation>The halo is off or projection opacity is 0.</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="11" />
+      <location filename="../oracle/ui/toolbar.py" line="11" />
       <source>光环外圈闪烁</source>
       <translation>Flash outer ring</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="542" />
+      <location filename="../oracle/ui/settings.py" line="552" />
       <source>光环大小</source>
       <translation>Halo size</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="11" />
+      <location filename="../oracle/ui/toolbar.py" line="11" />
       <source>光环实心化</source>
       <translation>Fill halo</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="10" />
+      <location filename="../oracle/ui/toolbar.py" line="10" />
       <source>光环扩张</source>
       <translation>Expand halo</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="486" />
-      <location filename="../oracle/settings.py" line="489" />
+      <location filename="../oracle/ui/settings.py" line="496" />
+      <location filename="../oracle/ui/settings.py" line="499" />
       <source>关节颜色</source>
       <translation>Joint color</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="357" />
+      <location filename="../oracle/ui/settings.py" line="362" />
       <source>关闭设置</source>
       <translation>Close settings</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="509" />
+      <location filename="../oracle/ui/settings.py" line="519" />
       <source>内圈数量</source>
       <translation>Inner pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="607" />
+      <location filename="../oracle/ui/settings.py" line="618" />
       <source>冷却时间 - 最短</source>
       <translation>Min. cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="607" />
+      <location filename="../oracle/ui/settings.py" line="618" />
       <source>冷却时间 - 最长</source>
       <translation>Max. cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="598" />
+      <location filename="../oracle/ui/settings.py" line="609" />
       <source>出现检查间隔</source>
       <translation>Appearance check interval</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="600" />
+      <location filename="../oracle/ui/settings.py" line="611" />
       <source>出现概率</source>
       <translation>Appearance probability</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="510" />
+      <location filename="../oracle/ui/settings.py" line="520" />
       <source>卫星珍珠数量</source>
       <translation>Satellite pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="10" />
+      <location filename="../oracle/ui/toolbar.py" line="10" />
       <source>反重力漫游</source>
       <translation>Zero-gravity drift</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="577" />
+      <location filename="../oracle/ui/settings.py" line="588" />
       <source>反重力漫游概率</source>
       <translation>Drift probability</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="452" />
+      <location filename="../oracle/ui/settings.py" line="462" />
       <source>发光不透明度</source>
       <translation>Glow opacity</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="140" />
+      <location filename="../oracle/config.py" line="144" />
       <source>发光不透明度必须在 0～1 之间</source>
       <translation>Glow opacity must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="459" />
+      <location filename="../oracle/ui/settings.py" line="469" />
       <source>发光半径</source>
       <translation>Glow radius</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="137" />
+      <location filename="../oracle/config.py" line="141" />
       <source>发光半径必须在 1～24 逻辑像素之间</source>
       <translation>Glow radius must be between 1 and 24 logical pixels.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="458" />
+      <location filename="../oracle/ui/settings.py" line="468" />
       <source>发光颜色</source>
       <translation>Glow color</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="134" />
+      <location filename="../oracle/config.py" line="138" />
       <source>发光颜色必须为 #RRGGBB 颜色</source>
       <translation>Glow color must be a #RRGGBB color.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="667" />
+      <location filename="../oracle/ui/settings.py" line="705" />
       <source>取消</source>
       <translation>Cancel</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="17" />
-      <location filename="../oracle/toolbar.py" line="38" />
+      <location filename="../oracle/ui/toolbar.py" line="17" />
+      <location filename="../oracle/ui/toolbar.py" line="38" />
       <source>古人调试模拟器</source>
       <translation>Ancient Simulator</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="440" />
+      <location filename="../oracle/ui/settings.py" line="450" />
       <source>可能会节省一些计算开销</source>
       <translation>May reduce CPU usage.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="803" />
+      <location filename="../oracle/ui/settings.py" line="910" />
       <source>右侧</source>
       <translation>Right</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="819" />
+      <location filename="../oracle/ui/settings.py" line="926" />
       <source>启动时在边上的位置</source>
       <translation>Position along starting edge</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="818" />
+      <location filename="../oracle/ui/settings.py" line="925" />
       <source>启动时所在边缘</source>
       <translation>Starting edge</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="23" />
+      <location filename="../oracle/config.py" line="24" />
       <source>启动时的位置必须包含在允许活动的边缘中。</source>
       <translation>The starting edge must be among the allowed edges.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="415" />
+      <location filename="../oracle/ui/settings.py" line="423" />
       <source>启用鼠标拖动</source>
       <translation>Enable mouse dragging</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="510" />
+      <location filename="../oracle/ui/settings.py" line="520" />
       <source>固定珍珠数量</source>
       <translation>Fixed pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="509" />
+      <location filename="../oracle/ui/settings.py" line="1037" />
+      <location filename="../oracle/ui/desktop.py" line="581" />
+      <location filename="../oracle/config.py" line="179" />
+      <source>场景空间不足，请扩大活动带、缩小机械臂或降低显示倍率</source>
+      <translation>Not enough space: widen the edge band, reduce the arm scale, or lower the display scale</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="673" />
+      <source>填入推荐设置</source>
+      <translation>Fill recommended settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="519" />
       <source>外圈数量</source>
       <translation>Outer pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="476" />
+      <location filename="../oracle/ui/settings.py" line="486" />
       <source>外观</source>
       <translation>Appearance</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="132" />
+      <location filename="../oracle/ui/settings.py" line="134" />
       <source>女仆套装</source>
       <translation>Maid outfit</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="563" />
+      <location filename="../oracle/ui/settings.py" line="573" />
       <source>屏幕边缘活动带宽度</source>
       <translation>Edge activity band width</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="637" />
+      <location filename="../oracle/ui/desktop.py" line="692" />
       <source>工作区暂不可用</source>
       <translation>The work area is temporarily unavailable.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="803" />
+      <location filename="../oracle/ui/settings.py" line="910" />
       <source>左侧</source>
       <translation>Left</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/desktop.py" line="454" />
+      <source>已临时缩小至 {scale:.2f}×，保存的倍率不变</source>
+      <translation>Temporarily reduced to {scale:.2f}x; your saved scale is unchanged</translation>
     </message>
     <message>
       <location filename="../settings_store.py" line="142" />
@@ -645,7 +679,7 @@ Original names, characters and assets belong to their respective owners. Please 
 You can continue for now. Check write permissions for the settings file and try again.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="659" />
+      <location filename="../oracle/ui/desktop.py" line="714" />
       <source>已召近矩阵珍珠进行观察</source>
       <translation>A matrix pearl has been called over for inspection.</translation>
     </message>
@@ -655,22 +689,27 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Relocated inside the wall; waiting until it is safe to emerge.</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/settings.py" line="780" />
+      <source>已填入推荐设置，点击保存后生效</source>
+      <translation>Recommended settings filled in; save to apply</translation>
+    </message>
+    <message>
       <location filename="../overseer/events.py" line="194" />
       <source>已开始事件</source>
       <translation>The Overseer visit has started.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="657" />
+      <location filename="../oracle/ui/desktop.py" line="712" />
       <source>已开始反重力漫游</source>
       <translation>Zero-gravity drift started.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="786" />
+      <location filename="../oracle/ui/settings.py" line="893" />
       <source>已恢复全部默认设置，点击保存后生效。</source>
       <translation>All settings have been reset to defaults. Save to apply.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="787" />
+      <location filename="../oracle/ui/settings.py" line="894" />
       <source>已恢复本页默认设置，点击保存后生效。</source>
       <translation>This tab has been reset to defaults. Save to apply.</translation>
     </message>
@@ -680,109 +719,124 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>An Overseer visit is in progress; wait for it to finish.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="671" />
+      <location filename="../oracle/ui/desktop.py" line="726" />
       <source>已触发 {count} 条电弧</source>
       <translation>Electric arcs triggered: {count}.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="662" />
+      <location filename="../oracle/ui/desktop.py" line="717" />
       <source>已触发光环扩张</source>
       <translation>Halo expansion triggered.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="665" />
+      <location filename="../oracle/ui/desktop.py" line="720" />
       <source>已触发外圈闪烁</source>
       <translation>Outer ring flash triggered.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="668" />
+      <location filename="../oracle/ui/desktop.py" line="723" />
       <source>已触发实心化</source>
       <translation>Halo fill triggered.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="650" />
+      <location filename="../oracle/ui/desktop.py" line="705" />
       <source>已触发监视者</source>
       <translation>Overseer visit triggered.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="397" />
-      <location filename="../oracle/settings.py" line="132" />
+      <location filename="../oracle/ui/settings.py" line="402" />
+      <location filename="../oracle/ui/settings.py" line="134" />
       <source>常规</source>
       <translation>General</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="590" />
-      <location filename="../oracle/settings.py" line="690" />
+      <location filename="../oracle/ui/settings.py" line="601" />
+      <location filename="../oracle/ui/settings.py" line="796" />
       <source>常驻</source>
       <translation>Resident</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="803" />
+      <location filename="../oracle/ui/settings.py" line="910" />
       <source>底部</source>
       <translation>Bottom</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="444" />
+      <location filename="../oracle/ui/settings.py" line="454" />
       <source>开启人偶语音</source>
       <translation>Enable Iterator's voice</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="451" />
+      <location filename="../oracle/ui/settings.py" line="461" />
       <source>开启外发光</source>
       <translation>Enable outer glow</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="242" />
-      <location filename="../oracle/desktop.py" line="279" />
+      <location filename="../oracle/ui/desktop.py" line="261" />
+      <location filename="../oracle/ui/desktop.py" line="299" />
       <source>开启鼠标拖动</source>
       <translation>Enable mouse dragging</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="287" />
-      <location filename="../oracle/desktop.py" line="415" />
-      <location filename="../oracle/desktop.py" line="575" />
+      <location filename="../oracle/ui/space.py" line="26" />
+      <source>当前 {scale:g}× 对应约 {width:.0f} × {height:.0f} 逻辑像素</source>
+      <translation>At {scale:g}x, the scene is approximately {width:.0f} x {height:.0f} logical pixels</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/space.py" line="30" />
+      <source>当前组合可用</source>
+      <translation>Your current combination fits</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/space.py" line="30" />
+      <source>当前组合空间不足，无法按所选倍率应用</source>
+      <translation>Your current combination does not fit at the selected scale</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/desktop.py" line="307" />
+      <location filename="../oracle/ui/desktop.py" line="435" />
+      <location filename="../oracle/ui/desktop.py" line="629" />
       <source>当前缩放 {scale:g}×</source>
       <translation>Current scale: {scale:g}×</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="659" />
+      <location filename="../oracle/ui/settings.py" line="697" />
       <source>恢复全部默认设置</source>
       <translation>Reset All to Defaults</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="661" />
+      <location filename="../oracle/ui/settings.py" line="699" />
       <source>恢复所有分类及游戏目录的默认设置，点击保存后生效。</source>
       <translation>Restore defaults for every tab and the game directory. Save to apply.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="736" />
+      <location filename="../oracle/ui/settings.py" line="842" />
       <source>恢复本页默认设置</source>
       <translation>Reset This Tab to Defaults</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="568" />
+      <location filename="../oracle/ui/settings.py" line="579" />
       <source>所在屏幕</source>
       <translation>Screen</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="21" />
+      <location filename="../oracle/config.py" line="22" />
       <source>所选边缘必须连续：不能只选顶部和底部，或只选左侧和右侧。</source>
       <translation>Selected edges must be connected. You cannot select only top and bottom, or only left and right.</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="69" />
+      <location filename="../oracle/ui/toolbar.py" line="69" />
       <source>手动触发一次；自动出现关闭或冷却时也可使用，仍遵守安全选点</source>
       <translation>Trigger one visit, even when automatic visits are off or cooling down. Safe placement still applies.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="259" />
-      <location filename="../oracle/desktop.py" line="280" />
+      <location filename="../oracle/ui/desktop.py" line="278" />
+      <location filename="../oracle/ui/desktop.py" line="300" />
       <source>打开工具栏</source>
       <translation>Open action toolbar</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="258" />
-      <location filename="../oracle/desktop.py" line="279" />
+      <location filename="../oracle/ui/desktop.py" line="277" />
+      <location filename="../oracle/ui/desktop.py" line="299" />
       <source>打开设置菜单</source>
       <translation>Open settings</translation>
     </message>
@@ -792,57 +846,57 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Game atlas container not found: {value0}. Check game_dir in config.toml.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="527" />
+      <location filename="../oracle/ui/settings.py" line="537" />
       <source>投影</source>
       <translation>Projections</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="529" />
+      <location filename="../oracle/ui/settings.py" line="539" />
       <source>投影不透明度</source>
       <translation>Projection opacity</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="533" />
+      <location filename="../oracle/ui/settings.py" line="543" />
       <source>投影颜色</source>
       <translation>Projection color</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="10" />
+      <location filename="../oracle/ui/toolbar.py" line="10" />
       <source>抽取矩阵珍珠</source>
       <translation>Read a matrix pearl</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="552" />
+      <location filename="../oracle/ui/settings.py" line="562" />
       <source>拖动投影冷却时间</source>
       <translation>Drag projection cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="199" />
+      <location filename="../oracle/config.py" line="204" />
       <source>拖动投影冷却时间必须在 0～3600 秒之间</source>
       <translation>Drag projection cooldown must be between 0 and 3600 seconds</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="550" />
+      <location filename="../oracle/ui/settings.py" line="560" />
       <source>拖动投影触发概率</source>
       <translation>Drag projection chance</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="197" />
+      <location filename="../oracle/config.py" line="202" />
       <source>拖动投影触发概率必须在 0～1 之间</source>
       <translation>Drag projection chance must be between 0 and 1</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="59" />
+      <location filename="../oracle/ui/toolbar.py" line="59" />
       <source>拖动结束后可用</source>
       <translation>Available after dragging ends.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="606" />
+      <location filename="../oracle/ui/settings.py" line="617" />
       <source>持续时间 - 最短</source>
       <translation>Min. duration</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="606" />
+      <location filename="../oracle/ui/settings.py" line="617" />
       <source>持续时间 - 最长</source>
       <translation>Max. duration</translation>
     </message>
@@ -852,23 +906,23 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Could not extract the game atlas: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="520" />
+      <location filename="../oracle/ui/settings.py" line="530" />
       <source>播放光晕特效大小</source>
       <translation>Playback bubble size</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="522" />
-      <location filename="../oracle/settings.py" line="525" />
+      <location filename="../oracle/ui/settings.py" line="532" />
+      <location filename="../oracle/ui/settings.py" line="535" />
       <source>播放光晕特效颜色</source>
       <translation>Playback bubble color</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="184" />
+      <location filename="../oracle/config.py" line="189" />
       <source>播放光泡最大直径必须在 6～64 逻辑像素之间</source>
       <translation>Playback bubble diameter must be between 6 and 64 logical pixels.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="186" />
+      <location filename="../oracle/config.py" line="191" />
       <source>播放光泡颜色必须为 #RRGGBB 颜色</source>
       <translation>Playback bubble color must be a #RRGGBB color.</translation>
     </message>
@@ -885,46 +939,51 @@ You can continue for now. Check write permissions for the settings file and try 
 Please review your settings. The old file will be backed up when you save.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="753" />
+      <location filename="../oracle/ui/settings.py" line="859" />
       <source>无法读取默认设置：{error}</source>
       <translation>Could not read default settings: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="541" />
+      <location filename="../oracle/ui/settings.py" line="551" />
       <source>显示光环</source>
       <translation>Show halo</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="508" />
+      <location filename="../oracle/ui/settings.py" line="518" />
       <source>显示环绕珍珠</source>
       <translation>Show orbiting pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="546" />
+      <location filename="../oracle/ui/settings.py" line="556" />
       <source>显示电弧</source>
       <translation>Show electric arcs</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="499" />
+      <location filename="../oracle/ui/settings.py" line="509" />
       <source>显示矩阵珍珠</source>
       <translation>Show pearl matrix</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="249" />
-      <location filename="../oracle/settings.py" line="693" />
+      <location filename="../oracle/ui/settings.py" line="252" />
+      <location filename="../oracle/ui/settings.py" line="799" />
       <source>普通</source>
       <translation>Standard</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="239" />
-      <location filename="../oracle/desktop.py" line="278" />
-      <location filename="../oracle/desktop.py" line="703" />
+      <location filename="../oracle/ui/desktop.py" line="258" />
+      <location filename="../oracle/ui/desktop.py" line="298" />
+      <location filename="../oracle/ui/desktop.py" line="758" />
       <source>暂停桌宠</source>
       <translation>Pause Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="250" />
-      <location filename="../oracle/settings.py" line="693" />
+      <location filename="../oracle/ui/settings.py" line="575" />
+      <source>最高 49.9%，仍保留中央避让和机械臂可达范围限制</source>
+      <translation>Up to 49.9%; center clearance and arm reach limits still apply</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="253" />
+      <location filename="../oracle/ui/settings.py" line="799" />
       <source>朋友？</source>
       <translation>Friend?</translation>
     </message>
@@ -934,12 +993,12 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Unknown configuration fields: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="105" />
+      <location filename="../oracle/ui/settings.py" line="107" />
       <source>未连接：{name}</source>
       <translation>Disconnected: {name}</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="499" />
+      <location filename="../oracle/ui/desktop.py" line="548" />
       <source>本次已生效，但下次启动无法复用：{error}</source>
       <translation>Applied for this session, but could not be saved for next time: {error}</translation>
     </message>
@@ -949,28 +1008,28 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>No Overseer visit this time.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="491" />
+      <location filename="../oracle/ui/settings.py" line="501" />
       <source>机械臂主体</source>
       <translation>Arm body</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="482" />
+      <location filename="../oracle/ui/settings.py" line="492" />
       <source>机械臂缩放</source>
       <translation>Mechanical arm scale</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="491" />
+      <location filename="../oracle/ui/settings.py" line="501" />
       <source>机械臂高光</source>
       <translation>Arm highlights</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="194" />
-      <location filename="../oracle/desktop.py" line="277" />
+      <location filename="../oracle/ui/desktop.py" line="213" />
+      <location filename="../oracle/ui/desktop.py" line="297" />
       <source>桌宠</source>
       <translation>Bell Desktop Pet</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="334" />
+      <location filename="../oracle/ui/settings.py" line="337" />
       <source>桌宠初始化设置</source>
       <translation>Setup</translation>
     </message>
@@ -980,36 +1039,46 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Could not start pet</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="639" />
+      <location filename="../oracle/ui/desktop.py" line="694" />
       <source>桌宠已暂停，可从托盘菜单继续</source>
       <translation>Paused. Resume from the tray menu.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="404" />
-      <location filename="../oracle/desktop.py" line="246" />
-      <location filename="../oracle/desktop.py" line="283" />
+      <location filename="../oracle/ui/settings.py" line="410" />
+      <location filename="../oracle/ui/desktop.py" line="265" />
+      <location filename="../oracle/ui/desktop.py" line="303" />
       <source>桌宠显示大小</source>
       <translation>Pet scale</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="334" />
+      <location filename="../oracle/ui/desktop.py" line="455" />
+      <source>桌宠活动空间提示</source>
+      <translation>Pet movement space</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="337" />
       <source>桌宠设置</source>
       <translation>Settings</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="47" />
+      <location filename="../oracle/ui/desktop.py" line="51" />
       <source>桌面坐标和缩放必须为有限数值</source>
       <translation>Desktop coordinates and scale must be finite numbers.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="49" />
+      <location filename="../oracle/ui/desktop.py" line="53" />
       <source>桌面工作区和 DPI 倍率必须大于零</source>
       <translation>Desktop work area dimensions and DPI scale must be greater than zero.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="941" />
+      <location filename="../oracle/ui/settings.py" line="1054" />
       <source>正在获取游戏资源，请稍候...</source>
       <translation>Preparing game assets, please wait...</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/space.py" line="29" />
+      <source>此空间不适合机械臂 75% 与活动带 20% 的组合</source>
+      <translation>This space cannot accommodate a 75% arm with a 20% edge band</translation>
     </message>
     <message>
       <location filename="../overseer/events.py" line="227" />
@@ -1017,28 +1086,28 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>No other safe position; waiting in place.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="650" />
+      <location filename="../oracle/ui/desktop.py" line="705" />
       <location filename="../overseer/events.py" line="183" />
       <source>没有安全的边缘位置，本次跳过</source>
       <translation>No safe edge position; skipping this visit.</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="67" />
+      <location filename="../oracle/ui/toolbar.py" line="67" />
       <source>没有空闲的监视者槽位，请在设置中添加或等待事件结束</source>
       <translation>No free Overseer slots; add one in settings or wait for an event to end</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="421" />
+      <location filename="../oracle/ui/settings.py" line="431" />
       <source>注视鼠标时睁眼概率</source>
       <translation>Eye-opening chance when watching the mouse</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="375" />
+      <location filename="../oracle/ui/settings.py" line="380" />
       <source>浏览...</source>
       <translation>Browse...</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="263" />
+      <location filename="../oracle/ui/settings.py" line="266" />
       <source>添加监视者</source>
       <translation>Add Overseer</translation>
     </message>
@@ -1048,37 +1117,42 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Texture missing from the main game atlas: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="581" />
+      <location filename="../oracle/ui/settings.py" line="592" />
       <source>漫游时长</source>
       <translation>Drift duration</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="580" />
+      <location filename="../oracle/ui/settings.py" line="591" />
       <source>漫游移动速度</source>
       <translation>Drift speed</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="651" />
+      <location filename="../oracle/ui/settings.py" line="689" />
       <source>点击保存启动桌宠</source>
       <translation>Click Save and Start launch the pet.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="497" />
+      <location filename="../oracle/ui/desktop.py" line="455" />
+      <source>点击通知可打开设置</source>
+      <translation>Click this notification to open settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="507" />
       <source>珍珠</source>
       <translation>Pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="515" />
+      <location filename="../oracle/ui/settings.py" line="525" />
       <source>珍珠播放动画概率</source>
       <translation>Pearl playback probability</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="182" />
+      <location filename="../oracle/config.py" line="187" />
       <source>珍珠播放动画概率必须在 0～1 之间</source>
       <translation>Pearl playback probability must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="211" />
+      <location filename="../oracle/config.py" line="216" />
       <source>珍珠跟随矩形的宽和高至少为 160 逻辑单位</source>
       <translation>The pearl follow area must be at least 160 logical units wide and high.</translation>
     </message>
@@ -1088,139 +1162,139 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Settings could not be updated</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="547" />
+      <location filename="../oracle/ui/settings.py" line="557" />
       <source>电弧数量上限</source>
       <translation>Maximum arcs</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="65" />
+      <location filename="../oracle/ui/toolbar.py" line="65" />
       <source>电弧显示中</source>
       <translation>Electric arcs are active.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="584" />
+      <location filename="../oracle/ui/settings.py" line="595" />
       <source>监视者</source>
       <translation>Overseer</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="242" />
+      <location filename="../oracle/ui/settings.py" line="244" />
       <source>监视者 1</source>
       <translation>Overseer 1</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="242" />
+      <location filename="../oracle/ui/settings.py" line="244" />
       <source>监视者 2</source>
       <translation>Overseer 2</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="242" />
+      <location filename="../oracle/ui/settings.py" line="244" />
       <source>监视者 3</source>
       <translation>Overseer 3</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="242" />
+      <location filename="../oracle/ui/settings.py" line="244" />
       <source>监视者 4</source>
       <translation>Overseer 4</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="593" />
+      <location filename="../oracle/ui/settings.py" line="604" />
       <source>监视者出现方式</source>
       <translation>Overseer appearance mode</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="630" />
+      <location filename="../oracle/ui/settings.py" line="641" />
       <source>监视者观察概率</source>
       <translation>Overseer observation chance</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="253" />
+      <location filename="../oracle/ui/settings.py" line="256" />
       <source>监视者颜色</source>
       <translation>Overseer color</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="659" />
+      <location filename="../oracle/ui/desktop.py" line="714" />
       <source>目前没有可抽取的矩阵珍珠</source>
       <translation>No matrix pearl is available for reading.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="485" />
+      <location filename="../oracle/ui/settings.py" line="495" />
       <source>相对于原作臂段长度，默认 60%；修改后会重新安置人偶并更新机械臂可达范围。</source>
       <translation>Relative to the original arm segment lengths; default: 60%. Changing this repositions the puppet and updates the arm's reach.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="501" />
+      <location filename="../oracle/ui/settings.py" line="511" />
       <source>矩阵珍珠数量</source>
       <translation>Matrix pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="180" />
+      <location filename="../oracle/config.py" line="185" />
       <source>矩阵避让半径必须在 0～300 逻辑像素之间</source>
       <translation>Matrix avoidance radius must be between 0 and 300 logical pixels.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="559" />
+      <location filename="../oracle/ui/settings.py" line="569" />
       <source>移动</source>
       <translation>Movement</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="256" />
+      <location filename="../oracle/ui/settings.py" line="259" />
       <source>移除</source>
       <translation>Remove</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="166" />
+      <location filename="../oracle/ui/desktop.py" line="184" />
       <source>系统托盘不可用，无法提供桌宠退出入口</source>
       <translation>The system tray is unavailable, so Bell cannot provide an exit menu.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="278" />
-      <location filename="../oracle/desktop.py" line="703" />
+      <location filename="../oracle/ui/desktop.py" line="298" />
+      <location filename="../oracle/ui/desktop.py" line="758" />
       <source>继续桌宠</source>
       <translation>Resume</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="623" />
+      <location filename="../oracle/ui/settings.py" line="634" />
       <source>缩回后换位概率</source>
       <translation>Relocation probability after retreat</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="11" />
+      <location filename="../oracle/ui/toolbar.py" line="11" />
       <source>触发电弧</source>
       <translation>Trigger arcs</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="12" />
+      <location filename="../oracle/ui/toolbar.py" line="12" />
       <source>触发监视者</source>
       <translation>Trigger Overseer</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="308" />
-      <location filename="../oracle/desktop.py" line="499" />
+      <location filename="../oracle/ui/desktop.py" line="328" />
+      <location filename="../oracle/ui/desktop.py" line="548" />
       <source>设置尚未保存</source>
       <translation>Settings not saved</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="308" />
+      <location filename="../oracle/ui/desktop.py" line="328" />
       <source>语言切换失败：{error}</source>
       <translation>Could not change language: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="445" />
+      <location filename="../oracle/ui/settings.py" line="455" />
       <source>语音音量</source>
       <translation>Voice volume</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="61" />
+      <location filename="../oracle/ui/toolbar.py" line="61" />
       <source>请先在设置菜单的“珍珠设置”中开启矩阵珍珠（数量需大于 0）</source>
       <translation>Enable the pearl matrix in Settings &gt; Pearls and set its count above 0.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="905" />
+      <location filename="../oracle/ui/settings.py" line="1013" />
       <source>请先选择 RainWorld 安装目录</source>
       <translation>Please select the Rain World installation folder first.</translation>
     </message>
     <message>
-      <location filename="../oracle/config.py" line="16" />
+      <location filename="../oracle/config.py" line="17" />
       <source>请至少选择一条允许活动的边缘。</source>
       <translation>Select at least one allowed edge.</translation>
     </message>
@@ -1230,7 +1304,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Select the Rain World installation folder containing RainWorld_Data and resources.assets.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="382" />
+      <location filename="../oracle/ui/settings.py" line="387" />
       <source>请选择这台电脑上雨世界的安装目录
 一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容
 首次启动时，需要一点时间从安装目录中读取资源</source>
@@ -1239,49 +1313,49 @@ It is usually named Rain World and contains RainWorld_Data and RainWorld.exe.
 The first launch takes a little time to prepare game assets.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="638" />
+      <location filename="../oracle/ui/desktop.py" line="693" />
       <source>调试窗口打开中，桌面人偶已暂停</source>
       <translation>The debug window is open; the desktop pet is paused.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="326" />
+      <location filename="../oracle/ui/settings.py" line="329" />
       <source>资源准备失败：{error}</source>
       <translation>Could not prepare game assets: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="573" />
+      <location filename="../oracle/ui/settings.py" line="584" />
       <source>跨到相邻边概率</source>
       <translation>Chance of moving to a neighboring edge</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="70" />
+      <location filename="../oracle/ui/toolbar.py" line="70" />
       <source>跳过等待，仍遵守距离及活动带限制</source>
       <translation>Skip the wait; distance and activity band limits still apply.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="273" />
-      <location filename="../oracle/desktop.py" line="281" />
+      <location filename="../oracle/ui/desktop.py" line="292" />
+      <location filename="../oracle/ui/desktop.py" line="301" />
       <source>退出</source>
       <translation>Exit</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="374" />
-      <location filename="../oracle/settings.py" line="897" />
+      <location filename="../oracle/ui/settings.py" line="379" />
+      <location filename="../oracle/ui/settings.py" line="1005" />
       <source>选择 Rain World 安装目录</source>
       <translation>Select the Rain World installation folder</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="454" />
+      <location filename="../oracle/ui/settings.py" line="464" />
       <source>选择外发光颜色</source>
       <translation>Choose glow color</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="530" />
+      <location filename="../oracle/ui/settings.py" line="540" />
       <source>选择投影颜色</source>
       <translation>Choose projection color</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="571" />
+      <location filename="../oracle/ui/settings.py" line="582" />
       <source>通常移动速度</source>
       <translation>Normal movement speed</translation>
     </message>
@@ -1291,7 +1365,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Retreated; waiting in place until it is safe.</translation>
     </message>
     <message>
-      <location filename="../oracle/toolbar.py" line="65" />
+      <location filename="../oracle/ui/toolbar.py" line="65" />
       <source>配置中已关闭电弧</source>
       <translation>Electric arcs are disabled in settings.</translation>
     </message>
@@ -1302,76 +1376,86 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Configuration must be an object.</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="262" />
-      <location filename="../oracle/desktop.py" line="280" />
+      <location filename="../oracle/ui/desktop.py" line="281" />
+      <location filename="../oracle/ui/desktop.py" line="300" />
       <source>重置桌宠位置</source>
       <translation>Reset position</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="632" />
+      <location filename="../oracle/ui/settings.py" line="643" />
       <source>间隔时间</source>
       <translation>Observation interval</translation>
     </message>
     <message>
-      <location filename="../oracle/desktop.py" line="671" />
+      <location filename="../oracle/ui/desktop.py" line="726" />
       <source>附近没有符合距离与范围限制的端点</source>
       <translation>No nearby endpoint meets the distance and activity band limits.</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="589" />
-      <location filename="../oracle/settings.py" line="690" />
+      <location filename="../oracle/ui/settings.py" line="600" />
+      <location filename="../oracle/ui/settings.py" line="796" />
       <source>随机出现</source>
       <translation>Random</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="439" />
+      <location filename="../oracle/ui/settings.py" line="449" />
       <source>隐藏电缆</source>
       <translation>Hide cables</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="381" />
+      <location filename="../oracle/ui/settings.py" line="386" />
       <source>雨世界目录</source>
       <translation>Rain World folder</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="419" />
+      <location filename="../oracle/ui/settings.py" line="429" />
       <source>面向鼠标概率</source>
       <translation>Mouse attention chance</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="803" />
+      <location filename="../oracle/ui/settings.py" line="910" />
       <source>顶部</source>
       <translation>Top</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="426" />
+      <location filename="../oracle/ui/settings.py" line="436" />
       <source>鼠标停留半径</source>
       <translation>Mouse hover radius</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="428" />
+      <location filename="../oracle/ui/settings.py" line="438" />
       <source>鼠标停留时间</source>
       <translation>Mouse dwell time</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="616" />
+      <location filename="../oracle/ui/settings.py" line="627" />
       <source>鼠标安全距离</source>
       <translation>Safe distance from cursor</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="614" />
+      <location filename="../oracle/ui/settings.py" line="625" />
       <source>鼠标缩回距离</source>
       <translation>Retreat distance from cursor</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="101" />
+      <location filename="../oracle/ui/settings.py" line="103" />
       <source>（主屏幕）</source>
       <translation> (primary)</translation>
     </message>
     <message>
-      <location filename="../oracle/settings.py" line="839" />
+      <location filename="../oracle/ui/settings.py" line="946" />
       <source>（屏幕）</source>
       <translation>(Screen)</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/space.py" line="34" />
+      <source>；建议机械臂 {arm:g}%，活动带 {band:g}%</source>
+      <translation>; recommended arm scale: {arm:g}%, edge band: {band:g}%</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/space.py" line="36" />
+      <source>；建议降低显示倍率以留出活动余量</source>
+      <translation>; lower the display scale to allow more movement</translation>
     </message>
   </context>
 </TS>

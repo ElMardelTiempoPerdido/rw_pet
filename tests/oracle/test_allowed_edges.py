@@ -3,7 +3,7 @@ from itertools import combinations
 import unittest
 
 from rw_creature_pet.oracle.config import EDGE_NAMES, OracleConfig
-from rw_creature_pet.oracle.navigation import EdgePlanner, EdgeRegion, RoundedRail, SlidingBase
+from rw_creature_pet.oracle.motion.navigation import EdgePlanner, EdgeRegion, RoundedRail, SlidingBase
 from rw_creature_pet.oracle.scene import OracleScene, OracleWorld
 from rw_creature_pet.shared.geometry import Vec2
 

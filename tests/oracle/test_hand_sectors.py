@@ -2,7 +2,7 @@
 from math import atan2, cos, pi, sin
 import unittest
 
-from rw_creature_pet.oracle.appearance import HangingHand, perpendicular, rotate
+from rw_creature_pet.oracle.graphics.appearance import HangingHand, perpendicular, rotate
 from rw_creature_pet.oracle.config import DragReactionConfig, OracleConfig
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2

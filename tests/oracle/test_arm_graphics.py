@@ -14,9 +14,9 @@ from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.paths import DEFAULT_GAME_DIR
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.arm_graphics import detail_scale
+from rw_creature_pet.oracle.graphics.arm import detail_scale
 from rw_creature_pet.oracle.config import OracleColors, OracleConfig
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 class OracleArmGraphicsTests(unittest.TestCase):

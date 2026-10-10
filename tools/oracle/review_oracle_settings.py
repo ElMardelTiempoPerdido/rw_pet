@@ -13,7 +13,7 @@ from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore, absolute_paths
 
 

@@ -23,9 +23,9 @@ def main(argv):
         from PySide6.QtMultimedia import QSoundEffect
         from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon
         from rw_creature_pet.settings_store import SettingsStore, default_template_path
-        from rw_creature_pet.oracle.settings import OracleSettingsDialog
-        from rw_creature_pet.oracle.numeric import compiled_rope_solver
-        from rw_creature_pet.oracle.desktop import OracleDesktopWindow
+        from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+        from rw_creature_pet.oracle.motion.numeric import compiled_rope_solver
+        from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
         from rw_creature_pet.i18n import language_manager, tr
 
         app = QApplication([])

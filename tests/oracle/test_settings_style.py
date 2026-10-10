@@ -13,8 +13,8 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
-from rw_creature_pet.oracle.settings_style import INK, PAPER, pixel_box, pixel_rule, settings_font, settings_font_family
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings_style import INK, PAPER, pixel_box, pixel_rule, settings_font, settings_font_family
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.ui_config import UiConfig
 

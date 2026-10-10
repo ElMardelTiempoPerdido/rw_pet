@@ -11,8 +11,8 @@ sys.path.insert(0, str(ROOT))
 
 from PIL import Image, ImageDraw
 
-from rw_creature_pet.overseer.friend_head import _project, head_image
-from rw_creature_pet.overseer import friend
+from rw_creature_pet.overseer.graphics.friend.head import _project, head_image
+from rw_creature_pet.overseer.graphics.friend import body as friend
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 

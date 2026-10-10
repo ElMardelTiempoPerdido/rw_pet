@@ -9,7 +9,7 @@ from rw_creature_pet.interaction.audio import QtSoundBackend, VoicePlayer
 from rw_creature_pet.interaction.config import AudioConfig
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.voice import bell_voice_paths
+from rw_creature_pet.oracle.audio.voice import bell_voice_paths
 
 
 class FakeSound:

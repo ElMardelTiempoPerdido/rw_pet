@@ -5,9 +5,9 @@ from unittest.mock import patch
 
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.pearl import PearlState
+from rw_creature_pet.oracle.pearls.model import PearlState
 
 
 class OraclePearlFollowTests(unittest.TestCase):

@@ -18,10 +18,10 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.scene import OracleScene, dot
-from rw_creature_pet.oracle.behavior import Activity
-from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.behavior.controller import Activity
+from rw_creature_pet.oracle.pearls.glyphs import load_pearl_glyphs
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def check_pixels(renderer, scene):

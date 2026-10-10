@@ -11,10 +11,13 @@ class InteractionConfig:
     hover_dwell_seconds: float = 1.5
     hover_probability: float = .60
     hover_open_probability: float = .25
+    hover_avoidance_enabled: bool = True
 
     def __post_init__(self):
         if type(self.drag_enabled) is not bool:
             raise ValueError('interaction.drag_enabled 必须为布尔值')
+        if type(self.hover_avoidance_enabled) is not bool:
+            raise ValueError('interaction.hover_avoidance_enabled 必须为布尔值')
         for name, low, high in (('hover_radius', 1, 2000), ('hover_dwell_seconds', 0, 60),
                                 ('hover_probability', 0, 1), ('hover_open_probability', 0, 1)):
             value = getattr(self, name)

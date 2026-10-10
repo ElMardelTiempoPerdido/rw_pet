@@ -19,10 +19,10 @@ from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.behavior import Activity
-from rw_creature_pet.oracle.glyphs import load_pearl_glyphs
-from rw_creature_pet.oracle.debug_window import OracleCanvas, OracleDebugWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.behavior.controller import Activity
+from rw_creature_pet.oracle.pearls.glyphs import load_pearl_glyphs
+from rw_creature_pet.oracle.ui.debug_window import OracleCanvas, OracleDebugWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def summary(values):

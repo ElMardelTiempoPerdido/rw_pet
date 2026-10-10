@@ -21,8 +21,8 @@ from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 
 

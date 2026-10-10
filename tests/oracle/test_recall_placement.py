@@ -8,10 +8,10 @@ from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.shared.geometry import Bounds
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.projection_placement import ProjectionArmObstacles
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.effects.projection_placement import ProjectionArmObstacles
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 
 

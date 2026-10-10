@@ -12,11 +12,11 @@ import wave
 import numpy as np
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.pearl_playback import PearlPlayback, SpectrumCurve
-from rw_creature_pet.oracle.pearl_playback_assets import load_pearl_playback, precompute_strength
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.pearls.playback import PearlPlayback, SpectrumCurve
+from rw_creature_pet.oracle.pearls.playback_assets import load_pearl_playback, precompute_strength
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.timing import FixedStepper
 
@@ -69,7 +69,7 @@ class PearlPlaybackTests(unittest.TestCase):
             source = game/'RainWorld_Data/StreamingAssets/AssetBundles/music_songs'
             source.parent.mkdir(parents=True)
             source.write_bytes(b'fixture')
-            with patch('rw_creature_pet.oracle.pearl_playback_assets._decode_source', return_value=wav_bytes()) as decode:
+            with patch('rw_creature_pet.oracle.pearls.playback_assets._decode_source', return_value=wav_bytes()) as decode:
                 curve, root = load_pearl_playback(game, cache_root=cache)
                 self.assertEqual(load_pearl_playback(game, cache_root=cache)[0], curve)
                 self.assertEqual(decode.call_count, 1)
@@ -192,7 +192,7 @@ class PearlPlaybackTests(unittest.TestCase):
         self.assertEqual(pearl.playback.ticks, ticks+1)
 
     def test_desktop_resize_preserves_curve_and_rng_but_clears_active_effect(self):
-        from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
+        from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
         scene = self.scene()
         self.observe(scene)
         new = OracleDesktopMotion(scene.config, OracleDesktopViewport(0, 0, 1280, 720), scene).scene

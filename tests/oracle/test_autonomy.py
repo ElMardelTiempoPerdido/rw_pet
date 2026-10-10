@@ -14,10 +14,10 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene, dot
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.pearl import PearlState
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.pearls.model import PearlState
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.shared.timing import FixedStepper
 
 

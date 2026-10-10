@@ -10,9 +10,9 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.overseer import puppet_position
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.ui.overseer import puppet_position
 from rw_creature_pet.overseer.events import EventPhase
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.overseer.model import Anchor, Edge
@@ -30,7 +30,7 @@ class OverseerDesktopTests(unittest.TestCase):
         config = replace(config, oracle=replace(config.oracle, halo_enabled=False),
                          interaction=replace(config.interaction, hover_probability=0.),
                          desktop=replace(config.desktop, autonomous=False))
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             self.w = OracleDesktopWindow(config, renderer=OracleRenderer())
         self.w.timer.stop()
         self.screen = FakeScreen(QRect(-1280, 40, 1280, 680), 1.5)
@@ -84,7 +84,7 @@ class OverseerDesktopTests(unittest.TestCase):
                     self.assertTrue(self.screen.rect.contains(layer.geometry()))
                     self.assertLess(layer.width()*layer.height(), self.screen.rect.width()*self.screen.rect.height()*.15)
                     p = w.motion.viewport.to_global(layer.model.root+layer.model.normal*15)
-                    with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(round(p.x), round(p.y))):
+                    with patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos', return_value=QPoint(round(p.x), round(p.y))):
                         self.assertLess((w.overseers.mouse_world()-layer.model.root-layer.model.normal*15).length(), 2)
                     image = layer.grab().toImage()
                     self.assertTrue(any(bytes(image.constBits())))
@@ -104,7 +104,7 @@ class OverseerDesktopTests(unittest.TestCase):
         self.assertFalse(w.drag_action.isChecked())
         p = w.motion.viewport.to_global(layer.model.root+layer.model.normal*12)
         hit = w.drag_hit
-        with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(round(p.x), round(p.y))):
+        with patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos', return_value=QPoint(round(p.x), round(p.y))):
             w.step_scene()
         self.assertTrue(layer.model.scared)
         self.assertIsNotNone(layer.model.target)
@@ -128,7 +128,7 @@ class OverseerDesktopTests(unittest.TestCase):
         with patch.object(w, 'update') as puppet_update, patch.object(w.renderer, 'draw') as puppet_draw, \
              patch.object(s.appearance, 'step_cloth') as cloth, patch.object(s.appearance.cords, 'step') as cords, \
              patch.object(layer, 'update', wraps=layer.update) as watcher_update, \
-             patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=far):
+             patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos', return_value=far):
             for _ in range(80):
                 w.last_time -= .025
                 w._next_render_time = 0.
@@ -146,10 +146,10 @@ class OverseerDesktopTests(unittest.TestCase):
     def test_absent_event_has_no_cursor_physics_or_paint_work(self):
         w, layer = self.w, self.layer
         self.settle()
-        with patch('rw_creature_pet.overseer.desktop.QCursor.pos') as cursor, \
+        with patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos') as cursor, \
              patch.object(layer.model, 'step') as physics, patch.object(layer, 'update') as update, \
              patch.object(w, 'update') as puppet_update, \
-             patch('rw_creature_pet.oracle.desktop.puppet_position') as puppet_center:
+             patch('rw_creature_pet.oracle.ui.desktop.puppet_position') as puppet_center:
             for enabled in (False, True):
                 layer.events.configure(replace(layer.model.config, enabled=enabled, check_interval=30))
                 for _ in range(10):
@@ -193,7 +193,7 @@ class OverseerDesktopTests(unittest.TestCase):
         scene, hit = w.motion.scene, w.drag_hit
         revision = scene.appearance.revision
         point = w.motion.viewport.to_global(root)
-        with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(round(point.x), round(point.y))), \
+        with patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos', return_value=QPoint(round(point.x), round(point.y))), \
              patch.object(w, 'update') as puppet_update, patch.object(w.renderer, 'draw') as puppet_draw, \
              patch.object(scene.appearance, 'step_cloth') as cloth, patch.object(scene.appearance.cords, 'step') as cords:
             for _ in range(100):
@@ -325,7 +325,7 @@ class OverseerDesktopTests(unittest.TestCase):
         far = w.motion.viewport.to_global(Vec2(w.motion.scene.world.width/2, w.motion.scene.world.height/2))
         scene = w.motion.scene
         with ExitStack() as stack:
-            cursor = stack.enter_context(patch('rw_creature_pet.overseer.desktop.QCursor.pos',
+            cursor = stack.enter_context(patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos',
                                               return_value=QPoint(round(far.x), round(far.y))))
             inactive = [stack.enter_context(patch.object(obj, method)) for obj, method in
                         ((w, 'update'), (w.renderer, 'draw'), (scene.appearance, 'step_cloth'),
@@ -397,7 +397,7 @@ class OverseerDesktopTests(unittest.TestCase):
         # 留一只在场，其余等待常驻补位，同时需要活动注视与新位置选点
         first = w.overseers.layers[1]
         first.events.start(w.overseer_spawn_context())
-        with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(-640, 380)) as cursor:
+        with patch('rw_creature_pet.overseer.ui.desktop.QCursor.pos', return_value=QPoint(-640, 380)) as cursor:
             w.step_scene()
             self.assertEqual(cursor.call_count, 1)
         self.assertTrue(all(e.model.active for e in w.overseers.group.entries.values()))

@@ -10,8 +10,8 @@ from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.damage import visual_bounds
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.damage import visual_bounds
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 
 
@@ -21,7 +21,7 @@ class CordVisibilityTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_hidden_startup_does_not_construct_or_solve_cords_and_can_sleep(self):
-        with patch('rw_creature_pet.oracle.appearance.OracleCords', side_effect=AssertionError('hidden cords')):
+        with patch('rw_creature_pet.oracle.graphics.appearance.OracleCords', side_effect=AssertionError('hidden cords')):
             scene = OracleScene(OracleConfig(hide_cords=True, halo_enabled=False))
             scene.start_lap()
             start = scene.body.chunks[0].position

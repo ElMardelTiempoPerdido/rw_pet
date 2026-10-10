@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.navigation import EdgePlanner, EdgeRegion
-from rw_creature_pet.oracle.pearl_matrix import PearlMatrix
+from rw_creature_pet.oracle.motion.navigation import EdgePlanner, EdgeRegion
+from rw_creature_pet.oracle.pearls.matrix import PearlMatrix
 from rw_creature_pet.oracle.scene import OracleScene, OracleWorld
 
 

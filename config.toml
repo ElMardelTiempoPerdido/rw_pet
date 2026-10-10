@@ -13,6 +13,7 @@ screen = ''                    # 空值自动选择主屏；在设置→移动�
 drag_enabled = true             # 启用鼠标拖动
 hover_radius = 160.0            # 鼠标邻近停留半径，逻辑像素
 hover_dwell_seconds = 1.5        # 在范围内连续停留多久后抽签
+hover_avoidance_enabled = true # 注视一阵后可能缓慢侧身或短距离躲避
 hover_probability = 0.60        # 每轮停留面向鼠标的概率；0 关闭
 hover_open_probability = 0.25   # 开始注视鼠标时睁眼的概率
 

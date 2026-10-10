@@ -15,10 +15,10 @@ from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer import friend
-from rw_creature_pet.overseer.friend import FriendBend, body_centers
+from rw_creature_pet.overseer.graphics.friend import body as friend
+from rw_creature_pet.overseer.graphics.friend.body import FriendBend, body_centers
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 OUT = ROOT/'artifacts/overseer'

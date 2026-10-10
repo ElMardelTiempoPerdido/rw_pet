@@ -13,9 +13,9 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.interaction.windows import DesktopWindow, ForegroundWindowTracker
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.assets import OracleAssets
-from rw_creature_pet.oracle.behavior import Activity
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow, OracleDesktopMotion, OracleDesktopViewport
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.behavior.controller import Activity
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow, OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 from tests.oracle.test_desktop import FakeScreen
@@ -141,7 +141,7 @@ class DesktopWindowReactionTests(unittest.TestCase):
 
     def test_apply_movement_setting_keeps_reading_and_persists_policy_independently(self):
         store = Mock()
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(AppConfig(), renderer=OracleRenderer(), config_store=store)
         try:
             w.timer.stop()
@@ -179,7 +179,7 @@ class DesktopWindowReactionTests(unittest.TestCase):
     def test_poll_tracks_native_physical_coordinates_and_drops_paused_switches(self):
         config = AppConfig()
         config = replace(config, desktop=replace(config.desktop, autonomous=False))
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(config, renderer=OracleRenderer())
         try:
             w.timer.stop()

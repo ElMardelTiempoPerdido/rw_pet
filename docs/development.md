@@ -14,7 +14,7 @@ rw_creature_pet/
     timing.py            FixedStepper
     atlas.py             本机图集提取、贴图与着色缓存
     desktop.py           透明置顶、鼠标穿透的窗口设置
-    paths.py             默认游戏目录
+    paths.py             默认游戏目录、包内资源根目录
   lizard/                白蜥蜴与基础蜥蜴实现
     config.py            DebugConfig，仍对应 [debug]
     model.py             LizardBreed、身体质点和连接
@@ -32,42 +32,51 @@ rw_creature_pet/
   oracle/                迭代器人偶实现
     config.py            OracleConfig、OracleColors
     scene.py             人偶、头颈、机械臂、世界及场景协调
-    navigation.py        四边路径、曲线与滑动底座
-    behavior.py          停留、移动与珍珠观察
-    pose.py              自主躯干朝向
-    eyes.py              睁闭眼状态
-    pearl.py             珍珠牵引、悬浮点与跟随范围
-    glyphs.py            原版珍珠字符提取与缓存
-    appearance.py        衣袍、四肢和念珠次级运动
-    arm_graphics.py      机械臂外观几何
-    cords.py             粗线与细线束仿真
-    render.py            人偶绘制与分层缓存
-    glow.py              实体 alpha 外发光、局部模糊及缓存
-    debug_window.py      人偶调试界面
-    desktop.py           桌面工作区、DPI、托盘和场景恢复
-    settings.py          首次启动 / 托盘共用的用户设置表单
-    settings_style.py    设置窗口专用的灰阶像素控件与边框
-    assets.py            设置窗口后台准备图集、投影与语音资源
+    assets.py            汇总图集、投影、语音与珍珠播放素材
+    behavior/            controller、姿态、眼睛与窗口/鼠标反应
+    interaction/         拖动适配、拖动反应与像素命中
+    motion/              边缘导航、曲线、底座与数值求解
+    graphics/            衣袍/肢体次级运动、机械臂、线缆、服装与绘制
+    pearls/              珠体状态、矩阵、环绕、固定珠、配色、字符与播放
+    effects/             光环、电弧、扫描投影及机械臂障碍几何
+    audio/               语音索引、素材提取与预处理
+    ui/                  桌面、调试、设置、样式、工具栏及监视者宿主适配
+  overseer/              独立监视者模块
+    config.py            配置及槽位定义
+    model.py             身体、注视、避让与观察状态
+    events.py            出现、退场、观察与冷却
+    group.py             多槽位管理
+    graphics/            监视者绘制、镜片运动与全息投影
+      friend/            “朋友？”的身体、花冠、触须、光效与粒子
+    ui/                  桌面层、调试面板与配置窗口
 tests/
   shared/                共用工具测试
   lizard/                蜥蜴回归与窗口测试
   oracle/                人偶回归与窗口测试
+  overseer/              监视者模型、外观与窗口测试
   test_app_desktop.py    应用入口分派
   test_import_boundaries.py  包依赖边界
 tools/
   lizard/                蜥蜴测量与图集回放脚本
   oracle/                人偶测量与图集回放脚本
     fixtures/            历史算法对照所需的源码快照
+  overseer/              监视者与“朋友？”外观回放
+  packaging/             构建、自检与包内容检查
 docs/                    使用说明、实现依据和开发记录
 artifacts/               回放图片、动画、数据、测试日志；不提交版本管理
 ```
 
-源码目录中去掉重复的 `oracle_` / `render_oracle` 前缀，例如绘制器现在位于 `rw_creature_pet.oracle.render`。蜥蜴身体数据位于 `rw_creature_pet.lizard.model`。旧的平铺模块入口已迁移，项目内导入、测试、mock 路径和回放脚本均使用新路径；自写脚本如导入旧模块，也需相应更新。
+源码目录中去掉重复的 `oracle_` / `render_oracle` 前缀，例如绘制器现在位于 `rw_creature_pet.oracle.graphics.render`。蜥蜴身体数据位于 `rw_creature_pet.lizard.model`。旧的平铺模块入口已迁移，项目内导入、测试、mock 路径和回放脚本均使用新路径；自写脚本如导入旧模块，也需相应更新。
+
+新增代码按功能职责归入已有子包；同一模块继续增长时再拆出有明确含义的子目录，避免在同级持续堆积大量文件，也不为每个文件单建目录。子包 `__init__.py` 保持轻量，不集中导入 Qt 窗口或渲染器。测试和工具暂保留原命令路径，内部引用跟随源码迁移；不保留旧路径的转发文件。
+
+包内素材通过 `shared.paths.PACKAGE_ROOT` 定位，不依赖调用模块的目录深度；用户设置、素材缓存位置和 TOML 字段保持不变。迁移时同步检查导入、mock 字符串、翻译扫描列表、资源定位、工具脚本、打包自检和文档链接。
 
 ## 依赖方向
 
 - `shared` 不依赖应用配置或任何生物模块。
 - `lizard` 和 `oracle` 不相互导入；共用计时器、几何、图集和透明窗口设置均从 `shared` 获取。
+- `overseer` 不依赖 Lizard 或 Oracle；Oracle 的 `ui/overseer.py` 负责宿主接入。模型可以使用自身外观计算，但纯仿真导入不会加载 Qt。
 - 仿真场景不依赖 Qt；图集与窗口模块可以依赖 Qt。
 - 根目录的 `config.py` 组合两种生物的配置。各生物的纯仿真只读取自己的配置类型；窗口可以接收 `AppConfig`。
 - `app.py` 只在选择生物和运行模式后导入对应窗口。

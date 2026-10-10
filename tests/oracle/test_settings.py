@@ -13,9 +13,9 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QPushButton
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.assets import OracleAssets
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from tests.oracle.test_desktop import FakeScreen
 
@@ -68,6 +68,8 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(self.config.desktop.scale, 1.)
 
     def test_large_scale_option_shares_row_enables_only_at_four_and_persists(self):
+        # 离屏平台工作区很小，使用可容纳真实 4× 的活动带；此用例只检查像素选项
+        self.config = replace(self.config, oracle=replace(self.config.oracle, arm_scale=.35, edge_fraction=.499))
         d = self.dialog(assets=self.assets)
         scale, coarse = d.controls['desktop.scale'], d.controls['oracle.coarse_pixels_4x']
         self.assertEqual([scale.itemData(i) for i in range(scale.count())], [1., 1.5, 2., 3., 4.])
@@ -95,7 +97,8 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertTrue(reopened.controls['oracle.coarse_pixels_4x'].isEnabled())
 
     def test_changing_four_x_pixels_does_not_reset_desktop_pose(self):
-        self.config = replace(self.config, desktop=replace(self.config.desktop, scale=4.))
+        self.config = replace(self.config, desktop=replace(self.config.desktop, scale=4.),
+                              oracle=replace(self.config.oracle, arm_scale=.35, edge_fraction=.499))
         w = self.desktop()
         w.change_scale(4.)
         scene = w.motion.scene
@@ -471,20 +474,20 @@ class OracleSettingsTests(unittest.TestCase):
 
     def test_asset_preparation_failure_and_retry_use_background_worker(self):
         d = self.dialog(first_run=True)
-        with patch('rw_creature_pet.oracle.settings.prepare_oracle_assets', side_effect=RuntimeError('bad atlas')):
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', side_effect=RuntimeError('bad atlas')):
             d.save()
             self.assertFalse(d.save_button.isEnabled())
             self.wait_worker(d)
         self.assertIn('bad atlas', d.status.text())
         self.assertFalse(self.store.path.exists())
-        with patch('rw_creature_pet.oracle.settings.prepare_oracle_assets', return_value=self.assets):
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', return_value=self.assets):
             d.save()
             self.wait_worker(d)
         self.assertEqual(self.store.load(), self.config)
         self.assertEqual(d.result(), QDialog.DialogCode.Accepted)
 
     def desktop(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             window = OracleDesktopWindow(self.config, config_store=self.store, assets=self.assets)
         self.windows.append(window)
         window.timer.stop()
@@ -581,9 +584,9 @@ class OracleSettingsTests(unittest.TestCase):
         d.controls['oracle.glow_enabled'].setChecked(True)
         self.assertTrue(color.isEnabled())
         self.assertTrue(opacity.isEnabled())
-        with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor('#73ddff')):
+        with patch('rw_creature_pet.oracle.ui.settings.QColorDialog.getColor', return_value=QColor('#73ddff')):
             color.choose_color()
-        with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor()):
+        with patch('rw_creature_pet.oracle.ui.settings.QColorDialog.getColor', return_value=QColor()):
             color.choose_color()
         self.assertEqual(color.value(), '#73ddff')
         d.controls['oracle.glow_radius'].setValue(9.)
@@ -616,7 +619,7 @@ class OracleSettingsTests(unittest.TestCase):
         arm_colors = dict(arm='#234567', arm_highlight='#abcdef', joints='#102030')
         for name, value in arm_colors.items():
             d.controls['oracle.colors.' + name].setValue(value)
-        with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor('#ab36ef')):
+        with patch('rw_creature_pet.oracle.ui.settings.QColorDialog.getColor', return_value=QColor('#ab36ef')):
             control.choose_color()
         with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
             d.save()
@@ -697,7 +700,7 @@ class OracleSettingsTests(unittest.TestCase):
         w.settings_action.trigger()
         d = w.settings_dialog
         d.game_dir.setText(str(new_game))
-        with patch('rw_creature_pet.oracle.settings.prepare_oracle_assets', return_value=new_assets):
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', return_value=new_assets):
             d.save()
             self.assertIs(w.renderer, self.assets.renderer)
             self.wait_worker(d)
@@ -714,11 +717,11 @@ class OracleSettingsTests(unittest.TestCase):
         new_assets = OracleAssets(OracleRenderer(), 'default assets', {}, '')
         w.open_settings()
         d = w.settings_dialog
-        with patch('rw_creature_pet.oracle.settings.load_defaults', return_value=defaults):
+        with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=defaults):
             d.reset_all_button.click()
         self.assertEqual(d.game_dir.text(), str(new_game))
         self.assertIs(w.renderer, self.assets.renderer)
-        with patch('rw_creature_pet.oracle.settings.prepare_oracle_assets', return_value=new_assets) as prepare:
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', return_value=new_assets) as prepare:
             d.save()
             self.assertIs(w.renderer, self.assets.renderer)
             self.wait_worker(d)

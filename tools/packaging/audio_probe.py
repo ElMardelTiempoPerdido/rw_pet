@@ -36,8 +36,8 @@ def main(argv=None):
         from PySide6.QtWidgets import QApplication, QSystemTrayIcon
         from rw_creature_pet.settings_store import SettingsStore
         from rw_creature_pet.oracle.assets import prepare_oracle_assets
-        from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-        from rw_creature_pet.oracle.voice import BELL_VOICE_CLIPS
+        from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+        from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS
         from rw_creature_pet.interaction.audio import QtSoundBackend
 
         config, _, _ = SettingsStore().startup()

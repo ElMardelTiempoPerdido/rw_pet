@@ -29,8 +29,8 @@ def absolute_paths(config, source=None):
         game = base/game
     voice = config.oracle.voice_directory
     if voice != 'auto':
-        from .oracle.voice_assets import LEGACY_DIRECTORY
-        from .oracle.voice import BELL_VOICE_CLIPS
+        from .oracle.audio.assets import LEGACY_DIRECTORY
+        from .oracle.audio.voice import BELL_VOICE_CLIPS
         directory = Path(voice).expanduser()
         resolved = (directory if directory.is_absolute() else base/directory).resolve()
         if voice.replace('\\', '/') == LEGACY_DIRECTORY and not all(

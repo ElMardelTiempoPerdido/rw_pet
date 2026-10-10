@@ -1,12 +1,13 @@
 """Oracle 调试配置：以完好 Moon / DM 为基础的 Bell 外观。"""
 from ..shared.messages import Message
+from .space import ALL_EDGES, EDGE_FRACTION_MIN, EDGE_FRACTION_MAX, SpaceAssessment
 from dataclasses import dataclass, fields
 from math import isfinite
 import re
 
 
 DISPLAY_SCALES = (1., 1.5, 2., 3., 4.)
-EDGE_NAMES = ('top', 'right', 'bottom', 'left')
+EDGE_NAMES = ALL_EDGES
 
 
 def validate_edges(edges, base_side):
@@ -164,10 +165,8 @@ class OracleConfig:
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
                 raise ValueError(Message('oracle.{value0} 必须为有限数值', value0=name))
-        if self.world_width < 640 or self.world_height < 480:
-            raise ValueError('Oracle 场景至少为 640 × 480')
-        if not .20 <= self.edge_fraction <= .35:
-            raise ValueError('oracle.edge_fraction 必须在 0.20～0.35 之间')
+        if not EDGE_FRACTION_MIN <= self.edge_fraction <= EDGE_FRACTION_MAX:
+            raise ValueError('oracle.edge_fraction 必须在 0.20～0.499 之间')
         if self.base_side not in EDGE_NAMES:
             raise ValueError('oracle.base_side 必须为 top / right / bottom / left')
         object.__setattr__(self, 'allowed_edges', validate_edges(self.allowed_edges, self.base_side))
@@ -175,6 +174,9 @@ class OracleConfig:
             raise ValueError('oracle.base_fraction 必须在 0～1 之间')
         if not .35 <= self.arm_scale <= .75:
             raise ValueError('oracle.arm_scale 必须在 0.35～0.75 之间')
+        if not SpaceAssessment(self.world_width, self.world_height, self.arm_scale,
+                               self.edge_fraction, self.allowed_edges).valid:
+            raise ValueError('场景空间不足，请扩大活动带、缩小机械臂或降低显示倍率')
         if type(self.sliding_base) is not bool:
             raise ValueError('oracle.sliding_base 必须为布尔值')
         if type(self.pearl_matrix_enabled) is not bool:

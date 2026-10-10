@@ -4,8 +4,8 @@ import unittest
 from unittest.mock import patch
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer.friend_filaments import BASE_DEPTH, BASE_OFFSET
-from rw_creature_pet.overseer import friend_filaments
+from rw_creature_pet.overseer.graphics.friend.filaments import BASE_DEPTH, BASE_OFFSET
+from rw_creature_pet.overseer.graphics.friend import filaments as friend_filaments
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer, dot, perpendicular, unit
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
@@ -100,7 +100,7 @@ class FriendFilamentTests(unittest.TestCase):
             model = self.model(edge)
             model.extended = model.last_extended = 1.
             # 固定颈部，只改变花冠侧视，排除身体摆动造成的假换边
-            with patch('rw_creature_pet.overseer.friend_filaments.neck_offset', return_value=model.normal*8):
+            with patch('rw_creature_pet.overseer.graphics.friend.filaments.neck_offset', return_value=model.normal*8):
                 samples = []
                 for angle in (-.8, -.000001, 0., .000001, .8):
                     with patch.object(model, 'head_gaze', return_value=(model.tangent*sin(angle), cos(angle))):
@@ -128,7 +128,7 @@ class FriendFilamentTests(unittest.TestCase):
     def test_visibility_boost_reveals_slight_side_gaze_without_extending_nominal_lengths(self):
         model = self.model()
         model.extended = model.last_extended = 1.
-        with patch('rw_creature_pet.overseer.friend_filaments.neck_offset', return_value=model.normal*8):
+        with patch('rw_creature_pet.overseer.graphics.friend.filaments.neck_offset', return_value=model.normal*8):
             for angle in (-1.3, -.1, 0., .1, 1.3):
                 with patch.object(model, 'head_gaze', return_value=(model.tangent*sin(angle), cos(angle))):
                     with patch.object(friend_filaments, 'SIDE_VISIBILITY_GAIN', 1.):

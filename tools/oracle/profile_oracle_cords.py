@@ -20,9 +20,9 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.cords import Rope
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow, OracleCanvas
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.cords import Rope
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow, OracleCanvas
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 def summary(values):

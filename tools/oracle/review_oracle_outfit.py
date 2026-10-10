@@ -13,11 +13,11 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.appearance import OracleAppearance, perpendicular, rotate
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
-from rw_creature_pet.oracle.settings_style import settings_font
+from rw_creature_pet.oracle.graphics.appearance import OracleAppearance, perpendicular, rotate
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings_style import settings_font
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 

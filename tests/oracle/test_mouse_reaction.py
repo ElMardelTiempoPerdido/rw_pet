@@ -14,17 +14,18 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.interaction.config import InteractionConfig
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow, OracleDesktopMotion, OracleDesktopViewport
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow, OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 from tests.oracle.test_desktop import FakeScreen
 
 
-HOVER = InteractionConfig(hover_dwell_seconds=.25, hover_probability=1., hover_open_probability=1.)
+HOVER = InteractionConfig(hover_dwell_seconds=.25, hover_probability=1., hover_open_probability=1.,
+                          hover_avoidance_enabled=False)
 
 
 class OracleMouseReactionTests(unittest.TestCase):
@@ -129,7 +130,7 @@ class OracleMouseWindowTests(unittest.TestCase):
         cls.app.setQuitOnLastWindowClosed(False)
 
     def window(self, config):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(config, scale=config.desktop.scale, renderer=OracleRenderer())
         w.timer.stop()
         self.addCleanup(w.close)
@@ -144,7 +145,7 @@ class OracleMouseWindowTests(unittest.TestCase):
         s.appearance.step = lambda _: None
         point = s.body.chunks[0].position+Vec2(100, 0)
         global_pos = w.motion.viewport.to_global(point)
-        with patch('rw_creature_pet.oracle.desktop.QCursor.pos', return_value=QPoint(round(global_pos.x), round(global_pos.y))):
+        with patch('rw_creature_pet.oracle.ui.desktop.QCursor.pos', return_value=QPoint(round(global_pos.x), round(global_pos.y))):
             for _ in range(20):
                 w.step_scene()
             self.assertTrue(s.mouse_reaction.active)
@@ -175,7 +176,7 @@ class OracleMouseWindowTests(unittest.TestCase):
             w.canvas.center_on_pet()
             local = w.canvas.world_to_view(point)
             global_pos = w.canvas.mapToGlobal(QPoint(round(local.x), round(local.y)))
-            with patch('rw_creature_pet.oracle.debug_window.QCursor.pos', return_value=global_pos):
+            with patch('rw_creature_pet.oracle.ui.debug_window.QCursor.pos', return_value=global_pos):
                 w.scene.mouse_reaction.cancel(w.scene)
                 for _ in range(15):
                     w.step_scene()
@@ -205,17 +206,29 @@ class OracleMouseWindowTests(unittest.TestCase):
             d.controls['interaction.hover_dwell_seconds'].setValue(2.5)
             d.controls['interaction.hover_probability'].setValue(0.)
             d.controls['interaction.hover_open_probability'].setValue(35.)
+            d.controls['interaction.hover_avoidance_enabled'].setChecked(True)
             d.save()
             self.assertIs(w.motion.scene, s)
             self.assertFalse(s.mouse_reaction.active)
             self.assertIsNone(s.eyes.attention_target)
             loaded = store.load()
             self.assertEqual(loaded.interaction, replace(HOVER, hover_radius=240., hover_dwell_seconds=2.5,
-                                                       hover_probability=0., hover_open_probability=.35))
+                                                       hover_probability=0., hover_open_probability=.35,
+                                                       hover_avoidance_enabled=True))
             self.assertEqual(s.mouse_reaction.config, loaded.interaction)
             d2 = OracleSettingsDialog(loaded, store, assets=assets)
             self.addCleanup(d2.close)
             self.assertEqual(d2.controls['interaction.hover_open_probability'].value(), 35.)
+            self.assertTrue(d2.controls['interaction.hover_avoidance_enabled'].isChecked())
+            d2.show()
+            self.app.processEvents()
+            checkbox = d2.controls['interaction.hover_avoidance_enabled']
+            probability = d2.controls['interaction.hover_probability']
+            self.assertLess(checkbox.mapTo(d2, QPoint(0, checkbox.height())).y(),
+                            probability.mapTo(d2, QPoint()).y())
+            checkbox.setChecked(False)
+            d2.save()
+            self.assertFalse(store.load().interaction.hover_avoidance_enabled)
             w.bind_screen(FakeScreen(QRect(0, 0, 1280, 720)))
             self.assertEqual(w.motion.scene.mouse_reaction.config, loaded.interaction)
 

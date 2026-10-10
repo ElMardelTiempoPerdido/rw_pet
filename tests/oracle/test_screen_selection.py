@@ -14,9 +14,9 @@ from PySide6.QtWidgets import QApplication, QDialog
 from rw_creature_pet.config import AppConfig, DesktopConfig
 from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.assets import OracleAssets
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.screens import find_screen, preferred_screen, screen_key
 from tests.oracle.test_desktop import FakeScreen
@@ -59,7 +59,7 @@ class ScreenSelectionTests(unittest.TestCase):
         self.screens, self.primary = [self.a, self.b], self.a
         self.enterContext(patch.object(QApplication, 'screens', side_effect=lambda: self.screens.copy()))
         self.enterContext(patch.object(QApplication, 'primaryScreen', side_effect=lambda: self.primary))
-        self.enterContext(patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True))
+        self.enterContext(patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True))
         self.windows = []
 
     def tearDown(self):
@@ -221,6 +221,85 @@ class ScreenSelectionTests(unittest.TestCase):
         for value in (0, False, None, []):
             with self.assertRaises(ValueError):
                 DesktopConfig(screen=value)
+
+    def test_space_recommendation_is_draft_only_and_applies_true_four_times(self):
+        self.a.rect, self.a.dpr = QRect(0, 0, 1707, 1027), 1.5
+        config = replace(self.config, oracle=replace(self.config.oracle, arm_scale=.75),
+                         desktop=replace(self.config.desktop, scale=4.))
+        dialog = self.dialog(config)
+        self.assertFalse(dialog.space_panel.isHidden())
+        self.assertFalse(dialog.space_assessment().valid)
+        self.assertAlmostEqual(dialog.controls['oracle.edge_fraction'].maximum(), 49.9)
+        self.assertEqual(dialog.space_assessment().recommendation, (.75, .3))
+        with self.assertRaises(ValueError):
+            dialog.candidate()
+        dialog.fill_space_recommendation()
+        self.assertEqual(dialog.controls['oracle.arm_scale'].value(), 75.)
+        self.assertEqual(dialog.controls['oracle.edge_fraction'].value(), 30.)
+        self.assertFalse(self.store.path.exists())
+        self.assertEqual(dialog.original.oracle.edge_fraction, .2)
+        dialog.save()
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+        saved = self.store.load()
+        self.assertEqual(saved.oracle.edge_fraction, .3)
+        self.assertEqual(saved.desktop.scale, 4.)
+        window = OracleDesktopWindow(saved, scale=4., assets=self.assets, config_store=self.store)
+        self.windows.append(window)
+        window.timer.stop()
+        self.assertEqual(window.motion.viewport.physical_scale, 4.)
+        self.assertAlmostEqual(window.motion.scene.world.height, 385.125)
+
+    def test_space_hint_tracks_target_screen_resize_and_translation(self):
+        self.a.rect, self.a.dpr = QRect(0, 0, 1707, 1027), 1.5
+        self.b.rect, self.b.dpr = QRect(-3000, 0, 3000, 2000), 1.
+        dialog = self.dialog(replace(self.config, desktop=replace(self.config.desktop, scale=4.)))
+        combo = dialog.controls['desktop.screen']
+        self.assertFalse(dialog.space_panel.isHidden())
+        combo.setCurrentIndex(combo.findData(screen_key(self.b)))
+        self.assertTrue(dialog.space_panel.isHidden())
+        self.b.rect.setHeight(1500)
+        self.b.availableGeometryChanged.emit(self.b.rect)
+        self.assertFalse(dialog.space_panel.isHidden())
+        language = language_manager().language
+        self.addCleanup(language_manager().set_language, language)
+        language_manager().set_language('en')
+        self.assertIn('logical pixels', dialog.space_hint.text())
+        self.assertEqual(dialog.recommend_button.text(), 'Fill recommended settings')
+        self.assertEqual(combo.currentData(), screen_key(self.b))
+        dialog.show()
+        for _ in range(3):
+            self.app.processEvents()
+        self.assertGreaterEqual(dialog.space_hint.height(), dialog.space_hint.heightForWidth(dialog.space_hint.width()))
+
+    def test_tray_invalid_scale_opens_draft_and_resize_protection_preserves_saved_preferences(self):
+        self.a.rect, self.a.dpr = QRect(0, 0, 1707, 1027), 1.5
+        config = replace(self.config, oracle=replace(self.config.oracle, arm_scale=.75))
+        window = self.desktop(config)
+        self.store.save(config)
+        window.change_scale(4.)
+        self.assertEqual(window.requested_scale, 1.)
+        self.assertEqual(self.store.load().desktop.scale, 1.)
+        dialog = window.settings_dialog
+        self.assertEqual(dialog.controls['desktop.scale'].currentData(), 4.)
+        dialog.fill_space_recommendation()
+        dialog.save()
+        self.assertEqual(window.requested_scale, 4.)
+        self.assertEqual(window.motion.viewport.physical_scale, 4.)
+        persisted = self.store.path.read_bytes()
+        self.a.rect.setHeight(500)
+        with patch.object(window.tray, 'showMessage') as notice:
+            window.rebuild()
+            window.notify_space()
+            count = notice.call_count
+            window.notify_space()
+            self.assertEqual(notice.call_count, count)
+            self.assertGreater(count, 0)
+        self.assertLess(window.motion.viewport.physical_scale, 4.)
+        self.assertEqual(self.store.path.read_bytes(), persisted)
+        self.assertEqual(window.config.oracle.edge_fraction, .3)
+        self.a.rect.setHeight(1027)
+        window.rebuild()
+        self.assertEqual(window.motion.viewport.physical_scale, 4.)
 
 
 if __name__ == '__main__':

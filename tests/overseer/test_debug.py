@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.overseer.model import Edge
 from rw_creature_pet.overseer.events import EventPhase
 
@@ -98,7 +98,7 @@ class OverseerDebugTests(unittest.TestCase):
         self.assertIsNone(c.overseer_target_at(Vec2(-10, -10)))
         view = c.world_to_view(target)
         global_pos = c.mapToGlobal(QPoint(round(view.x), round(view.y)))
-        with patch('rw_creature_pet.oracle.debug_window.QCursor.pos', return_value=global_pos):
+        with patch('rw_creature_pet.oracle.ui.debug_window.QCursor.pos', return_value=global_pos):
             w.step_button.click()
         self.assertLess((c.overseer.target-target).length(), 2)
         c.magnifier = True
@@ -164,7 +164,7 @@ class OverseerDebugTests(unittest.TestCase):
         p.avoidance.setChecked(True)
         pos = c.world_to_view(c.overseer.root+c.overseer.normal*10)
         mouse = c.mapToGlobal(QPoint(round(pos.x), round(pos.y)))
-        with patch('rw_creature_pet.oracle.debug_window.QCursor.pos', return_value=mouse):
+        with patch('rw_creature_pet.oracle.ui.debug_window.QCursor.pos', return_value=mouse):
             for _ in range(40):
                 w.step_scene()
             self.assertTrue(c.overseer.scared)
@@ -195,11 +195,11 @@ class OverseerDebugTests(unittest.TestCase):
         for _ in range(64):
             c.overseer.step()
         old = c.overseer.root, c.overseer.head.position, c.overseer.extended
-        with patch('rw_creature_pet.overseer.debug.QColorDialog.getColor', return_value=QColor('#ff7788')):
+        with patch('rw_creature_pet.overseer.ui.debug.QColorDialog.getColor', return_value=QColor('#ff7788')):
             p.color_button.click()
         self.assertEqual(c.overseer.config.color, '#ff7788')
         self.assertEqual((c.overseer.root, c.overseer.head.position, c.overseer.extended), old)
-        with patch('rw_creature_pet.overseer.debug.QColorDialog.getColor', return_value=QColor()):
+        with patch('rw_creature_pet.overseer.ui.debug.QColorDialog.getColor', return_value=QColor()):
             p.color_button.click()
         self.assertEqual(c.overseer.config.color, '#ff7788')
         with tempfile.TemporaryDirectory() as temp:
@@ -299,12 +299,12 @@ class OverseerDebugTests(unittest.TestCase):
         settings.controls['relocation_probability'].setValue(70)
         settings.controls['observation_probability'].setValue(80)
         settings.controls['observation_interval'].setValue(15)
-        with patch('rw_creature_pet.overseer.settings.QFileDialog.getSaveFileName', return_value=('', '')):
+        with patch('rw_creature_pet.overseer.ui.settings.QFileDialog.getSaveFileName', return_value=('', '')):
             settings.export_button.click()
         self.assertEqual(c.overseer.config, before)
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'saved.json'
-            with patch('rw_creature_pet.overseer.settings.QFileDialog.getSaveFileName', return_value=(str(path), '')):
+            with patch('rw_creature_pet.overseer.ui.settings.QFileDialog.getSaveFileName', return_value=(str(path), '')):
                 settings.export_button.click()
             config = AppConfig.load(path)
             self.assertEqual(config.overseer.reemerge_distance, 130)

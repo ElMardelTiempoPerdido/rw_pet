@@ -11,10 +11,10 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport, OracleDesktopWindow, current_anchor
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport, OracleDesktopWindow, current_anchor
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
 class OracleDesktopMotionTests(unittest.TestCase):
@@ -147,7 +147,7 @@ class OracleDesktopWindowTests(unittest.TestCase):
         cls.app.setQuitOnLastWindowClosed(False)
 
     def setUp(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             self.window = OracleDesktopWindow(AppConfig(), renderer=OracleRenderer())
         self.window.timer.stop()
         self.screen = FakeScreen(QRect(-1280, 40, 1280, 680), 1.5)

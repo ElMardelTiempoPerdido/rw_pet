@@ -78,7 +78,7 @@ class SettingsStoreTests(unittest.TestCase):
         self.assertEqual(self.store.load(), resolved)
 
     def test_missing_legacy_voice_directory_still_falls_back_to_game_resources(self):
-        from rw_creature_pet.oracle.voice_assets import LEGACY_DIRECTORY
+        from rw_creature_pet.oracle.audio.assets import LEGACY_DIRECTORY
         config = AppConfig()
         config = replace(config, oracle=replace(config.oracle, voice_directory=LEGACY_DIRECTORY))
         self.assertEqual(absolute_paths(config, self.root/'config.toml').oracle.voice_directory, 'auto')

@@ -6,11 +6,11 @@ from random import Random
 
 from ..shared.geometry import Bounds, Vec2
 from .config import APPEARANCE_COLORS, OverseerConfig
-from .lens import ObservationLens
-from .friend import FriendBend, NECK_LENGTH, body_centers, body_gaze_follow, head_view_gaze, neck_offset
-from .friend_light import OBSERVATION_DURATION as FRIEND_OBSERVATION_DURATION, light_extent
-from .friend_light_pixels import FriendLightPixels
-from . import friend_filaments
+from .graphics.lens import ObservationLens
+from .graphics.friend.body import FriendBend, NECK_LENGTH, body_centers, body_gaze_follow, head_view_gaze, neck_offset
+from .graphics.friend.light import OBSERVATION_DURATION as FRIEND_OBSERVATION_DURATION, light_extent
+from .graphics.friend.pixels import FriendLightPixels
+from .graphics.friend import filaments as friend_filaments
 
 
 def clamp(value, low, high):

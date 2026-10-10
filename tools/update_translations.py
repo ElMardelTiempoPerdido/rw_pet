@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT/'rw_creature_pet'
 CATALOG = PACKAGE/'translations/en.ts'
-FILES = ('oracle/settings.py', 'oracle/toolbar.py', 'oracle/desktop.py',
+FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py', 'oracle/ui/space.py',
          'config.py', 'oracle/config.py', 'overseer/config.py', 'interaction/config.py',
          'settings_store.py', 'shared/atlas.py', 'ui_config.py', 'overseer/events.py')
 UNTRANSLATED = {'中文', '语言/language', ' - 独立调试；关闭窗口返回桌宠'}

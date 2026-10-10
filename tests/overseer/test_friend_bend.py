@@ -5,8 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from rw_creature_pet.overseer.config import OverseerConfig
-from rw_creature_pet.overseer import friend as appearance
-from rw_creature_pet.overseer.friend import (ROOT_EXIT_ANGLE, FriendBend,
+from rw_creature_pet.overseer.graphics.friend import body as appearance
+from rw_creature_pet.overseer.graphics.friend.body import (ROOT_EXIT_ANGLE, FriendBend,
                                            body_centers, body_curve, neck_offset)
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
 from rw_creature_pet.shared.geometry import Bounds, Vec2

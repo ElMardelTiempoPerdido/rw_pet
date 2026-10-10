@@ -4,7 +4,7 @@ import unittest
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.cords import Rope
+from rw_creature_pet.oracle.graphics.cords import Rope
 
 
 class OracleCordTests(unittest.TestCase):

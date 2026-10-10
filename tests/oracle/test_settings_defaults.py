@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QSpinBox
 
-from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 
@@ -107,6 +107,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         values = {
             'desktop.scale': 1.5, 'desktop.autonomous': False, 'desktop.screen': 'DISPLAY2',
             'interaction.drag_enabled': False,
+            'interaction.hover_avoidance_enabled': False,
             'interaction.hover_radius': 210.5, 'interaction.hover_dwell_seconds': 2.7,
             'interaction.hover_probability': .723, 'interaction.hover_open_probability': .416,
             'audio.enabled': False, 'audio.volume': .31,

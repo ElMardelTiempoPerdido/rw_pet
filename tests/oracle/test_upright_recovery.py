@@ -2,7 +2,7 @@
 from math import radians, sin, cos
 import unittest
 
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.scene import OracleScene, dot
 from rw_creature_pet.shared.geometry import Vec2

@@ -13,10 +13,10 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.interaction.config import InteractionConfig
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.scene import OracleScene
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.input import PuppetHitMap
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.shared.geometry import Vec2
 
 
@@ -186,7 +186,7 @@ class OracleDragInputTests(unittest.TestCase):
             w.close()
 
     def test_desktop_toggle_pause_resize_and_rebuild_keep_visual_window_transparent(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(AppConfig(), renderer=OracleRenderer())
         w.timer.stop()
         try:

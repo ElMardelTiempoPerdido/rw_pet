@@ -9,20 +9,21 @@ from math import atan2, cos, isfinite, pi, radians, sin, sqrt
 
 from ..shared.geometry import Bounds, Vec2
 from .config import OracleConfig
-from .navigation import EdgeRegion, FloatNavigator, RoundedRail
-from .appearance import OracleAppearance
-from .behavior import Activity, OracleBehavior
-from .eyes import OracleEyes
-from .halo import OracleHalo
-from .halo_arcs import HaloArcs
-from .pearl_matrix import PearlMatrix
-from .pearl_orbits import PearlOrbits
-from .pearl_fixed import FixedPearls
-from .pose import OraclePose
-from .drag import OracleDrag
-from .drag_reactions import OracleDragReactions
-from .window_reaction import OracleWindowReaction
-from .mouse_reaction import OracleMouseReaction
+from .space import body_margin
+from .motion.navigation import EdgeRegion, FloatNavigator, RoundedRail
+from .graphics.appearance import OracleAppearance
+from .behavior.controller import Activity, OracleBehavior
+from .behavior.eyes import OracleEyes
+from .effects.halo import OracleHalo
+from .effects.halo_arcs import HaloArcs
+from .pearls.matrix import PearlMatrix
+from .pearls.orbits import PearlOrbits
+from .pearls.fixed import FixedPearls
+from .behavior.pose import OraclePose
+from .interaction.drag import OracleDrag
+from .interaction.drag_reactions import OracleDragReactions
+from .behavior.window_reaction import OracleWindowReaction
+from .behavior.mouse_reaction import OracleMouseReaction
 
 
 def unit(v: Vec2, fallback=Vec2(0, -1)) -> Vec2:
@@ -321,7 +322,7 @@ class OracleScene:
         self.config = config
         self.pearl_playback_curve = None  # 资源层注入；场景步进不读取文件或解码音频。
         self.world = OracleWorld(config.world_width, config.world_height, config.edge_fraction,
-                                 body_margin=max(36., 18 + 30 * config.arm_scale), allowed_edges=config.allowed_edges)
+                                 body_margin=body_margin(config.arm_scale), allowed_edges=config.allowed_edges)
         self.anchor = RailAnchor(RailSide(config.base_side), config.base_fraction)
         self.sliding_base = config.sliding_base
         self.pearl_matrix_enabled = config.pearl_matrix_enabled
@@ -382,6 +383,7 @@ class OracleScene:
         self.mouse_reaction = OracleMouseReaction(previous_mouse_reaction.config) if previous_mouse_reaction else OracleMouseReaction()
         if previous_mouse_reaction is not None:
             self.mouse_reaction.attention.random.setstate(previous_mouse_reaction.attention.random.getstate())
+            self.mouse_reaction.avoidance.random.setstate(previous_mouse_reaction.avoidance.random.getstate())
         if previous_window_reaction is not None:
             self.window_reaction.attention.random.setstate(previous_window_reaction.attention.random.getstate())
         self.drag_reactions = OracleDragReactions(self.config.drag_reactions)

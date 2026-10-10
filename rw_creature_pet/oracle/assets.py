@@ -2,11 +2,11 @@
 from dataclasses import dataclass
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
-from .glyphs import load_pearl_glyphs
-from .render import OracleRenderer
-from .voice_assets import prepare_bell_voice
-from .pearl_playback_assets import prepare_pearl_playback
-from .projection_assets import prepare_projection
+from .pearls.glyphs import load_pearl_glyphs
+from .graphics.render import OracleRenderer
+from .audio.assets import prepare_bell_voice
+from .pearls.playback_assets import prepare_pearl_playback
+from .effects.projection_assets import prepare_projection
 
 
 @dataclass

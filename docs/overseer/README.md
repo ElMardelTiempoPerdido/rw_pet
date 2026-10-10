@@ -44,15 +44,15 @@
 - 连接点和展开方向共同参考垂直于颈部的背面方向，随左右转头连续投影，正视附近收向颈部背后，再从另一侧展开；C / S 弯曲偏好同步收窄、换向，实际链条仍保留惯性和边界约束。这是二维物理配合深度投影的近似，不是完整三维触须模拟
 - 侧向投影增加非线性可见性增强，小幅侧视就能更明显地露出触须，中大角度逐渐趋近完整侧视，连接点、可见长度和弧线同步变化。正中仍保持零侧偏，连续换边，不强制保留某一侧，也不超过基准弧长
 - 静止时短须有轻微 C 形、长须有轻微 S 形弯曲偏好：相对当前首尾连线弹性推动中段，并让自由末端分担反作用，不固定末端位置。弯曲随体型和伸缩比例缩放，移动惯性和工作区边界仍可改变实际形状
-- 头部常驻微弱紫色柔光，直接沿用 `friend.py` 的 `ROOT_COLOR`（当前 `#8859d6`），不随槽位主色变化；与普通监视者相同，半径 11 逻辑像素、中心透明度最高 45/255，随探出程度淡入淡出。柔光位于身体及花冠下层，复用现有局部画布和绘制缓存
+- 头部常驻微弱紫色柔光，直接沿用 `graphics/friend/body.py` 的 `ROOT_COLOR`（当前 `#8859d6`），不随槽位主色变化；与普通监视者相同，半径 11 逻辑像素、中心透明度最高 45/255，随探出程度淡入淡出。柔光位于身体及花冠下层，复用现有局部画布和绘制缓存
 - 花瓣使用 `rw_creature_pet/skin/friend/friend_head_2x.png`，28×28 的 2x 素材对应约 14×14 逻辑像素；同一张图映射到浅半环面，各倍率按像素采样，无需绘制多角度素材
 - 浅黄色圆盘半径为 3.25 逻辑像素，以适配素材中央开口；花瓣与圆盘使用共同深度缓冲，侧视时近侧花瓣可以遮住圆盘，花冠随身体定向并随注视方向倾斜
 - 观察时使用短手电筒柔光，替换普通监视者的角锥线框；探出、缩回、避让、换位与观察事件继续沿用既有行为
 - 切换外观时，默认白色和黑色随外观互换；已有自定义颜色保留。配置中省略槽位颜色时按外观补入默认色
 
-轮廓和渐变定义位于 `rw_creature_pet/overseer/friend.py`，花冠曲面与圆盘投影位于 `rw_creature_pet/overseer/friend_head.py`，外观分派位于 `rw_creature_pet/overseer/render.py`
+轮廓和渐变定义位于 `rw_creature_pet/overseer/graphics/friend/body.py`，花冠曲面与圆盘投影位于 `rw_creature_pet/overseer/graphics/friend/head.py`，外观分派位于 `rw_creature_pet/overseer/graphics/render.py`
 
-双触须参数位于 `rw_creature_pet/overseer/friend_filaments.py`：`LENGTHS`、`COLORS` 按短 / 长排列；`BASE_OFFSET` 为连接点沿颈部向身体退后的距离，`BASE_DEPTH` 为颈部背面连接点的深度；`BACK_ANGLES = (30., 55.)` 为两条触须从背面深度方向朝身体后方偏转的角度，增大时更靠近身体；`TURN_DEPTH_SOFTNESS` 控制极远侧视时换边的平缓程度；`GRADIENT_START` 和 `TIP_COLOR` 控制末端渐变。脸盘颜色在 `friend_head.py` 的 `DISC_COLOR`，修改后重启以刷新投影缓存
+双触须参数位于 `rw_creature_pet/overseer/graphics/friend/filaments.py`：`LENGTHS`、`COLORS` 按短 / 长排列；`BASE_OFFSET` 为连接点沿颈部向身体退后的距离，`BASE_DEPTH` 为颈部背面连接点的深度；`BACK_ANGLES = (30., 55.)` 为两条触须从背面深度方向朝身体后方偏转的角度，增大时更靠近身体；`TURN_DEPTH_SOFTNESS` 控制极远侧视时换边的平缓程度；`GRADIENT_START` 和 `TIP_COLOR` 控制末端渐变。脸盘颜色在 `graphics/friend/head.py` 的 `DISC_COLOR`，修改后重启以刷新投影缓存
 
 `CURVE_AMPLITUDES = (2.5, -3.0)` 分别控制短须 C 弧和长须 S 弧的侧向偏好幅度（逻辑像素，实际弯幅还受其他力影响），负值翻转对应弯曲方向；`CURVE_STRENGTH = .06` 控制恢复弧线的弹性力度，越大越容易维持形态，设为 0 关闭本次弯曲偏好
 
@@ -60,9 +60,9 @@
 
 `python tools/overseer/review_friend_filaments.py` 生成侧向增强前后对照 `friend-filaments-side-visibility.png`、静止弧线前后对照 `friend-filaments-rest-curves.png`、四边明暗背景对照 `friend-filaments-four-edges.png`、连续转头预览 `friend-filaments-turn.png / .gif` 和转头、缩回、再探出动画 `friend-filaments-motion.gif`，输出到 `artifacts/overseer`
 
-可直接调整 `friend.py` 顶部的 `ROOT_RADIUS`、`PEAK_RADIUS`、`NECK_RADIUS`（均为半宽）、`PEAK_FRACTION`、`NECK_FRACTION`、`GROWTH_POWER` 和 `NECK_LENGTH`；增大 `GROWTH_POWER` 会让主体前段更细长，`NECK_FRACTION` 需大于 `PEAK_FRACTION`
+可直接调整 `graphics/friend/body.py` 顶部的 `ROOT_RADIUS`、`PEAK_RADIUS`、`NECK_RADIUS`（均为半宽）、`PEAK_FRACTION`、`NECK_FRACTION`、`GROWTH_POWER` 和 `NECK_LENGTH`；增大 `GROWTH_POWER` 会让主体前段更细长，`NECK_FRACTION` 需大于 `PEAK_FRACTION`
 
-S 形姿态同样在 `friend.py` 顶部调节，沿用现有 40 Hz 时钟，不增加身体质点或物理约束循环：
+S 形姿态同样在 `graphics/friend/body.py` 顶部调节，沿用现有 40 Hz 时钟，不增加身体质点或物理约束循环：
 
 | 参数 | 当前值 | 含义 |
 | --- | --- | --- |
@@ -79,7 +79,7 @@ S 形姿态同样在 `friend.py` 顶部调节，沿用现有 40 Hz 时钟，不�
 
 `BODY_GAZE_FOLLOW` 调小后，身体在持续观察时的位移和偏转都会变小，不只是跟随得更慢；设为 1 可恢复完整跟随，设为 0 则身体不再因注视目标而偏转，花冠仍会转向，探出和缩回仍照常执行。S 形响应包含柔和限幅，因此 0.6 表示输入影响系数，并非最终轮廓变化严格为原来的 60%；已有的弯幅、根段范围和出墙倾角仍可独立调整。普通监视者不使用此参数
 
-头部倾角同样在 `friend.py` 顶部调整：`HEAD_GAZE_DISTANCE_FRACTION = 0.9` 表示鼠标与实际脸盘的横向距离达到工作区宽度的 90%，或纵向距离达到高度的 90% 时，达到原有最大倾角；斜向取两者较大值，不叠加距离而提前转满。使用当前工作区的逻辑宽高，随桌宠缩放、DPI 和工作区尺寸变化自动适配
+头部倾角同样在 `graphics/friend/body.py` 顶部调整：`HEAD_GAZE_DISTANCE_FRACTION = 0.9` 表示鼠标与实际脸盘的横向距离达到工作区宽度的 90%，或纵向距离达到高度的 90% 时，达到原有最大倾角；斜向取两者较大值，不叠加距离而提前转满。使用当前工作区的逻辑宽高，随桌宠缩放、DPI 和工作区尺寸变化自动适配
 
 近距离先较快轻仰，中段放缓，远端再逐渐转满，默认两段曲线在过渡点角度和斜率连续：
 
@@ -91,7 +91,7 @@ S 形姿态同样在 `friend.py` 顶部调节，沿用现有 40 Hz 时钟，不�
 
 预览脚本 `python tools/overseer/review_friend_bend.py` 会输出同一头部位置下的无弯曲／S 形对照、中心线和四边换向／缩回动画；`friend-gaze-comparison.png` 和 `friend-gaze-motion.gif` 对比完整身体跟随与当前系数下的鼠标注视姿态
 
-花冠曲面可调整 `friend_head.py` 的 `TORUS_MAJOR_RADIUS`（环形截面的中心半径）、`TORUS_MINOR_RADIUS`（截面的径向半宽）和 `TORUS_HEIGHT`（向前拱起的高度，当前 1.75，设为 0 可比较平面效果）；圆盘半径由 `friend.py` 的 `DISC_RADIUS` 控制，`HEAD_OCCLUSION_RADIUS` 独立控制身体末段的遮挡余量
+花冠曲面可调整 `graphics/friend/head.py` 的 `TORUS_MAJOR_RADIUS`（环形截面的中心半径）、`TORUS_MINOR_RADIUS`（截面的径向半宽）和 `TORUS_HEIGHT`（向前拱起的高度，当前 1.75，设为 0 可比较平面效果）；圆盘半径由 `graphics/friend/body.py` 的 `DISC_RADIUS` 控制，`HEAD_OCCLUSION_RADIUS` 独立控制身体末段的遮挡余量
 
 `adaptive` 模式会在 1x、1.5x、2x 等密度直接投影同一份素材，2x 保留原稿精度；`classic` 仍先生成 1x 像素再放大，因此细花瓣会更粗糙。修改 PNG 或曲面常量后需重启进程，以刷新素材及投影缓存
 
@@ -114,7 +114,7 @@ S 形姿态同样在 `friend.py` 顶部调节，沿用现有 40 Hz 时钟，不�
 - 像素动画使用独立随机序列和已有 40 Hz 仿真步，绘制不抽签、不添加计时器或物理；暂停时冻结，未观察时不推进旋转和光点计时
 - 局部画布和桌面窗口都按光效尺寸留余量，仍裁剪到工作区，不增加输入区域或人偶物理更新
 
-参数位于 `rw_creature_pet/overseer/friend_light.py`，修改后重启以刷新缓存：
+参数位于 `rw_creature_pet/overseer/graphics/friend/light.py`，修改后重启以刷新缓存：
 
 | 参数 | 默认值 | 含义 |
 | --- | --- | --- |
@@ -128,7 +128,7 @@ S 形姿态同样在 `friend.py` 顶部调节，沿用现有 40 Hz 时钟，不�
 | `LIGHT_OPACITY` | 1 | 总体强度，乘以各层透明度，范围 0～1 |
 | `BEAM_LAYERS` / `GLOW_LAYERS` | 见源码 | 各层长度或半径比例、颜色和透明度 |
 
-像素光参数在 `rw_creature_pet/overseer/friend_light_pixels.py`：`PIXEL_COLOR` / `PIXEL_OPACITY` 控制颜色和透明度，独立于柔光；`RAY_LENGTHS` 控制各条长度，`RAY_START` 控制近端留白；`ROTATION_TURNS_PER_SECOND` 控制环转速度；`SPARK_COUNT`、`SPARK_LIFETIME`、`SPARK_WAIT`、`SPARK_DISTANCE` 分别控制光点上限、存活时间、生成间隔和锥内深度范围。`SPARK_FRAMES` 中每个坐标对应 1 逻辑像素
+像素光参数在 `rw_creature_pet/overseer/graphics/friend/pixels.py`：`PIXEL_COLOR` / `PIXEL_OPACITY` 控制颜色和透明度，独立于柔光；`RAY_LENGTHS` 控制各条长度，`RAY_START` 控制近端留白；`ROTATION_TURNS_PER_SECOND` 控制环转速度；`SPARK_COUNT`、`SPARK_LIFETIME`、`SPARK_WAIT`、`SPARK_DISTANCE` 分别控制光点上限、存活时间、生成间隔和锥内深度范围。`SPARK_FRAMES` 中每个坐标对应 1 逻辑像素
 
 `friend_light_pixels.py` 中的 `RAY_SIGNAL_RANGE = (.82, .94)` 控制常驻缺损的强弱范围，数值越低，随机断开的局部越多；设为 `(1., 1.)` 可恢复仅由展开/收起控制的缺损。修改后重启生效
 
@@ -281,14 +281,14 @@ withdraw_seconds = 0.25
 - `rw_creature_pet/overseer/config.py`：基础形态、配色、避让与伸缩参数和校验。
 - `rw_creature_pet/overseer/group.py`：固定槽位身份、独立模型与事件、共享选点上下文和其他根部避让
 - `rw_creature_pet/overseer/events.py`：不依赖 Qt 的事件计时、冷却、抽签和边缘安全选点；与外观随机数隔离。
-- `rw_creature_pet/overseer/lens.py`：持续观察计时、独立随机数、镜片线框形状与视线投影。
-- `rw_creature_pet/overseer/desktop.py`：独立的穿透显示层、全局鼠标读取和局部像素缓存。
-- `rw_creature_pet/oracle/overseer.py`：两种宿主共用的工作区边缘与人偶外形避让范围。
-- `rw_creature_pet/overseer/settings.py`：事件设置、快速循环预设、配置重读与 JSON 副本保存。
+- `rw_creature_pet/overseer/graphics/lens.py`：持续观察计时、独立随机数、镜片线框形状与视线投影。
+- `rw_creature_pet/overseer/ui/desktop.py`：独立的穿透显示层、全局鼠标读取和局部像素缓存。
+- `rw_creature_pet/oracle/ui/overseer.py`：两种宿主共用的工作区边缘与人偶外形避让范围。
+- `rw_creature_pet/overseer/ui/settings.py`：事件设置、快速循环预设、配置重读与 JSON 副本保存。
 - `rw_creature_pet/overseer/model.py`：不依赖 Qt 的 40 Hz 模型与伸缩状态。完全探出时头部到根部的最大距离为 `50 * size`，眼球绘制半径为 5；根部、悬停点、头部和注视目标分别保存。
-- `rw_creature_pet/overseer/render.py`：局部像素缓存、十段曲线身体、眼球与瞳孔、四条各五节点的柔性触须。复用主图集的 `Circle20` 和 `pixel`；无图集时使用几何图形占位。绘制不会推进模拟或消耗随机数。
-- `rw_creature_pet/overseer/debug.py`：独立调试面板。
-- `rw_creature_pet/oracle/debug_window.py`：调试宿主，提供坐标换算、时钟、鼠标位置和画布。
+- `rw_creature_pet/overseer/graphics/render.py`：局部像素缓存、十段曲线身体、眼球与瞳孔、四条各五节点的柔性触须。复用主图集的 `Circle20` 和 `pixel`；无图集时使用几何图形占位。绘制不会推进模拟或消耗随机数。
+- `rw_creature_pet/overseer/ui/debug.py`：独立调试面板。
+- `rw_creature_pet/oracle/ui/debug_window.py`：调试宿主，提供坐标换算、时钟、鼠标位置和画布。
 
 身体/眼部的结构、头部悬停与距离反应参考原版 `Overseer.cs`、`OverseerAI.cs`、`OverseerGraphics.cs`。
 短触须采用少量节点的弹性链，柔光使用局部径向渐变，作为原版 `Mycelium` 与 Unity 着色器的轻量近似。

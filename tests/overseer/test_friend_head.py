@@ -9,9 +9,9 @@ from unittest.mock import patch
 import numpy as np
 from PySide6.QtGui import QImage
 
-from rw_creature_pet.overseer import friend_head
-from rw_creature_pet.overseer import friend
-from rw_creature_pet.overseer.friend import DISC_RADIUS
+from rw_creature_pet.overseer.graphics.friend import head as friend_head
+from rw_creature_pet.overseer.graphics.friend import body as friend
+from rw_creature_pet.overseer.graphics.friend.body import DISC_RADIUS
 from rw_creature_pet.overseer.model import Anchor, Edge, Overseer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 

@@ -22,8 +22,8 @@ from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.overseer.model import Anchor, Edge
 
 OUT = ROOT/'artifacts/overseer'
@@ -50,7 +50,7 @@ def show_watcher(window):
 
 def profile(config, atlas):
     result = {}
-    with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+    with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
         window = OracleDesktopWindow(config, renderer=OracleRenderer(atlas, config.oracle.colors))
     try:
         settle(window)
@@ -81,7 +81,7 @@ def profile(config, atlas):
             revision = scene.appearance.revision
             cpu, start = process_time(), perf_counter()
             for tick in range(400):
-                with patch('rw_creature_pet.oracle.desktop.perf_counter', return_value=origin+(tick+1)/40):
+                with patch('rw_creature_pet.oracle.ui.desktop.perf_counter', return_value=origin+(tick+1)/40):
                     window.advance()
                 QApplication.processEvents()
             cpu_seconds, elapsed = process_time()-cpu, perf_counter()-start

@@ -11,22 +11,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ImportBoundaryTests(unittest.TestCase):
     def test_simulation_imports_are_independent_and_have_no_qt_dependency(self):
-        for creature, other in (('lizard', 'oracle'), ('oracle', 'lizard')):
+        for creature, entry, others in (('lizard', 'scene', ('oracle', 'overseer')),
+                                        ('oracle', 'scene', ('lizard',)),
+                                        ('overseer', 'model', ('lizard', 'oracle'))):
             with self.subTest(creature=creature):
                 code = (
-                    f'import rw_creature_pet.{creature}.scene\n'
+                    f'import rw_creature_pet.{creature}.{entry}\n'
                     'import sys\n'
-                    f'assert not any(n.startswith("rw_creature_pet.{other}") for n in sys.modules)\n'
+                    f'assert not any(n.startswith(tuple("rw_creature_pet."+c for c in {others!r})) for n in sys.modules)\n'
                     'assert not any(n.startswith("PySide6") for n in sys.modules)\n'
                 )
                 result = subprocess.run([sys.executable, '-c', code], cwd=ROOT, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_shared_and_creature_modules_keep_dependency_direction(self):
-        for package in ('shared', 'lizard', 'oracle'):
-            forbidden = {'lizard', 'oracle'}-({package} if package != 'shared' else set())
-            for path in (ROOT/'rw_creature_pet'/package).glob('*.py'):
-                current = ['rw_creature_pet', package]
+        for package in ('shared', 'lizard', 'oracle', 'overseer'):
+            forbidden = ({'lizard', 'oracle', 'overseer'} if package == 'shared' else
+                         {'lizard', 'oracle'}-{package})
+            for path in (ROOT/'rw_creature_pet'/package).rglob('*.py'):
+                current = list(path.parent.relative_to(ROOT).parts)
                 for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
                     modules = []
                     if isinstance(node, ast.ImportFrom):

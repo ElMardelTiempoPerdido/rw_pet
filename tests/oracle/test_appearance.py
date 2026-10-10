@@ -12,8 +12,8 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.appearance import perpendicular
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.appearance import perpendicular
 
 
 class OracleAppearanceTests(unittest.TestCase):

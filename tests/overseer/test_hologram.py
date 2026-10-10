@@ -7,7 +7,7 @@ from unittest.mock import patch
 import numpy as np
 from PySide6.QtGui import QColor, QImage, QPainter
 
-from rw_creature_pet.overseer.hologram import LensHologramRenderer, noise_masks
+from rw_creature_pet.overseer.graphics.hologram import LensHologramRenderer, noise_masks
 from rw_creature_pet.shared.geometry import Vec2
 
 
@@ -65,7 +65,7 @@ class HologramTests(unittest.TestCase):
             self.assertEqual(image.copy(*rect), larger.copy(*rect), density)
 
     def test_closed_or_empty_lens_does_not_prepare_or_draw_masks(self):
-        with patch('rw_creature_pet.overseer.hologram.noise_masks') as prepare:
+        with patch('rw_creature_pet.overseer.graphics.hologram.noise_masks') as prepare:
             self.assertFalse(pixels(self.render(0)).any())
             self.assertFalse(pixels(self.render(lines=[])).any())
             prepare.assert_not_called()

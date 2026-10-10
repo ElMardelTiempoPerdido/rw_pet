@@ -2,9 +2,9 @@
 import unittest
 from unittest.mock import patch
 
-from rw_creature_pet.oracle.behavior import Activity
+from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
 from rw_creature_pet.oracle.scene import OracleScene, dot
 from rw_creature_pet.shared.timing import FixedStepper
 

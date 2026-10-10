@@ -1,0 +1,503 @@
+"""Moon 的外观状态：固定 40 Hz 的布料、肢体与连接线，不反向驱动物理导航。
+
+参考 OracleGraphics.Gown / UbilicalCord / GenericBodyPart。原版房间中的长线
+改为底座供线并允许小幅越界；局部视觉重力随漫游渐变，限幅与阻尼适配窄活动带。
+"""
+from dataclasses import dataclass
+from math import atan2, cos, pi, sin, sqrt
+
+from ...shared.geometry import Vec2
+from .cords import OracleCords
+
+
+def normalized(v, fallback=Vec2(0, -1)):
+    length = v.length()
+    return v * (1 / length) if length > 1e-9 else fallback
+
+
+def clamp_length(v, maximum):
+    return v * min(1., maximum / max(v.length(), 1e-9))
+
+
+def perpendicular(v):
+    return Vec2(-v.y, v.x)
+
+
+def rotate(v, angle):
+    c, s = cos(angle), sin(angle)
+    return Vec2(v.x*c - v.y*s, v.x*s + v.y*c)
+
+
+@dataclass(slots=True)
+class SoftPoint:
+    position: Vec2
+    previous_position: Vec2
+    velocity: Vec2 = Vec2()
+
+    @classmethod
+    def at(cls, p):
+        return cls(p, p)
+
+    def pin(self, target):
+        self.previous_position = self.position
+        self.position = target
+        self.velocity = target - self.previous_position
+
+    def follow(self, target, spring=.10, damping=.78, slack=4.):
+        self.previous_position = self.position
+        v = self.velocity * damping + (target - self.position) * spring
+        self.position = target + clamp_length(self.position + v - target, slack)
+        # 约束后的速度才进入下一 tick，避免在限幅边缘累积能量。
+        self.velocity = self.position - self.previous_position
+
+    def sample(self, alpha):
+        a, b = self.previous_position, self.position
+        return Vec2(a.x+(b.x-a.x)*alpha, a.y+(b.y-a.y)*alpha)
+
+
+@dataclass(slots=True)
+class HangingHand(SoftPoint):
+    """原版 GenericBodyPart 手部；积分速度与约束后的实际位移分开保存。"""
+    drive_velocity: Vec2 = Vec2()
+    reach_weight: float = 0.
+    MAX_REACH = 15.
+    SWING_REACH = 16.
+    SWING_TARGET_REACH = 15.5
+    SHOULDER_HALF = 4.
+    SHOULDER_RISE = 2.
+    SWING_MIN = -40*pi/180
+    SWING_MAX = 50*pi/180
+
+    @classmethod
+    def shoulder(cls, origin, direction, index):
+        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*cls.SHOULDER_HALF)+direction*cls.SHOULDER_RISE
+
+    def reach_limit(self, origin, shoulder):
+        # 常态保留原版胸部中心限长；主动手势改用实际袖根，避免外展时扣掉肩宽。
+        return (origin.lerp(shoulder, self.reach_weight),
+                self.MAX_REACH+(self.SWING_REACH-self.MAX_REACH)*self.reach_weight)
+
+    def step(self, origin, host_velocity, force, *, shoulder, weight):
+        self.previous_position = self.position
+        # 独立平滑物理连接点；即使取消/重新抓起使手势权重清零，也不瞬间缩回胸部半径。
+        self.reach_weight += max(-.1, min(.1, weight-self.reach_weight))
+        anchor, reach = self.reach_limit(origin, shoulder)
+        predicted = self.position + self.drive_velocity
+        self.position = anchor + clamp_length(predicted-anchor, reach)
+        correction = predicted-self.position
+        # GenericBodyPart.Update -> ConnectToPoint(push=False, adapt=.3,
+        # exaggerate=.01) -> OracleGraphics 的垂手受力。屏幕坐标 y 向下。
+        velocity = self.drive_velocity*.98 + host_velocity*.01 - correction
+        self.drive_velocity = (velocity-host_velocity)*.7 + host_velocity + force
+        # 静止时 drive_velocity 仍含下一 tick 会被长度约束抵消的径向分量；
+        # 不把它当成可见运动，否则外观永远无法休眠。
+        self.velocity = self.position-self.previous_position
+
+    def constrain_swing(self, origin, direction, index, host_velocity, weight):
+        """主动挣扎的肩部角度限位；只消除继续越界的速度，不反弹或积累径向能量。"""
+        if weight <= 0:
+            return
+        outward = perpendicular(direction)*(-1 if index == 0 else 1)
+        shoulder = self.shoulder(origin, direction, index)
+        delta = self.position-shoulder
+        x = delta.x*outward.x+delta.y*outward.y
+        y = delta.x*direction.x+delta.y*direction.y
+        angle = atan2(y, x)
+        # 开始/结束时暂时放宽扇形，让垂手自然进入/离开，避免第一帧直接掰到边界。
+        low = -pi+(self.SWING_MIN+pi)*weight
+        high = pi+(self.SWING_MAX-pi)*weight
+        constrained = max(low, min(high, angle))
+        if constrained == angle:
+            return
+        radial = outward*cos(constrained)+direction*sin(constrained)
+        anchor, maximum = self.reach_limit(origin, shoulder)
+        root = shoulder-anchor
+        along = root.x*radial.x+root.y*radial.y
+        reach = -along+sqrt(max(0., along*along+maximum**2-root.length()**2))
+        radius = min(delta.length(), reach)
+        self.position = shoulder+radial*radius
+        velocity = self.drive_velocity-host_velocity
+        tangent = outward*(-sin(constrained))+direction*cos(constrained)
+        normal = tangent*(1 if angle > high else -1)
+        violation = velocity.x*normal.x+velocity.y*normal.y
+        if violation > 0:
+            velocity -= normal*violation
+        if delta.length() > reach:
+            normal = normalized(self.position-anchor)
+            violation = velocity.x*normal.x+velocity.y*normal.y
+            if violation > 0:
+                velocity -= normal*violation
+        self.drive_velocity = host_velocity+velocity
+        self.velocity = self.position-self.previous_position
+
+
+@dataclass(slots=True)
+class ClothPoint(SoftPoint):
+    drive_velocity: Vec2 = Vec2()
+
+    def step(self, goal, force, slack, damping):
+        self.previous_position = self.position
+        predicted = self.position+self.drive_velocity
+        self.position = goal+clamp_length(predicted-goal, slack)
+        # Gown.Update：只在超出偏移半径时拉回，半径以内由受力和邻点驱动。
+        self.drive_velocity = self.drive_velocity*damping+force+self.position-predicted
+        self.velocity = self.position-self.previous_position
+
+
+def arm_elbow(a, b, length, index, region):
+    """沿原版交替弯折侧，使用 2/3 + 1/3 肘部结构；窄带中收拢肘高。
+
+    两主关节仍由已验证的支撑求解器决定。几何只读，渲染插值帧也检查两杆，
+    不能用遮罩藏掉穿入中央区的杆件，也不在运动途中突然换弯折侧。
+    """
+    delta = b - a
+    d = max(delta.length(), .001)
+    long, short = length * 2/3, length / 3
+    along = max(.2*d, min(.8*d, (d*d + long*long - short*short) / (2*d)))
+    height = min(24., sqrt(max(0., long*long - along*along)))
+    foot = a + normalized(delta) * along
+    offset = perpendicular(normalized(delta)) * (height * (1 if index % 2 == 0 else -1))
+    def safe(p):
+        return region.segment_safe(a, p) and region.segment_safe(p, b)
+    candidate = foot + offset
+    if safe(candidate):
+        return candidate
+    lo, hi = 0., 1.
+    for _ in range(12):
+        mid = (lo + hi) * .5
+        if safe(foot + offset * mid):
+            lo = mid
+        else:
+            hi = mid
+    return foot + offset * lo
+
+
+class OracleAppearance:
+    CLOTH_DIVS = 11
+    CLOTH_SLACK = 9.
+    CLOTH_GRAVITY = .45  # 原版 0.9 × room.gravity；桌面常态视觉重力 0.5。
+    CLOTH_DAMPING = .90  # 原版 .999；桌宠更快收敛，仍保留起停摆动。
+    WAIST_FOLLOW = .90  # 下身视觉轴跟随衣袍中下段，胸肩仍使用真实身体轴。
+    WAIST_MAX_ANGLE = pi/6
+    WAIST_MAX_SPEED = .035
+    WAIST_SPRING = .10
+    WAIST_DAMPING = .70
+    MAIN_CORD_POINTS = 80
+    SMALL_CORDS = 14
+    SMALL_CORD_POINTS = 20
+    NECKLACE_POINTS = 8  # 两个固定端点 + 六颗珠子；移除原中央十字珠。
+    NECKLACE_LINK_LENGTH = 2.6
+    NECKLACE_GRAVITY = .12
+    NECKLACE_DAMPING = .84
+    NECKLACE_PASSES = 8
+    NECKLACE_ANCHOR_HALF = 4.5
+    NECKLACE_ANCHOR_UP = 8.
+    PHONE_SIDE_HYSTERESIS = .08  # 头部局部横向视线超过此幅度才交换耳机前后层。
+    SWAY_MOVE_DAMPING = .78
+    SWAY_REST_DAMPING = .50  # 接近临界阻尼，停止后不继续往返穿过零点。
+    SWAY_SETTLE_ANGLE = .0005  # 弧度；头部横移约 0.007 逻辑像素。
+    SWAY_SETTLE_SPEED = .0001
+
+    def __init__(self, scene):
+        self.gravity_scale = scene.pose.gravity_scale
+        self.sway = self.previous_sway = self.sway_velocity = 0.
+        self.waist_angle = self.previous_waist_angle = self.waist_velocity = 0.
+        self.last_body_velocity = scene.body.chunks[0].velocity
+        self.upper = scene.body.chunks[0].position
+        self.direction = scene.body.direction
+        self.lower = self.upper - self.direction * 9
+        self.head = SoftPoint.at(scene.head.position)
+        self.near_phone = -1
+        self.step_phone_side(scene.look_direction)
+        # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
+        self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
+                      for f in self.hand_forces()]
+        self.feet = [SoftPoint.at(p) for p in self.foot_goals()]
+        n = self.CLOTH_DIVS
+        self._cloth_local = [((2*x/(n-1)-1)*(5+6*y/(n-1)),
+                              (5-23*y/(n-1))*(1+sin(pi*x/(n-1))*.35*(2*y/(n-1)-1)))
+                             for y in range(n) for x in range(n)]
+        self._cloth_forces = []
+        for i, (x, y) in enumerate(self._cloth_local):
+            angle = pi if y+9 > 0 and abs(x) < 1e-8 else atan2(-x, -(y+9))
+            angle *= (i//n)/(n-1)
+            self._cloth_forces.append((-.02*cos(angle), -.02*sin(angle)))
+        goals = self.cloth_goals()
+        # 从接近垂坠平衡的形态创建，避免重置时整片衣袍突然落下。
+        # 这只是初始位置，运行时没有指向该姿态的恢复弹簧。
+        self.cloth = [ClothPoint.at(p+Vec2(0, self.CLOTH_SLACK*(i//n)/(n-1)))
+                      for i, p in enumerate(goals)]
+        self.cloth_links = [(y*n+x, y*n+x+1) for y in range(n) for x in range(n-1)]
+        self.cloth_links += [(y*n+x, (y+1)*n+x) for y in range(n-1) for x in range(n)]
+        # 原版按列更新，每点依次访问左、上、右、下；邻边会从两端各计算一次。
+        self._cloth_order = [y*n+x for x in range(n) for y in range(n)]
+        self._cloth_neighbors = [
+            [(b*n+a, (goals[b*n+a]-goals[y*n+x]).length())
+             for a, b in ((x-1, y), (x, y-1), (x+1, y), (x, y+1))
+             if 0 <= a < n and 0 <= b < n]
+            for y in range(n) for x in range(n)]
+        self._cloth_buffers = [[0.]*len(self.cloth) for _ in range(4)]
+        side = perpendicular(self.direction)
+        self.necklace = [SoftPoint.at(self.upper
+            + side*((2*i/(self.NECKLACE_POINTS-1)-1)*self.NECKLACE_ANCHOR_HALF)
+            + self.direction*(self.NECKLACE_ANCHOR_UP-9*sin(pi*i/(self.NECKLACE_POINTS-1))))
+            for i in range(self.NECKLACE_POINTS)]
+        # 只在创建时预收敛，避免第一帧从直线掉下；运行时由重力和长度约束决定。
+        for _ in range(120):
+            self.step_necklace()
+        for p in self.necklace:
+            p.previous_position = p.position
+            p.velocity = Vec2()
+        self.body_points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace]
+        self.cords = None
+        self.main_cord, self.small_cords = [], []
+        self._points = self.body_points
+        self.sleeping = False
+        self.revision = 0
+        self._quiet_ticks = 0
+        self._sleep_inputs = ()
+        self.cog_turns = [0.] * 4
+        self.previous_cog_turns = self.cog_turns.copy()
+        self._arm_spans = self.arm_spans(scene)
+        self.sync_cords(scene)
+
+    def step_phone_side(self, look):
+        # 与绘制使用相同的头部局部视线；倒立和侧躺时仍按面部左右判断。
+        # 状态只在固定物理步更新，主画面、放大镜和命中图读取同一个结果。
+        side = perpendicular(normalized(self.head.position-self.upper, self.direction))
+        gx = look.x*side.x+look.y*side.y
+        if gx > self.PHONE_SIDE_HYSTERESIS:
+            self.near_phone = -1
+        elif gx < -self.PHONE_SIDE_HYSTERESIS:
+            self.near_phone = 1
+
+    def sync_cords(self, scene):
+        """按配置释放或重建线缆；不改变身体、导航及行为状态。"""
+        visible = not scene.config.hide_cords
+        if visible == (self.cords is not None):
+            return
+        if visible:
+            # 隐藏期间人偶可能已跨边；以当前连接点初始化，前后帧一致。
+            self.cords = OracleCords(scene, self.head.position)
+            self.main_cord = self.cords.main.points
+            self.small_cords = [rope.points for rope in self.cords.fine]
+            self._points = [*self.body_points, *self.main_cord,
+                            *(p for cord in self.small_cords for p in cord)]
+        else:
+            self.cords = None
+            self.main_cord, self.small_cords = [], []
+            self._points = self.body_points
+        self.sleeping = False
+        self._quiet_ticks = 0
+        self.revision += 1
+
+    @staticmethod
+    def arm_spans(scene):
+        nodes = [j.position for j in scene.arm.joints] + [scene.body.chunks[1].position]
+        return [(b-a).length() for a, b in zip(nodes, nodes[1:])]
+
+    def hand_forces(self):
+        # OracleGraphics.cs:1652-1654；完好 Moon 的零重力场景也保留固定
+        # 向画面下方 .5、沿躯干向下 .3、左右外展 .3，不追踪固定放手位置。
+        side = perpendicular(self.direction)
+        # 原作手部的 .5 并不乘 room.gravity。局部反重力活动中减弱此项，
+        # 保留 20% 向下偏置，以及躯干方向力与外展力，属于 Bell 的桌面适配。
+        return [Vec2(0, .5*(.2+.8*self.gravity_scale)) - self.direction*.3
+                + side*(sign*.3) for sign in (-1, 1)]
+
+    def foot_goals(self):
+        direction = self.waist_direction(self.direction)
+        side = perpendicular(direction)
+        return [self.lower + side*(sign*4.) - direction*8.5 for sign in (-1, 1)]
+
+    def waist_direction(self, direction, alpha=1.):
+        angle = self.previous_waist_angle+(self.waist_angle-self.previous_waist_angle)*alpha
+        return rotate(direction, angle)
+
+    def step_waist(self):
+        """只读衣袍中下段的整体朝向，平滑跟随；不反向驱动衣袍或导航。"""
+        n, center = self.CLOTH_DIVS, self.CLOTH_DIVS//2
+        # 避开自由下摆和两侧边缘，平均九点，防止一处褶皱让下身来回摇摆。
+        rows = (round((n-1)*.6), round((n-1)*.7), round((n-1)*.8))
+        samples = [self.cloth[y*n+x].position-self.upper
+                   for y in rows for x in (center-1, center, center+1)]
+        delta = Vec2(sum(p.x for p in samples), sum(p.y for p in samples))*(1/len(samples))
+        side = perpendicular(self.direction)
+        across = delta.x*side.x+delta.y*side.y
+        down = -(delta.x*self.direction.x+delta.y*self.direction.y)
+        # 强烈折回时仍保留向脚方向，避免中心线穿过胸部后发生翻转。
+        target = atan2(-across, max(6., down))*self.WAIST_FOLLOW
+        target = max(-self.WAIST_MAX_ANGLE, min(self.WAIST_MAX_ANGLE, target))
+        self.previous_waist_angle = self.waist_angle
+        speed = self.waist_velocity*self.WAIST_DAMPING+(target-self.waist_angle)*self.WAIST_SPRING
+        speed = max(-self.WAIST_MAX_SPEED, min(self.WAIST_MAX_SPEED, speed))
+        self.waist_angle = max(-self.WAIST_MAX_ANGLE,
+                              min(self.WAIST_MAX_ANGLE, self.waist_angle+speed))
+        self.waist_velocity = self.waist_angle-self.previous_waist_angle
+        self.lower = self.upper-self.waist_direction(self.direction)*9
+
+    def cloth_goals(self):
+        side = perpendicular(self.direction)
+        # 原版 IdealPosForPoint：领半宽 5、下摆半宽 11、中央下摆长 18*1.35。
+        return [Vec2(self.upper.x+side.x*x+self.direction.x*y,
+                     self.upper.y+side.y*x+self.direction.y*y) for x, y in self._cloth_local]
+
+    def necklace_anchors(self):
+        side = perpendicular(self.direction)
+        return [self.upper+self.direction*self.NECKLACE_ANCHOR_UP
+                + side*(sign*self.NECKLACE_ANCHOR_HALF) for sign in (-1, 1)]
+
+    def step_necklace(self):
+        """胸前短链：两个颈侧端点固定，六颗珠子靠重力和阻尼下垂。"""
+        points, anchors = self.necklace, self.necklace_anchors()
+        side = perpendicular(self.direction)
+        host_velocity = (anchors[0]-points[0].position+anchors[1]-points[-1].position)*.5
+        last = len(points)-1
+        for i, p in enumerate(points):
+            p.previous_position = p.position
+            if i in (0, last):
+                p.position = anchors[0 if i == 0 else 1]
+            else:
+                # 阻尼相对于佩戴者，避免匀速向下移动时全局空气阻力把项链
+                # 持续拖到脸前；加减速仍保留相对速度，产生短暂摆动。
+                p.position += (host_velocity+(p.velocity-host_velocity)*self.NECKLACE_DAMPING
+                               + Vec2(0, self.NECKLACE_GRAVITY*self.gravity_scale))
+        for iteration in range(self.NECKLACE_PASSES):
+            # 交替求解方向，避免把最后一次修正的偏差固定堆在同一侧。
+            edges = range(last) if iteration % 2 == 0 else range(last-1, -1, -1)
+            for i in edges:
+                a, b = points[i], points[i+1]
+                delta = b.position-a.position
+                distance = delta.length()
+                correction = delta*((distance-self.NECKLACE_LINK_LENGTH)/max(distance, 1e-9))
+                if i == 0:
+                    b.position -= correction
+                elif i+1 == last:
+                    a.position += correction
+                else:
+                    a.position += correction*.5
+                    b.position -= correction*.5
+            # 胸前投影中的领口表面：链条可松弛摆动，但不能翻到高领/脸前。
+            # 仅在进入表面时推出，不把珠子追踪到固定的理想位置。
+            for p in points[1:-1]:
+                offset = p.position-self.upper
+                across = offset.x*side.x+offset.y*side.y
+                down = -(offset.x*self.direction.x+offset.y*self.direction.y)
+                minimum = (-self.NECKLACE_ANCHOR_UP+.5
+                           + 5*sqrt(max(0., 1-(across/self.NECKLACE_ANCHOR_HALF)**2)))
+                if down < minimum:
+                    p.position += self.direction*(down-minimum)
+        for p in points:
+            p.velocity = p.position-p.previous_position
+
+    def step_cloth(self):
+        goals = self.cloth_goals()
+        n = self.CLOTH_DIVS
+        direction, side = self.direction, perpendicular(self.direction)
+        x, y, vx, vy = self._cloth_buffers
+        for i, p in enumerate(self.cloth):
+            p.previous_position = p.position
+            x[i], y[i] = p.position.x, p.position.y
+            vx[i], vy[i] = p.drive_velocity.x, p.drive_velocity.y
+        for i in self._cloth_order:
+            goal = goals[i]
+            depth = (i//n)/(n-1)
+            # 力的局部方向仅由布点的固定坐标决定；创建时计算三角函数。
+            along, across = self._cloth_forces[i]
+            fx, fy = direction.x*along+side.x*across, direction.y*along+side.y*across
+            px, py = x[i]+vx[i], y[i]+vy[i]
+            dx, dy = px-goal.x, py-goal.y
+            factor = min(1., self.CLOTH_SLACK*depth/max(sqrt(dx*dx+dy*dy), 1e-9))
+            x[i], y[i] = goal.x+dx*factor, goal.y+dy*factor
+            vx[i] = vx[i]*self.CLOTH_DAMPING+fx+x[i]-px
+            vy[i] = vy[i]*self.CLOTH_DAMPING+fy+self.CLOTH_GRAVITY*self.gravity_scale+y[i]-py
+            for j, rest in self._cloth_neighbors[i]:
+                dx, dy = x[j]-x[i], y[j]-y[i]
+                distance = sqrt(dx*dx+dy*dy)
+                factor = (distance-rest)*.05/max(distance, 1e-9)
+                tx, ty = dx*factor, dy*factor
+                vx[i] += tx; vy[i] += ty
+                vx[j] -= tx; vy[j] -= ty
+        for i, p in enumerate(self.cloth):
+            p.position = Vec2(x[i], y[i])
+            p.velocity = p.position-p.previous_position
+            p.drive_velocity = Vec2(vx[i], vy[i])
+
+    def step(self, scene):
+        self.sync_cords(scene)
+        # 转动量只来自主跨度变化；固定 40 Hz 更新，静止不空转，绘制只插值。
+        spans = self.arm_spans(scene)
+        self.previous_cog_turns = self.cog_turns.copy()
+        for i, (old, new) in enumerate(zip(self._arm_spans, spans)):
+            self.cog_turns[i] += (old-new)/scene.arm.lengths[i]*2*(-1 if i % 2 == 0 else 1)
+        self._arm_spans = spans
+        inputs = (scene.body.chunks[0].position, scene.body.chunks[1].position,
+                  scene.head.position, scene.look_direction, *(j.position for j in scene.arm.joints))
+        gravity = scene.pose.gravity_scale
+        gravity_changed = abs(gravity-self.gravity_scale) > 1e-9
+        reacting = (scene.drag_reactions.gesturing or scene.projection.busy
+                    or any(hand.reach_weight > 0 for hand in self.hands))
+        if self.sleeping and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
+            # 静置收敛后休眠；新移动、转头、倾角都会唤醒。不依赖墙钟时间。
+            return
+        self.sleeping = False
+        self.gravity_scale = gravity
+        self.revision += 1
+        self.previous_sway = self.sway
+        upper = scene.body.chunks[0]
+        acceleration = upper.velocity - self.last_body_velocity
+        side = perpendicular(scene.body.direction)
+        lateral = acceleration.x*side.x + acceleration.y*side.y
+        speed = upper.velocity.length()
+        moving = min(1., speed/.2)
+        damping = self.SWAY_REST_DAMPING+(self.SWAY_MOVE_DAMPING-self.SWAY_REST_DAMPING)*moving
+        self.sway_velocity = self.sway_velocity*damping - self.sway*.085 + lateral*.035
+        self.sway = max(-.065, min(.065, self.sway + self.sway_velocity))
+        if (speed < .03 and abs(lateral) < .001 and abs(self.sway) < self.SWAY_SETTLE_ANGLE
+                and abs(self.sway_velocity) < self.SWAY_SETTLE_SPEED):
+            # 结束不可见的余震，避免落点恰在像素取整边界时，头部整张图持续跳一格。
+            # 固定物理步内收敛，主画面、放大镜和命中图共用；新加速仍能立即激发摆动。
+            self.sway = self.sway_velocity = 0.
+        self.last_body_velocity = upper.velocity
+        self.upper = upper.position
+        self.direction = rotate(scene.body.direction, self.sway)
+        self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
+        self.step_phone_side(scene.look_direction)
+        reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
+        for index, (hand, force, extra) in enumerate(zip(self.hands, self.hand_forces(), reactions)):
+            weight = scene.drag_reactions.hand_weight(index)
+            shoulder = hand.shoulder(self.upper, self.direction, index)
+            hand.step(self.upper, upper.velocity, force+extra, shoulder=shoulder, weight=weight)
+            hand.constrain_swing(self.upper, self.direction, index, upper.velocity, weight)
+        self.step_cloth()
+        self.step_waist()
+        for p, goal in zip(self.feet, self.foot_goals()):
+            p.follow(goal, spring=.075, damping=.80, slack=5.)
+            p.position = self.lower + clamp_length(p.position-self.lower, 10)
+            p.velocity = p.position-p.previous_position
+        self.step_necklace()
+        if self.cords is not None:
+            self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
+        self._quiet_ticks = (self._quiet_ticks+1 if not reacting and not gravity_changed and self.maximum_speed < .002
+                             and abs(self.sway_velocity) < 1e-6
+                             and max((a-b).length() for a, b in zip(inputs, self._sleep_inputs)) < .001
+                             else 0) if self._sleep_inputs else 0
+        self._sleep_inputs = inputs
+        if self._quiet_ticks >= 30:
+            self.sleeping = True
+            self._sleep_inputs = inputs
+            self.previous_sway = self.sway
+            self.previous_waist_angle = self.waist_angle
+            self.waist_velocity = 0.
+            for p in self._points:
+                p.previous_position = p.position
+                p.velocity = Vec2()
+
+    @property
+    def points(self):
+        return self._points
+
+    @property
+    def maximum_speed(self):
+        # 腰部尚在缓动时不能提前休眠；17.5 为胸部到脚目标的轴向距离。
+        return max(abs(self.waist_velocity)*17.5, max(p.velocity.length() for p in self.points))

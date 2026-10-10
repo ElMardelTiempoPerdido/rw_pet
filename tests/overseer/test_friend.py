@@ -8,10 +8,10 @@ from unittest.mock import patch
 from PySide6.QtGui import QColor, QImage, QPainter
 
 from rw_creature_pet.overseer.config import OverseerConfig, OverseerSlot
-from rw_creature_pet.overseer.friend import ROOT_COLOR, PEAK_FRACTION, NECK_FRACTION, body_centers, body_color, body_radius
+from rw_creature_pet.overseer.graphics.friend.body import ROOT_COLOR, PEAK_FRACTION, NECK_FRACTION, body_centers, body_color, body_radius
 from rw_creature_pet.overseer.group import OverseerGroup
 from rw_creature_pet.overseer.model import Anchor, Edge
-from rw_creature_pet.overseer.render import OverseerRenderer
+from rw_creature_pet.overseer.graphics.render import OverseerRenderer
 from rw_creature_pet.shared.geometry import Bounds, Vec2
 
 
@@ -99,7 +99,7 @@ class FriendTests(unittest.TestCase):
         for _ in range(100):
             self.model.step(Vec2(170, 170))
         self.model.lens.up = self.model.lens.previous_up = 1.
-        from rw_creature_pet.overseer import friend_head
+        from rw_creature_pet.overseer.graphics.friend import head as friend_head
         with patch.object(friend_head, 'head_image', wraps=friend_head.head_image) as flower, \
                 patch.object(friend_head, 'view_matrix', wraps=friend_head.view_matrix) as matrices, \
                 patch.object(self.renderer, '_lens') as lens:

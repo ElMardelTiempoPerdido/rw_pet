@@ -14,10 +14,10 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.interaction.config import InteractionConfig
 from rw_creature_pet.oracle.config import DragReactionConfig, OracleConfig
-from rw_creature_pet.oracle.debug_window import OracleDebugWindow
-from rw_creature_pet.oracle.desktop import OracleDesktopWindow
-from rw_creature_pet.oracle.render import OracleRenderer
-from rw_creature_pet.oracle.voice import BELL_VOICE_CLIPS
+from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
+from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
+from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS
 from tests.interaction.test_audio import FakeSound
 
 
@@ -62,7 +62,7 @@ class VoiceWindowTests(unittest.TestCase):
         messages = []
         previous = qInstallMessageHandler(lambda kind, context, text: messages.append(text))
         try:
-            with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+            with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
                 w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
             try:
                 w.timer.stop()
@@ -80,7 +80,7 @@ class VoiceWindowTests(unittest.TestCase):
         for recovery in ('move', 'watch'):
             for playing in (False, True):
                 with self.subTest(recovery=recovery, playing=playing), \
-                     patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+                     patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
                     w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
                     try:
                         sound = self.attach_sound(w)
@@ -159,7 +159,7 @@ class VoiceWindowTests(unittest.TestCase):
         self.assertIsNone(w.voice_player.current)
 
     def test_desktop_rebuild_disable_pause_and_debug_handoff(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
         self.addCleanup(w.close)
         sound = self.attach_sound(w)
@@ -202,7 +202,7 @@ class VoiceWindowTests(unittest.TestCase):
         w.close()
 
     def test_desktop_drag_recovers_on_new_cue_after_audio_failure(self):
-        with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+        with patch('rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             w = OracleDesktopWindow(self.config, renderer=OracleRenderer())
         self.addCleanup(w.close)
         broken = self.attach_sound(w)
