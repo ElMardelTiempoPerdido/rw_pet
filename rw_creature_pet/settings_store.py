@@ -84,7 +84,14 @@ class SettingsStore:
             raise ValueError('不支持的用户设置文件版本')
         if not isinstance(data.get('config'), dict):
             raise ValueError('配置必须为对象')
-        merged, changed = _fill_missing(data['config'], defaults)
+        user_config = dict(data['config'])
+        watcher = user_config.get('overseer')
+        migrated = isinstance(watcher, dict) and 'slots' not in watcher and 'color' in watcher
+        if migrated:
+            user_config['overseer'] = {**watcher, 'slots': [
+                {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
+        merged, changed = _fill_missing(user_config, defaults)
+        changed |= migrated
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
         if merged['ui']['language'] != config.ui.language:

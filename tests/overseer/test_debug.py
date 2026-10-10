@@ -38,6 +38,28 @@ class OverseerDebugTests(unittest.TestCase):
         self.window.close()
         self.app.processEvents()
 
+    def test_friend_preview_preserves_pose_and_does_not_change_saved_slots(self):
+        c, p = self.canvas, self.panel
+        p.show_button.click()
+        for _ in range(100):
+            c.overseer.step(Vec2(480, 300))
+        p.set_color('#ffffff')
+        slots = c.overseer_group.config.slots
+        before = (c.overseer.root, c.overseer.head.position, c.overseer.extended,
+                  c.overseer_events.remaining, c.overseer_events.phase)
+        p.appearance.setCurrentIndex(p.appearance.findData('friend'))
+        self.assertEqual(c.overseer.appearance, 'friend')
+        self.assertEqual(c.overseer.config.color, '#000000')
+        self.assertEqual(before, (c.overseer.root, c.overseer.head.position, c.overseer.extended,
+                                 c.overseer_events.remaining, c.overseer_events.phase))
+        p.apply_settings(c.overseer_group.config)
+        self.assertEqual(c.overseer.appearance, 'friend')
+        self.assertEqual(c.overseer_group.config.slots, slots)
+        c.overseer_group.configure(c.overseer_group.config)
+        p.refresh_status()
+        self.assertEqual(c.overseer.appearance, slots[0].appearance)
+        self.assertEqual(p.appearance.currentData(), slots[0].appearance)
+
     def test_show_edge_pause_single_step_and_clear(self):
         w, c, p = self.window, self.canvas, self.panel
         p.show_button.click()
@@ -230,7 +252,7 @@ class OverseerDebugTests(unittest.TestCase):
         self.assertTrue(c.overseer.config.enabled)
         self.assertEqual(c.overseer.config.appearance_probability, 1)
         p.close()  # 面板可见性不影响调度。
-        with patch.object(c, 'overseer_mouse', return_value=None):
+        with patch.object(c, 'mouse_world', return_value=None):
             w.clock.advance(5, w.step_scene)
             self.assertEqual(c.overseer_events.check_remaining, 1)
             for _ in range(40):
@@ -275,6 +297,8 @@ class OverseerDebugTests(unittest.TestCase):
         settings.controls['puppet_withdraw_distance'].setValue(110)
         settings.controls['puppet_reemerge_distance'].setValue(170)
         settings.controls['relocation_probability'].setValue(70)
+        settings.controls['observation_probability'].setValue(80)
+        settings.controls['observation_interval'].setValue(15)
         with patch('rw_creature_pet.overseer.settings.QFileDialog.getSaveFileName', return_value=('', '')):
             settings.export_button.click()
         self.assertEqual(c.overseer.config, before)
@@ -286,6 +310,8 @@ class OverseerDebugTests(unittest.TestCase):
             self.assertEqual(config.overseer.reemerge_distance, 130)
             self.assertEqual(config.overseer.puppet_reemerge_distance, 170)
             self.assertEqual(config.overseer.relocation_probability, .7)
+            self.assertEqual(config.overseer.observation_probability, .8)
+            self.assertEqual(config.overseer.observation_interval, 15)
             self.assertEqual(config.oracle, self.window.config.oracle)
             self.assertEqual(c.overseer.config, config.overseer)
             p.set_color('#123456')
@@ -305,7 +331,7 @@ class OverseerDebugTests(unittest.TestCase):
         c = self.canvas
         c.overseer_avoidance = False
         mouse = Vec2(480, 300)
-        with patch.object(c, 'overseer_mouse', return_value=mouse):
+        with patch.object(c, 'mouse_world', return_value=mouse):
             context = c.overseer_spawn_context()
         self.assertEqual(context.mouse, mouse)
         self.assertIsNone(c.overseer_threat())

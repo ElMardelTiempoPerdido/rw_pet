@@ -1,4 +1,4 @@
-"""光环动画与交互的独立性、安全范围、像素缓存和窗口唤醒。"""
+"""光环动画与交互的独立性、头部跟随、像素缓存和窗口唤醒。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
@@ -12,7 +12,7 @@ from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.shared.geometry import Bounds, Vec2
+from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.halo import HaloBit, HaloRing, OracleHalo
 from rw_creature_pet.oracle.scene import OracleScene, OracleWorld
@@ -51,26 +51,22 @@ class HaloTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 h.set_scale(value)
 
-    def test_full_footprint_and_interpolation_stay_in_band_through_four_corners(self):
+    def test_center_follows_without_boundary_avoidance_or_chase_lag(self):
         for size in ((640, 480), (960, 600), (2560, 1540)):
-            world = OracleWorld(*size, .2)
-            w, h, inner = *size, world.inner
-            boxes = (Bounds(0, 0, w, inner.top), Bounds(inner.right, 0, w, h),
-                     Bounds(0, inner.bottom, w, h), Bounds(0, 0, inner.left, h))
-            halo = OracleHalo(world, Vec2(w/2, 0), 1.5)
-            halo.set_scale(1.4)
-            for target in (Vec2(w-5, 4), Vec2(w+30, h-4), Vec2(2, h+30), Vec2(-30, 1), Vec2(w/2, 1)):
-                halo.target_expand, halo.target_push = 2., 3.
-                for _ in range(160):
-                    halo.step(target)
-                    for alpha in (0., .5, 1.):
-                        center = halo.center_at(alpha)
-                        extent = halo.radius_at(2.5, alpha)+5*halo.geometry_at(alpha)[2]+1
-                        self.assertLessEqual(extent, halo.extent)
-                        corners = [center+Vec2(x*extent, y*extent) for x in (-1,1) for y in (-1,1)]
-                        self.assertTrue(any(all(box.contains(p) for p in corners) for box in boxes),
-                                        (size, target, center, extent))
-                self.assertLess((halo.center-halo.region.clamp(target)).length(), .1)
+            # 即使仅开放顶部，光环也不单独受到活动边缘或中央孔洞约束。
+            world = OracleWorld(*size, .2, allowed_edges=('top',))
+            w, h = size
+            initial = Vec2(w/2, -8)
+            halo = OracleHalo(world, initial, 1.5)
+            self.assertEqual(halo.center, initial)
+            self.assertEqual(halo.previous_center, initial)
+            for target in (Vec2(w-5, 4), Vec2(w+30, h-4), Vec2(w/2, h/2),
+                           Vec2(2, h+30), Vec2(-30, 1), Vec2(w/2, -8)):
+                previous = halo.center
+                halo.step(target)
+                self.assertEqual(halo.center, target, (size, target))
+                for alpha in (0., .25, .5, .75, 1.):
+                    self.assertEqual(halo.center_at(alpha), previous.lerp(target, alpha))
 
     def test_ring_flash_fills_then_hides_for_two_of_four_ticks(self):
         h = OracleHalo(OracleWorld(1920, 1080, .2), Vec2(400, 65))
@@ -195,11 +191,11 @@ class HaloTests(unittest.TestCase):
         scene.halo.center = scene.halo.previous_center = Vec2(2000, 2000)
         scene.set_halo_enabled(True)
         self.assertEqual(scene.halo.center, scene.halo.previous_center)
-        self.assertTrue(scene.halo.region.contains(scene.halo.center))
+        self.assertEqual(scene.halo.center, scene.orbit_center)
         scene.pulse_halo()
         resized = OracleDesktopMotion(scene.config, OracleDesktopViewport(0, 0, 800, 600), scene).scene
         self.assertEqual(resized.halo.center, resized.halo.previous_center)
-        self.assertTrue(resized.halo.region.contains(resized.halo.center))
+        self.assertEqual(resized.halo.center, resized.orbit_center)
         self.assertEqual(resized.halo.interaction, 1.)
         self.assertEqual(resized.halo.random.getstate(), scene.halo.random.getstate())
         for kwargs in ({'halo_enabled': 1}, {'halo_scale': 0}, {'halo_scale': float('inf')}):
@@ -224,6 +220,36 @@ class HaloRenderTests(unittest.TestCase):
         finally:
             p.end()
         return image
+
+    def test_screen_edges_crop_normally_and_center_remains_visible(self):
+        scene = OracleScene(OracleConfig(halo_arcs_enabled=False))
+        renderer = OracleRenderer()
+        w, h = round(scene.world.width), round(scene.world.height)
+        margin = 128
+
+        def paint(scale, padding):
+            image = QImage(round((w+padding*2)*scale), round((h+padding*2)*scale),
+                           QImage.Format.Format_ARGB32_Premultiplied)
+            image.fill(0)
+            p = QPainter(image)
+            try:
+                p.scale(scale, scale)
+                p.translate(padding, padding)
+                renderer.draw_halo(p, scene, 1.)
+            finally:
+                p.end()
+            return image
+
+        for center in (Vec2(w/2, -8), Vec2(w+8, h/2), Vec2(w/2, h+8),
+                       Vec2(-8, h/2), Vec2(w/2, h/2)):
+            scene.halo.step(center)
+            for scale in (1., 1.5, 2.):
+                with self.subTest(center=center, scale=scale):
+                    screen = paint(scale, 0)
+                    full = paint(scale, margin)
+                    self.assertTrue(any(bytes(screen.constBits())[3::4]))
+                    self.assertEqual(screen, full.copy(round(margin*scale), round(margin*scale),
+                                                       screen.width(), screen.height()))
 
     def test_opacity_color_and_animation_keep_body_cached_and_render_read_only(self):
         scene, renderer = OracleScene(), OracleRenderer()

@@ -5,7 +5,12 @@ from math import cos, exp, isfinite, pi, sin, sqrt
 from random import Random
 
 from ..shared.geometry import Bounds, Vec2
-from .config import OverseerConfig
+from .config import APPEARANCE_COLORS, OverseerConfig
+from .lens import ObservationLens
+from .friend import FriendBend, NECK_LENGTH, body_centers, body_gaze_follow, head_view_gaze, neck_offset
+from .friend_light import OBSERVATION_DURATION as FRIEND_OBSERVATION_DURATION, light_extent
+from .friend_light_pixels import FriendLightPixels
+from . import friend_filaments
 
 
 def clamp(value, low, high):
@@ -78,6 +83,9 @@ class Overseer:
         self.config, self.seed = config, seed
         self.active = False
         self.revision = 0
+        self.appearance = 'standard'
+        self.friend_light_pixels = None
+        self.lens = ObservationLens(config, seed)
         self.place(bounds, Anchor())
 
     @property
@@ -98,16 +106,27 @@ class Overseer:
 
     @property
     def filament_length(self):
+        if self.appearance == 'friend':
+            return max(friend_filaments.lengths(self.config.size))
         # 原版 conRad = length / 节点数，再减半；可见链包含 节点数-1 个连接段。
         # 保留相同总静止长度，以固定五节点采样；size=0.6 时为 22.5。
         length = 55+(self.config.size-.5)*50
         original_points = int(length/15)
         return length*(original_points-1)/(2*original_points)
 
+    @property
+    def filament_lengths(self):
+        if self.appearance == 'friend':
+            return friend_filaments.projected_lengths(self)
+        return (self.filament_length,)*self.FILAMENT_COUNT
+
     def place(self, bounds, anchor):
         if not all(isfinite(v) for v in (bounds.left, bounds.top, bounds.right, bounds.bottom)) or min(bounds.right-bounds.left, bounds.bottom-bounds.top) < 140:
             raise ValueError('监视者预览区域每边至少需要 140 逻辑单位')
         self.bounds, self.anchor = bounds, anchor
+        self.lens.reset(self.config)
+        if self.friend_light_pixels is not None:
+            self.friend_light_pixels.reset()
         edge = anchor.edge
         self.normal = {Edge.TOP: Vec2(0, 1), Edge.RIGHT: Vec2(-1, 0),
                        Edge.BOTTOM: Vec2(0, -1), Edge.LEFT: Vec2(1, 0)}[edge]
@@ -121,6 +140,7 @@ class Overseer:
                      Edge.BOTTOM: Vec2(x, bounds.bottom), Edge.LEFT: Vec2(bounds.left, y)}[edge]
         self.hover = self.root+self.normal*(30*self.config.size)
         self.head = Point.at(self.hover)
+        self.friend_bend = FriendBend()
         self.extended = self.last_extended = self.extension_velocity = 0.
         self.state = State.HIDDEN
         self.wants_out = True
@@ -133,11 +153,14 @@ class Overseer:
         self.idle_target = Vec2(0, 180)
         self.look_at = self.previous_look = self.root+self.normal*180
         self.target = None
+        self._reset_filaments()
+        self.revision += 1
+
+    def _reset_filaments(self):
         base = self.filament_base(1.)
         tips = self._filament_tips()
         self.filaments = [[Point.at(base.lerp(tip, i/(self.FILAMENT_POINTS-1)))
                            for i in range(self.FILAMENT_POINTS)] for tip in tips]
-        self.revision += 1
 
     def show(self, bounds=None, anchor=None):
         self.place(bounds or self.bounds, anchor or self.anchor)
@@ -145,12 +168,16 @@ class Overseer:
 
     def clear(self):
         self.active = False
+        self.lens.reset(self.config)
+        if self.friend_light_pixels is not None:
+            self.friend_light_pixels.reset()
         self.extended = self.last_extended = self.extension_velocity = 0.
         self.state = State.HIDDEN
         self.scared = False
         self.safe_time = 0.
         self.threat_distance = None
         self.target = None
+        self.friend_bend = FriendBend()
         self.revision += 1
 
     def request_emerge(self):
@@ -163,6 +190,16 @@ class Overseer:
     def set_color(self, color):
         self.config = replace(self.config, color=color)
         self.revision += 1
+
+    def set_appearance(self, appearance):
+        if appearance not in APPEARANCE_COLORS:
+            raise ValueError('监视者外观无效')
+        if self.appearance != appearance:
+            self.appearance = appearance
+            self.friend_bend = FriendBend()
+            self.friend_light_pixels = FriendLightPixels(self.seed) if appearance == 'friend' else None
+            self._reset_filaments()
+            self.revision += 1
 
     def _step_extension(self, threat, puppet):
         self.last_extended = self.extended
@@ -214,13 +251,27 @@ class Overseer:
         extension = self.extension(alpha)
         return unit(delta)*(sin(angle)*extension), cos(angle)*extension
 
-    def stem(self, fraction, alpha=1.):
+    def body_gaze(self, alpha=1.):
+        # 花冠仍使用完整 gaze，身体只接收部分注视影响
+        gaze, _ = self.gaze(alpha)
+        return gaze*body_gaze_follow() if self.appearance == 'friend' else gaze
+
+    def head_gaze(self, alpha=1.):
+        return head_view_gaze(self, alpha) if self.appearance == 'friend' else self.gaze(alpha)
+
+    def stem(self, fraction, alpha=1., *, head_offset=None):
         extension = self.extension(alpha)
         buried_head = self.root-self.normal*(12*self.config.size)
         # 原版探出时把物理头重置到墙内。这里用连续绘制位置替代重置，允许中途反向。
         head = buried_head.lerp(self.head.sample(alpha), extension)
-        gaze, _ = self.gaze(alpha)
-        a = self.root+self.normal*(max(40*self.config.size, (head-self.root).length()*.85)*extension)
+        if head_offset is not None:
+            head += head_offset
+        gaze = self.body_gaze(alpha)
+        handle = max(40*self.config.size, (head-self.root).length()*.85)
+        if head_offset is not None:
+            # 延长后的颈部会露出原先被头覆盖的曲线，短姿态下避免根侧控制点越过末端
+            handle = min(handle, (head-self.root).length()*.9)
+        a = self.root+self.normal*(handle*extension)
         b = head-gaze*(15*self.config.size*extension)
         t, u = fraction, 1-fraction
         curve = self.root*(u**3)+a*(3*u*u*t)+b*(3*u*t*t)+head*(t**3)
@@ -229,12 +280,26 @@ class Overseer:
 
     def eye_position(self, alpha=1.):
         head = self.stem(1., alpha)
+        if self.appearance == 'friend':
+            return self.stem(1., alpha, head_offset=neck_offset(self, alpha))
         return head+unit(self.stem(.999, alpha)-head)*(5*self.config.size*(1-self.extension(alpha)))
 
+    @property
+    def head_extra_extent(self):
+        return NECK_LENGTH*(.75+.25*self.config.size) if self.appearance == 'friend' else 0.
+
+    @property
+    def observation_extent(self):
+        return light_extent() if self.appearance == 'friend' else self.lens.MAX_EXTENT
+
     def filament_base(self, alpha=1.):
+        if self.appearance == 'friend':
+            return friend_filaments.attachment(self, alpha)
         return self.stem(.5+(self.config.size-.5)*.6, alpha)
 
     def _filament_tips(self):
+        if self.appearance == 'friend':
+            return friend_filaments.tip_targets(self)
         gaze, depth = self.gaze()
         spread = (20+5*sin(self.time*.7))*self.config.size
         phase = .32*sin(self.time*.43)
@@ -252,6 +317,17 @@ class Overseer:
         self.target = target
         previous = (self.state, self.extended, self.last_extended)
         self._step_extension(threat, puppet)
+        if self.lens.config is not self.config:
+            self.lens.configure(self.config)
+        self.lens.step(eligible=self.state == State.WATCHING and self.wants_out
+                       and not self.scared and target is not None,
+                       visible=self.visible, tick_rate=self.TICK_RATE,
+                       animate_hologram=self.appearance != 'friend',
+                       duration=FRIEND_OBSERVATION_DURATION if self.appearance == 'friend' else None)
+        if self.friend_light_pixels is not None:
+            self.friend_light_pixels.step(opening=max(self.lens.up, self.lens.previous_up),
+                                          visible=self.visible, emitting=self.lens.remaining > 0,
+                                          tick_rate=self.TICK_RATE)
         if self.extended == self.last_extended == 0:
             if previous != (self.state, self.extended, self.last_extended):
                 self.revision += 1
@@ -272,6 +348,9 @@ class Overseer:
         head.previous = head.position
         delta = self.look_at-head.position
         force = (-.8+1.6*clamp((delta.length()-30)/120, 0., 1.))*self.config.size
+        if self.appearance == 'friend':
+            # 降低末端追随鼠标的位移，不减慢花冠本身的转向或探出、缩回
+            force *= body_gaze_follow()
         head.velocity = limited(head.velocity*.8+(self.hover-head.position)*.07+unit(delta)*force, 3*self.config.size)
         proposed = head.position+head.velocity
         relative = proposed-self.root
@@ -281,12 +360,14 @@ class Overseer:
         head.position = self.root+self.normal*inward+self.tangent*lateral
         if head.position != proposed:
             head.velocity = head.position-head.previous
+        if self.appearance == 'friend':
+            self.friend_bend.step(self)
         self._step_filaments()
         self.revision += 1
 
     def _step_filaments(self):
         base = self.filament_base()
-        segment_length = self.filament_length*self.extended/(self.FILAMENT_POINTS-1)
+        lengths = self.filament_lengths
         # 收拢过程中允许节点退到墙内；绘制仍由边框裁剪。
         inset = 1-(1-self.extended)*self.reach
         safe = Bounds(self.bounds.left+inset, self.bounds.top+inset,
@@ -294,9 +375,12 @@ class Overseer:
         # 按本帧长度变化收拢，避免反复乘 extended 压短整条链、再由约束猛然撑开。
         shrink = min(1., self.extended/self.last_extended) if self.last_extended > 0 else 1.
         for index, (strand, tip) in enumerate(zip(self.filaments, self._filament_tips())):
+            segment_length = lengths[index]*self.extended/(len(strand)-1)
             # 仅在重合点初次展开时使用局部方向，避免归一化零向量后无法撑开。
             radial = self.tangent*cos(index*pi/2)+self.normal*sin(index*pi/2)
             unfurl = unit(tip-base, radial)
+            bends = (friend_filaments.bend_forces(self, index, strand, base, unfurl)
+                     if self.appearance == 'friend' else None)
             for i, point in enumerate(strand):
                 point.previous = point.position
                 if i == 0:
@@ -307,6 +391,8 @@ class Overseer:
                 steering = (tip-point.position)*(.025*sin(fraction*pi)*self.extended)
                 # 根部的方向偏好逐段减弱，不把整条触须强行排成一条目标曲线。
                 steering += unfurl*(.12*(1-fraction)*self.extended)
+                if bends is not None:
+                    steering += bends[i]
                 if i > 1:
                     # 轻微抵抗折叠，参考 Mycelium 对隔一个节点的排斥。
                     steering += unit(point.position-strand[i-2].previous, unfurl)*(.2*self.extended)
@@ -334,8 +420,14 @@ class Overseer:
                 point.velocity = point.position-point.previous
 
     def visual_bounds(self, alpha=1.):
-        points = [self.stem(i/10, alpha) for i in range(11)]
+        points = (body_centers(self, alpha) if self.appearance == 'friend'
+                  else [self.stem(i/10, alpha) for i in range(11)])
         points += [point.sample(alpha) for strand in self.filaments for point in strand]
+        if self.lens.opening(alpha) > 0:
+            # 按外观包含观察光束或外围三角片，不能只缓存眼球与触须的矩形
+            eye = self.eye_position(alpha)
+            radius = self.observation_extent
+            points += [eye-Vec2(radius, radius), eye+Vec2(radius, radius)]
         pad = 12.
         return Bounds(min(p.x for p in points)-pad, min(p.y for p in points)-pad,
                       max(p.x for p in points)+pad, max(p.y for p in points)+pad)

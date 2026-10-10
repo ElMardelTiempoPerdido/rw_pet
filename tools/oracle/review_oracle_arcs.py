@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.render import OracleRenderer, bezier
+from rw_creature_pet.oracle.halo_arcs import curve_length_bound
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 
@@ -34,7 +35,7 @@ def main():
     out = ROOT/'artifacts'
     out.mkdir(exist_ok=True)
 
-    width, height = 984, 216
+    width, height = 984, 360
 
     def paint():
         image = QImage(width, height, QImage.Format.Format_RGBA8888)
@@ -53,8 +54,7 @@ def main():
     count = scene.trigger_halo_arcs()
     assert count > 0
     adjacent = sum(a.edge != a.source_edge for a in scene.halo_arcs.arcs)
-    longest = max(sum((b-a).length() for a, b in zip(c, c[1:]))
-                  for c in scene.halo_arcs.curves(scene.halo))
+    longest = max(curve_length_bound(*c) for c in scene.halo_arcs.curves(scene.halo))
     bows = []
     for curve in scene.halo_arcs.curves(scene.halo):
         start, end = curve[0], curve[-1]
@@ -87,7 +87,7 @@ def main():
         text.text((12, y+8), label, fill='#d7e5ed', font=font)
         sheet.paste(frames[sample+1], (0, y+32))
     sheet.save(out/'oracle-halo-arcs-preview.png')
-    print('Sampled count:', count, 'Adjacent:', adjacent, 'Longest control polygon:', round(longest, 2),
+    print('Sampled count:', count, 'Adjacent:', adjacent, 'Longest curve:', round(longest, 2),
           'Bows:', [round(b, 2) for b in bows], 'Duration:', duration,
           'Widths:', [round(w, 3) for w in widths], flush=True)
 

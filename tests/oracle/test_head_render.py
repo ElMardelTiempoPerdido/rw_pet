@@ -79,6 +79,9 @@ class OracleHeadRenderTests(unittest.TestCase):
                 self.assertIs(renderer._head_image, original)
                 replay.assert_not_called()
                 self.paint(renderer, scale=4, density=4, tilt=19, gaze=(.4, .3))
+                self.assertIs(renderer._head_image, original)
+                replay.assert_not_called()
+                self.paint(renderer, scale=3, density=3, tilt=19, gaze=(.4, .3))
                 self.assertIsNot(renderer._head_image, original)
                 replay.assert_called_once()
             geometry.assert_not_called()
@@ -108,6 +111,67 @@ class OracleHeadRenderTests(unittest.TestCase):
                 masks.append({(x, y) for y in range(image.height()) for x in range(image.width())
                               if image.pixel(x, y) in colors})
             self.assertTrue(all(mask == masks[0] for mask in masks), density)
+
+    def test_near_upright_head_holds_all_pixels_but_still_turns(self):
+        renderer = OracleRenderer()
+        for density in (1., 1.5, 2.):
+            reference = self.paint(renderer, scale=density, density=density)
+            for angle in (-.1, .1, -.01, .01, 0.):
+                with self.subTest(density=density, angle=angle):
+                    actual = self.paint(renderer, scale=density, density=density, tilt=angle)
+                    self.assertEqual(actual, reference)
+            turned = self.paint(renderer, scale=density, density=density, tilt=5.)
+            self.assertNotEqual(turned, reference)
+
+    def test_side_drag_recovery_stops_head_pixel_ping_pong(self):
+        for side in ('left', 'right'):
+            for movement in (-160, 160):
+                config = OracleConfig(base_side=side, hide_cords=True, halo_enabled=False, outfit='maid')
+                scene = OracleScene(replace(config, drag_reactions=replace(config.drag_reactions, enabled=False)))
+                for _ in range(400):
+                    scene.step()
+                scene.drag.set_enabled(True)
+                self.assertTrue(scene.drag.press(scene.head.position, lambda _: True))
+                scene.drag.move(scene.body.chunks[0].position+Vec2(movement, 0))
+                for _ in range(100):
+                    scene.step()
+                scene.drag.release()
+                quiet_ticks = 0
+                positions = {scale: [] for scale in (1., 1.5, 2.)}
+                renderer = OracleRenderer()
+                image = QImage(1, 1, QImage.Format.Format_ARGB32_Premultiplied)
+                painter = QPainter(image)
+                try:
+                    for _ in range(350):
+                        scene.step()
+                        quiet_ticks = quiet_ticks+1 if scene.body.chunks[0].velocity.length() < .001 else 0
+                        if quiet_ticks < 9:
+                            continue
+                        for scale, samples in positions.items():
+                            for alpha in (0., .5, 1.):
+                                renderer.draw_scene_head(painter, scene, alpha, pixelated=True, raster_scale=scale)
+                                samples.append(renderer._head_target.x())
+                finally:
+                    painter.end()
+                for scale, samples in positions.items():
+                    with self.subTest(side=side, movement=movement, scale=scale):
+                        self.assertTrue(samples)
+                        shifts = sum(a != b for a, b in zip(samples, samples[1:]))
+                        self.assertLessEqual(shifts, 1, '最多一次最终对齐，不应在两个像素落点之间反复横跳')
+                self.assertTrue(scene.appearance.sleeping)
+                scene.set_look_target(scene.body.chunks[0].position+Vec2(100, 0))
+                scene.step()
+                self.assertFalse(scene.appearance.sleeping)
+                for _ in range(30):
+                    scene.step()
+                self.assertGreater(scene.head.position.x-scene.body.chunks[0].position.x, 1.)
+                self.assertTrue(scene.drag.press(scene.head.position, lambda _: True))
+                before = scene.head.position
+                scene.drag.move(scene.body.chunks[0].position+Vec2(20, 0))
+                for _ in range(15):
+                    scene.step()
+                self.assertGreater((scene.head.position-before).length(), 1.)
+                self.assertGreater(abs(scene.appearance.sway), scene.appearance.SWAY_SETTLE_ANGLE)
 
     def test_one_and_half_phone_strokes_keep_mixed_integer_widths(self):
         renderer = OracleRenderer()

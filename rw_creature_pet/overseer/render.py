@@ -5,7 +5,13 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter, QPen, QPolygonF, QRadialGradient
 
 from .model import clamp, perpendicular, unit
+from .hologram import LensHologramRenderer
+from .friend import ROOT_COLOR, draw_body as draw_friend_body
+from .friend_head import draw_head as draw_friend_head
+from .friend_light import draw_light as draw_friend_light, draw_pixels as draw_friend_pixels
+from . import friend_filaments
 from ..shared.geometry import Vec2
+from ..shared.raster import pixel_density
 
 
 def point(value):
@@ -21,6 +27,7 @@ class OverseerRenderer:
     def __init__(self, atlas=None):
         self.atlas = atlas
         self._key = self.image = self.target = None
+        self.hologram = LensHologramRenderer()
 
     def sprite(self, painter, name, center, width, height, color, rotation=0):
         painter.save()
@@ -38,7 +45,8 @@ class OverseerRenderer:
                 painter.drawEllipse(rect)
         painter.restore()
 
-    def draw(self, painter, model, alpha=1., *, pixel_mode='classic', raster_scale=None, guides=False):
+    def draw(self, painter, model, alpha=1., *, pixel_mode='classic', raster_scale=None, guides=False,
+             coarse_pixels_4x=False):
         if not model.active:
             return
         alpha = clamp(alpha, 0., 1.)
@@ -49,7 +57,7 @@ class OverseerRenderer:
         if raster_scale is None:
             transform = painter.deviceTransform()
             raster_scale = max(hypot(transform.m11(), transform.m12()), hypot(transform.m21(), transform.m22()))
-        density = 1. if pixel_mode == 'classic' else round(clamp(raster_scale, 1., 4.), 6)
+        density = pixel_density(pixel_mode, raster_scale, coarse_pixels_4x)
         key = (model, model.revision, alpha, density)
         if key != self._key:
             bounds = model.visual_bounds(alpha)
@@ -65,7 +73,7 @@ class OverseerRenderer:
                 # 只向活动面内绘制，根部在边缘收口，触须和柔光不会越过边框。
                 b = model.bounds
                 raster.setClipRect(QRectF(b.left, b.top, b.right-b.left, b.bottom-b.top))
-                self._draw(raster, model, alpha)
+                self._draw(raster, model, alpha, density)
             finally:
                 raster.end()
             self._key = key
@@ -76,21 +84,31 @@ class OverseerRenderer:
         if guides:
             self.draw_guides(painter, model, alpha)
 
-    def _draw(self, painter, model, alpha):
+    def _draw(self, painter, model, alpha, density=1.):
         color = model.config.color
         extension = model.extension(alpha)
         head = model.eye_position(alpha)
-        gaze, depth = model.gaze(alpha)
+        gaze, depth = model.head_gaze(alpha)
+        # 常驻柔光放在身体和头部下方，朋友？沿用根部的固定紫色
+        glow_color = ROOT_COLOR if model.appearance == 'friend' else color
         gradient = QRadialGradient(point(head), 11)
-        inner = QColor(color)
+        inner = QColor(glow_color)
         inner.setAlpha(round(45*extension))
-        outer = QColor(color)
+        outer = QColor(glow_color)
         outer.setAlpha(0)
         gradient.setColorAt(0, inner)
         gradient.setColorAt(1, outer)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(gradient)
         painter.drawEllipse(point(head), 11, 11)
+
+        if model.appearance == 'friend':
+            self._filaments(painter, model, alpha, (0, 1), color)
+            draw_friend_body(painter, model, alpha)
+            draw_friend_light(painter, model, alpha, density)
+            draw_friend_pixels(painter, model, alpha, self.hologram)
+            draw_friend_head(painter, model, alpha, density)
+            return
 
         # 后排触须在身体后面，前排绕在身体前面，眼球覆盖连接处。
         self._filaments(painter, model, alpha, (0, 2), color)
@@ -106,6 +124,10 @@ class OverseerRenderer:
             wall_radius = 1+sin(fraction*pi)
             full_radius = max(.45, 5*(1-(1-fraction)**exponent))
             radius = wall_radius+(full_radius-wall_radius)*segment
+            if i == 0:
+                # 随机姿态下根部不足一像素会被取整吞掉，附着截面保持贴边且至少两像素宽
+                normal = model.tangent
+                radius = max(1., radius)
             sections.append((center-normal*radius, center+normal*radius))
         for i, ((a, b), (c, d)) in enumerate(zip(sections, sections[1:])):
             painter.setBrush(mixed('#546969', color, .25+.65*i/9))
@@ -121,19 +143,31 @@ class OverseerRenderer:
                     mixed(color, '#e8fff7', .7), rotation)
         pupil = head+gaze*(2*extension)+unit(gaze)*sin(gaze.length()*pi)*2
         self.sprite(painter, 'pixel', pupil, 1.5*extension, 1.5*extension, '#193e38')
+        self._lens(painter, model, alpha, head, gaze, extension, color)
+
+    def _lens(self, painter, model, alpha, head, gaze, extension, color):
+        lines = model.lens.segments(head, gaze, extension, model.config.size, alpha)
+        if not lines:
+            return
+        self.hologram.draw(painter, lines, mixed(color, '#e8fff7', .15),
+                           min(extension, model.lens.opening(alpha)),
+                           model.lens.effect_tick, model.lens.noise_offset)
 
     def _filaments(self, painter, model, alpha, indices, color):
         painter.setBrush(Qt.BrushStyle.NoBrush)
+        is_friend = model.appearance == 'friend'
         # OverseerGraphics.colorMyceliaFrom：体型 0.5～1 对应从长度 50%～30% 开始渐变。
-        gradient_start = .5-.4*(model.config.size-.5)
+        gradient_start = friend_filaments.GRADIENT_START if is_friend else .5-.4*(model.config.size-.5)
         root_color = mixed('#416c68', color, .45)
-        dark_teal = QColor.fromHslF(22/45, .5, .2)
+        end_color = QColor(friend_filaments.TIP_COLOR) if is_friend else QColor.fromHslF(22/45, .5, .2)
         for index in indices:
+            if is_friend:
+                root_color = QColor(friend_filaments.COLORS[index])
             strand = model.filaments[index]
-            colors = [mixed(root_color, dark_teal, clamp((i/(len(strand)-1)-gradient_start)/(1-gradient_start), 0., 1.))
+            colors = [mixed(root_color, end_color, clamp((i/(len(strand)-1)-gradient_start)/(1-gradient_start), 0., 1.))
                       for i in range(len(strand))]
-            # Mycelium.UpdateColor 把末端两个顶点覆盖为纯蓝；最后一段由深青过渡到蓝色。
-            colors[-1] = QColor('#0000ff')
+            # Mycelium.UpdateColor 把末端两个顶点覆盖为纯蓝；朋友？保留紫色至蓝色的渐变
+            colors[-1] = QColor(friend_filaments.TIP_COLOR if is_friend else '#0000ff')
             for i, (a, b) in enumerate(zip(strand, strand[1:])):
                 start, end = point(a.sample(alpha)), point(b.sample(alpha))
                 gradient = QLinearGradient(start, end)

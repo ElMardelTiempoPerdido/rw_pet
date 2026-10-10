@@ -3,9 +3,6 @@ from dataclasses import dataclass
 from math import isfinite
 from random import Random
 
-from ..shared.geometry import Vec2
-from .pearl_layout import PearlGroupRegion
-
 
 def ease(value, target, amount):
     return target if abs(target-value) < .0001 else value+(target-value)*amount
@@ -89,12 +86,11 @@ class OracleHalo:
     def __init__(self, world, preferred, scale=.8):
         self.random = Random(1054407)
         # 原版外圈半径最大 (5.5+3)*2*10=170，另含固定尺寸短条和像素余量。
-        # 用固定包围框预留空间，避免实心化/扩张时中心来回挪动。
+        # 仅作尺寸上限及重绘包围框，不用于限制中心位置。
         self.extent = min(176*scale*1.4+2, min(world.inner.left, world.inner.top)/2-6)
         # 连窄调试窗口也为常用的 1.25 倍短反应留出余量。
         self.base_scale = min(scale, (self.extent-2)/(61*1.25))
-        self.region = PearlGroupRegion(world, Vec2(self.extent, self.extent))
-        self.center = self.previous_center = self.region.clamp(preferred)
+        self.center = self.previous_center = preferred
         self.expand = self.previous_expand = self.target_expand = 1.
         self.push = self.previous_push = self.target_push = 0.
         self.white = self.previous_white = self.target_white = 0.
@@ -164,12 +160,11 @@ class OracleHalo:
     def center_at(self, alpha=1.):
         return self.previous_center.lerp(self.center, alpha)
 
-    def step(self, preferred, *, region=None):
-        region = self.region if region is None else region
+    def step(self, preferred):
         self.previous_center = self.center
-        target = region.clamp(preferred)
-        candidate = target if (target-self.center).length() < .01 else self.center.lerp(target, .18)
-        self.center = region.safe_move(self.center, candidate)
+        # 跟随头颈给出的中心；只保留绘制时的帧间插值，不独立追赶或避让。
+        # 超出工作区由窗口自然裁切，中央区域与拖拽期间均不限制位置。
+        self.center = preferred
         self.previous_expand, self.previous_interaction = self.expand, self.interaction
         self.previous_push, self.previous_white = self.push, self.white
         self.expand = lerp_and_tick(self.expand, self.target_expand, .05, .0125)

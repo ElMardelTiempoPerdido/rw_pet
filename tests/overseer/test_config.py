@@ -16,7 +16,8 @@ class OverseerConfigTests(unittest.TestCase):
                             "check_interval=2.5\nappearance_probability=0.8\nduration_min=8.0\n"
                             "duration_max=9.0\ncooldown_min=3.0\ncooldown_max=4.0\n"
                             "relocation_probability=0.7\npuppet_withdraw_distance=110\n"
-                            "puppet_reemerge_distance=170\n", encoding='utf-8')
+                            "puppet_reemerge_distance=170\nobservation_probability=0.8\n"
+                            "observation_interval=15\n", encoding='utf-8')
             config = AppConfig.load(path)
             self.assertEqual(config.overseer.color, '#ffcc99')
             self.assertEqual(config.overseer.safe_delay, .7)
@@ -26,6 +27,8 @@ class OverseerConfigTests(unittest.TestCase):
             self.assertEqual(config.overseer.relocation_probability, .7)
             self.assertEqual(config.overseer.puppet_withdraw_distance, 110)
             self.assertEqual(config.overseer.puppet_reemerge_distance, 170)
+            self.assertEqual(config.overseer.observation_probability, .8)
+            self.assertEqual(config.overseer.observation_interval, 15)
             self.assertEqual(AppConfig.from_mapping({}).overseer, OverseerConfig())
             store = SettingsStore(Path(temp)/'settings.json')
             store.save(config)
@@ -36,7 +39,7 @@ class OverseerConfigTests(unittest.TestCase):
             with self.subTest(color=value), self.assertRaises(ValueError):
                 replace(OverseerConfig(), color=value)
         for key in ('withdraw_distance', 'reemerge_distance', 'emerge_seconds', 'withdraw_seconds',
-                    'puppet_withdraw_distance', 'puppet_reemerge_distance'):
+                    'puppet_withdraw_distance', 'puppet_reemerge_distance', 'observation_interval'):
             for value in (-1, 0, True, float('nan'), float('inf')):
                 with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                     replace(OverseerConfig(), **{key: value})
@@ -49,13 +52,13 @@ class OverseerConfigTests(unittest.TestCase):
 
     def test_invalid_event_parameters(self):
         for key in ('check_interval', 'duration_min', 'duration_max', 'cooldown_min', 'cooldown_max',
-                    'appearance_probability', 'relocation_probability'):
+                    'appearance_probability', 'relocation_probability', 'observation_probability'):
             for value in (-1, True, float('nan'), float('inf'), '1'):
                 with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                     replace(OverseerConfig(), **{key: value})
         for values in (dict(enabled=1), dict(check_interval=0), dict(appearance_probability=1.01),
                        dict(duration_min=50), dict(cooldown_min=121), dict(duration_min=0),
-                       dict(relocation_probability=1.01)):
+                       dict(relocation_probability=1.01), dict(observation_probability=1.01)):
             with self.subTest(values=values), self.assertRaises(ValueError):
                 replace(OverseerConfig(), **values)
 

@@ -11,7 +11,8 @@ from .scene import unit
 from .appearance import HangingHand, perpendicular, rotate
 from .arm_graphics import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
 from .damage import body_bounds, point_bounds
-from .raster import local_canvas, painter_density, pixel_density
+from .raster import (aligned_sprite, attached_sprite_rect, local_canvas, painter_density, painter_scale,
+                     pixel_density, stable_pixel_angle)
 from .glow import GlowLayer
 from .outfits import (maid_apron_layer, maid_head_layer, maid_lace_layers, maid_ribbon_down_layer,
                       maid_ribbon_up_layer, maid_scale)
@@ -166,6 +167,7 @@ class OracleRenderer:
         self._projection_key = None
         self._projection_frames = ()
         self._pearl_palette_key = None
+        self._pearl_layer_key = None
         self._pearl_palette = ()
         self._arm_geometry_key = None
         self._arm_frames = ()
@@ -180,6 +182,7 @@ class OracleRenderer:
         self._collar_frame = None
         self._body_front_frame = None
         self._apron_geometry_key = None
+        self._apron_key = None
         self._head_key = None
         self._head_image = None
         self._head_geometry_key = None
@@ -268,8 +271,7 @@ class OracleRenderer:
     def draw_arm_base(self, painter, scene, base, normal, elbow, front):
         c, scale = self.colors, scene.config.arm_scale
         ds = detail_scale(scale)
-        body = mixed(c.joints, c.arm, .8)
-        highlight = mixed(c.joints, c.arm_highlight, .8)
+        body, highlight = c.arm, c.arm_highlight
         self.polygon(painter, base_outline(base, normal, scale), body)
         tangent = perpendicular(normal)
         origin = base-normal*(10*ds)
@@ -640,14 +642,20 @@ class OracleRenderer:
                 scene, alpha, upper-offset, lower-offset, direction, head-offset, opening, gown, offset)
             self._apron_geometry_key = cache_key
         mask, origin, angle = self._apron_geometry
-        image, rect = maid_apron_layer(density)
+        texture, rect = maid_apron_layer(density)
+        angle = stable_pixel_angle(angle)
+        key = (texture.cacheKey(), density, rect.getRect(), angle)
+        if key != self._apron_key:
+            self._apron_image = aligned_sprite(texture, rect, density, angle)
+            self._apron_key = key
+        # 缓存身体时已有局部平移；在最终世界网格对齐，而不是把平移再量化一次。
+        target = attached_sprite_rect(self._apron_image, origin+offset, density)
+        target.translate(-offset.x, -offset.y)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.setClipPath(mask, Qt.ClipOperation.IntersectClip)
-        painter.translate(origin.x, origin.y)
-        painter.rotate(angle)
-        painter.drawImage(rect, image)
+        painter.drawImage(target, self._apron_image)
         painter.restore()
 
     def draw_gown(self, painter, scene, alpha):
@@ -760,38 +768,19 @@ class OracleRenderer:
             return
         if scene.appearance.sleeping:
             alpha = 1.
-        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
         upper, lower = [p.previous_position.lerp(p.position, alpha) for p in scene.body.chunks]
         app = scene.appearance
         direction = rotate(unit(upper-lower), app.previous_sway+(app.sway-app.previous_sway)*alpha)
         origin, axis = self.gown_axis(scene, alpha, upper, direction, app.head.sample(alpha))
         texture, rect = maid_ribbon_down_layer(density)
-        # 在领口局部像素网格内先确定原图位置；奇数宽贴图也不能以半像素边缘
-        # 开始采样，否则角度经过 0 时仍可能整张跳一格。
-        left, top = floor(rect.left()*density+.5), floor(rect.top()*density+.5)
-        width, height = round(rect.width()*density), round(rect.height()*density)
-        angle = round(degrees(atan2(axis.x, -axis.y)), 5)
-        key = (texture.cacheKey(), density, left, top, width, height, angle)
+        angle = stable_pixel_angle(degrees(atan2(axis.x, -axis.y)))
+        key = (texture.cacheKey(), density, rect.getRect(), angle)
         if key != self._chest_ribbon_key:
-            # 固定画布与领口旋转中心，完整容纳各个方向；不再旋转后按变化的
-            # 包围盒居中，避免极小正负角度造成画布尺寸/透明留白跳变。
-            radius = ceil(hypot(max(abs(left), abs(left+width)), max(abs(top), abs(top+height))))+2
-            image = QImage(radius*2, radius*2, QImage.Format.Format_ARGB32_Premultiplied)
-            image.fill(Qt.GlobalColor.transparent)
-            local = QPainter(image)
-            try:
-                local.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-                local.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-                local.translate(radius, radius)
-                local.rotate(angle)
-                local.drawImage(QRectF(left, top, width, height), texture)
-            finally:
-                local.end()
-            self._chest_ribbon_key, self._chest_ribbon_image = key, image
+            self._chest_ribbon_image = aligned_sprite(texture, rect, density, angle)
+            self._chest_ribbon_key = key
         image = self._chest_ribbon_image
-        width, height = image.width()/density, image.height()/density
-        self._chest_ribbon_target = QRectF(floor(origin.x*density+.5)/density-width/2,
-                                         floor(origin.y*density+.5)/density-height/2, width, height)
+        self._chest_ribbon_target = attached_sprite_rect(image, origin, density)
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
         painter.drawImage(self._chest_ribbon_target, image)
@@ -804,9 +793,9 @@ class OracleRenderer:
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
         gy = max(-1., min(1., look.x*head_direction.x+look.y*head_direction.y))
         angle = degrees(atan2(head_direction.x, -head_direction.y))
-        # 消除世界坐标相减的浮点尾差，避免纯平移跨过恰好落在像素边界
-        # 的栅格判定。精度远小于可见角度，不按帧保存或推进朝向状态。
-        gx, gy, angle = round(gx, 6), round(gy, 6), round(angle, 5)
+        # 视线舍入消除坐标相减的尾差；极小倾角平滑归轴，抑制回正收尾的像素跳变。
+        # 不按绘制帧保存或推进朝向状态，主画面、放大镜和命中图得到相同结果。
+        gx, gy, angle = round(gx, 6), round(gy, 6), stable_pixel_angle(angle)
         openness = max(0., min(1., openness))
         density = pixel_density('adaptive', raster_scale)
         phone_pixels = self.PHONE_PIXEL_WIDTHS.get(density)
@@ -955,7 +944,7 @@ class OracleRenderer:
 
     def draw(self, painter: QPainter, scene, alpha=1., skeleton=False, *, cords=True, pixelated=True,
              raster_scale=None):
-        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
         app = scene.appearance
         cords = cords and not scene.config.hide_cords and app.cords is not None
         eye_alpha = pearl_alpha = alpha
@@ -978,7 +967,7 @@ class OracleRenderer:
         self.draw_projection(painter, scene, pearl_alpha, raster_scale=density)
         self.draw_halo(painter, scene, pearl_alpha, raster_scale=density)
         # 珍珠独立于昂贵的人偶/线缆帧缓存；人偶休眠时珠子仍能独自运动。
-        self.draw_pearl(painter, scene, pearl_alpha)
+        self.draw_pearl(painter, scene, pearl_alpha, raster_scale=raster_scale)
         # 身体几何与显示倍率无关；衣装按倍率选原图。放大镜可指定
         # 主视图的 raster_scale，查看主视图已有的像素而不是重新细分。
         # 非像素路径仅供几何缓存的回归对照；正常入口默认启用像素绘制。
@@ -998,7 +987,7 @@ class OracleRenderer:
             return
         center = projection.previous_position.lerp(projection.position, alpha)
         opacity = projection.previous_alpha+(projection.alpha-projection.previous_alpha)*alpha
-        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
         size = (round(projection.WIDTH*density), round(projection.HEIGHT*density))
         key = (tuple(image.cacheKey() for image in self.projection_images), size)
         if key != self._projection_key:
@@ -1083,7 +1072,16 @@ class OracleRenderer:
         finally:
             painter.restore()
 
-    def draw_pearl(self, painter, scene, alpha):
+    def draw_pearl(self, painter, scene, alpha, *, raster_scale=None):
+        scale = painter_scale(painter) if raster_scale is None else raster_scale
+        if max(scale, painter_scale(painter)) > 2.:
+            # 高倍率先复用基础精度，避免贴图和音乐光泡绕过像素规则直接细化
+            density = pixel_density(scene.config.pixel_mode, scale, scene.config.coarse_pixels_4x)
+            self.draw_pearl_layer(painter, scene, alpha, density)
+            return
+        self.draw_pearl_sprites(painter, scene, alpha)
+
+    def draw_pearl_sprites(self, painter, scene, alpha):
         glyph_color = None
         if self.glyphs is not None and scene.config.projection_opacity > 0:
             color = QColor(self.colors.pearl_glyph)
@@ -1105,6 +1103,36 @@ class OracleRenderer:
             self.draw_pearl_playback(painter, scene.pearl_matrix.extracted, alpha, scene.config.projection_opacity,
                                      max_size=scene.config.pearl_bubble_max_size,
                                      color=scene.config.pearl_bubble_color)
+        painter.restore()
+
+    def draw_pearl_layer(self, painter, scene, alpha, density):
+        samples = tuple(sample for group in (scene.pearl_matrix, scene.pearl_orbits, scene.fixed_pearls)
+                        if group is not None for sample in group.samples(alpha))
+        if not samples:
+            return
+        pearl = scene.pearl_matrix.extracted if scene.pearl_matrix is not None else None
+        playback = pearl.playback if pearl is not None else None
+        pulse = (pearl.sample(alpha), playback.sample(alpha), playback.sample_fade(alpha)) if playback else None
+        config = scene.config
+        key = (samples, pulse, density, self.colors, self.atlas, self.glyphs,
+               config.projection_opacity, config.pearl_bubble_max_size, config.pearl_bubble_color)
+        if key != self._pearl_layer_key:
+            bounds = point_bounds((p for p, _, _ in samples), 20.)
+            if pulse is not None:
+                bounds = bounds.united(point_bounds((pearl.sample(alpha),), config.pearl_bubble_max_size/2+2))
+            image, target = local_canvas(bounds, density)
+            local = QPainter(image)
+            try:
+                local.scale(density, density)
+                local.translate(-target.x(), -target.y())
+                self.draw_pearl_sprites(local, scene, alpha)
+            finally:
+                local.end()
+            self._pearl_layer_image, self._pearl_layer_target = image, target
+            self._pearl_layer_key = key
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        painter.drawImage(self._pearl_layer_target, self._pearl_layer_image)
         painter.restore()
 
     def draw_pearl_playback(self, painter, pearl, alpha=1., opacity=1., *, max_size=12., color='#ff0000'):
@@ -1129,7 +1157,7 @@ class OracleRenderer:
         if not scene.halo_visible:
             return
         halo = scene.halo
-        density = painter_density(painter, scene.config.pixel_mode, raster_scale)
+        density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
         self.draw_halo_arcs(painter, scene, alpha, density)
         # 光环自己动画；不进入身体/衣袍/线缆帧键。位移和透明度也不使
         # 局部图案失效，重复主视图与放大镜仅合成同一张小图。
@@ -1151,7 +1179,7 @@ class OracleRenderer:
                 for index in range(2):
                     r = (3+index+push)*10*scale
                     white = halo.white_at(alpha) if index == 0 else 0.
-                    inner = max(0., r-2.2*detail_scale)*(1-white)
+                    inner = max(0., r-2*detail_scale)*(1-white)
                     # VectorCircle 的 alpha 编码环宽；真实投影透明度在整层合成时应用。
                     # 奇偶填充留下透明空洞，不能用背景色覆盖，以兼容透明桌面。
                     path = QPainterPath()
@@ -1172,7 +1200,7 @@ class OracleRenderer:
                         # 原版矩形宽 4、长 8*Fill，长轴沿半径；先在局部
                         # 光环画布栅格化，再整体按投影透明度合成，交点不加深。
                         half = fill*4*detail_scale
-                        width = 1.2*detail_scale
+                        width = 1.4*detail_scale
                         near, far = r-half, r+half
                         local.drawPolygon(QPolygonF([
                             QPointF(dx*near-dy*width, dy*near+dx*width),
@@ -1262,7 +1290,7 @@ class OracleRenderer:
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
                        scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
-                       raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale),
+                       raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
                        outfit=scene.config.outfit, near_phone=app.near_phone)
 
     def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
@@ -1283,7 +1311,7 @@ class OracleRenderer:
         if cords and not scene.config.hide_cords and app.cords is not None:
             self.draw_cords(painter, scene, alpha)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
-        outfit_density = (painter_density(painter, scene.config.pixel_mode, raster_scale)
+        outfit_density = (painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
                           if scene.config.outfit == 'maid' else None)
         if cache_body:
             # 匀速平移时不重建衣袍/袖子网格。只容忍 0.001 的亚像素变化；
@@ -1340,7 +1368,7 @@ class OracleRenderer:
                 self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
-                           raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale),
+                           raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
                            outfit=scene.config.outfit, near_phone=app.near_phone)
         if include_chest_ribbon:
             self.draw_chest_ribbon(painter, scene, alpha, raster_scale=raster_scale)
@@ -1382,7 +1410,7 @@ class OracleRenderer:
             painter.restore()
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
-                           raster_scale=painter_density(painter, scene.config.pixel_mode), outfit=scene.config.outfit,
+                           raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.outfit,
                            near_phone=scene.appearance.near_phone)
 
     def draw_skeleton(self, painter, scene, alpha):

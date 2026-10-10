@@ -15,12 +15,14 @@ class SpawnContext:
     mouse: Vec2 | None = None
     obstacles: tuple[Bounds, ...] = ()  # 人偶外形，不包括线缆、机械臂和光环。
     puppet: Vec2 | None = None  # 人偶中心，活动期间只需一次粗略距离检测。
+    occupied: tuple[tuple[Vec2, float], ...] = ()  # 其他槽位的根部与外形半径
 
 
 class EventPhase(str, Enum):
     DISABLED = 'disabled'
     WAITING = 'waiting'
     ACTIVE = 'active'
+    RESIDENT = 'resident'
     EXITING = 'exiting'
     COOLDOWN = 'cooldown'
     PREVIEW = 'preview'
@@ -52,27 +54,42 @@ class OverseerEvents:
     def config(self):
         return self.model.config
 
+    @property
+    def resident(self):
+        return self.config.enabled and self.config.appearance_mode == 'resident'
+
     def reset(self):
         self.model.clear()
         self._relocation_checked = False
         self.phase = EventPhase.WAITING if self.config.enabled else EventPhase.DISABLED
-        self.check_remaining = self.config.check_interval
+        self.check_remaining = 0. if self.resident else self.config.check_interval
         self.remaining = self.cooldown_remaining = 0.
 
     def configure(self, config):
         old = self.config
         self.model.config = config
         self.model.revision += 1
-        if old.enabled != config.enabled or old.check_interval != config.check_interval:
+        if (old.enabled != config.enabled or old.check_interval != config.check_interval
+                or old.appearance_mode != config.appearance_mode):
             self.check_remaining = config.check_interval
         if not config.enabled:
-            if old.enabled and self.phase == EventPhase.ACTIVE:
+            if old.enabled and self.phase in (EventPhase.ACTIVE, EventPhase.RESIDENT):
                 self.finish()
             elif self.phase in (EventPhase.WAITING, EventPhase.COOLDOWN):
                 self.phase = EventPhase.DISABLED
                 self.cooldown_remaining = 0.
         elif self.phase == EventPhase.DISABLED:
             self.phase = EventPhase.WAITING
+        if self.resident:
+            if self.phase == EventPhase.ACTIVE:
+                self.phase, self.remaining = EventPhase.RESIDENT, 0.
+            if self.phase == EventPhase.COOLDOWN:
+                self.phase, self.cooldown_remaining = EventPhase.WAITING, 0.
+            if not old.enabled or old.appearance_mode != config.appearance_mode:
+                self.check_remaining = 0.
+        elif self.phase == EventPhase.RESIDENT:
+            self.phase = EventPhase.ACTIVE
+            self.remaining = self.random.uniform(config.duration_min, config.duration_max)
         # 已抽取的本次时长/冷却不随设置滑动；新范围在下一次抽取时使用。
 
     def preview(self, bounds, anchor):
@@ -86,7 +103,7 @@ class OverseerEvents:
         self.reset()
 
     def finish(self):
-        if self.phase in (EventPhase.ACTIVE, EventPhase.PREVIEW):
+        if self.phase in (EventPhase.ACTIVE, EventPhase.RESIDENT, EventPhase.PREVIEW):
             self.remaining = 0.
             self.phase = EventPhase.EXITING
             self.model.request_withdraw()
@@ -102,11 +119,14 @@ class OverseerEvents:
         self.last_result = '事件已退场'
         self.phase = EventPhase.COOLDOWN if self.config.enabled else EventPhase.DISABLED
         self.cooldown_remaining = (self.random.uniform(self.config.cooldown_min, self.config.cooldown_max)
-                                   if self.config.enabled else 0.)
+                                   if self.config.enabled and not self.resident else 0.)
         self.check_remaining = self.config.check_interval
+        if self.resident:
+            self.phase = EventPhase.WAITING
+            self.check_remaining = self.cooldown_remaining = 0.
 
     def emerge(self):
-        if self.phase in (EventPhase.ACTIVE, EventPhase.PREVIEW):
+        if self.phase in (EventPhase.ACTIVE, EventPhase.RESIDENT, EventPhase.PREVIEW):
             self.model.request_emerge()
 
     def skip_cooldown(self):
@@ -136,7 +156,8 @@ class OverseerEvents:
                     intervals = subtract_interval(intervals, start-extent, end+extent)
             for position, radius in ((context.mouse, clearance),
                                      (context.puppet, max(self.config.puppet_reemerge_distance, extent+12)),
-                                     (avoid_root, max(2*extent, clearance))):
+                                     (avoid_root, max(2*extent, clearance)),
+                                     *((root, extent+radius) for root, radius in context.occupied)):
                 if position is None:
                     continue
                 cross = position.y if horizontal else position.x
@@ -154,7 +175,7 @@ class OverseerEvents:
 
     def start(self, context):
         """调试直接触发可绕过开关、抽签和冷却，仍遵守位置安全限制。"""
-        if self.phase in (EventPhase.ACTIVE, EventPhase.EXITING):
+        if self.phase in (EventPhase.ACTIVE, EventPhase.RESIDENT, EventPhase.EXITING):
             self.last_result = '已有事件，请先完成退场'
             return False
         anchor = self.choose_anchor(context)
@@ -163,9 +184,12 @@ class OverseerEvents:
             return False
         self.model.show(context.bounds, anchor)
         self._relocation_checked = False
-        self.remaining = self.random.uniform(self.config.duration_min, self.config.duration_max)
+        self.remaining = (0. if self.resident else
+                          self.random.uniform(self.config.duration_min, self.config.duration_max))
         self.cooldown_remaining = 0.
         self.phase = EventPhase.ACTIVE
+        if self.resident:
+            self.phase, self.remaining = EventPhase.RESIDENT, 0.
         self.event_count += 1
         self.last_result = '已开始事件'
         return True
@@ -173,6 +197,10 @@ class OverseerEvents:
     def check(self, context_factory):
         if not self.config.enabled or self.phase != EventPhase.WAITING:
             return False
+        if self.resident:
+            # 无合法位置时限速重试，不强行挤入四角或每帧构造人偶外形
+            self.check_remaining = 1.
+            return self.start(context_factory())
         self.check_remaining = self.config.check_interval
         self.check_count += 1
         if self.random.random() >= self.config.appearance_probability:
@@ -187,7 +215,7 @@ class OverseerEvents:
             return
         # 预览锁定用户选的位置；手动保持缩回和到期退场也不触发换位。
         # 连插值末帧都已不可见时才改变根部，避免残影或跨屏拉伸。
-        if self.phase != EventPhase.ACTIVE or model.visible or self._relocation_checked:
+        if self.phase not in (EventPhase.ACTIVE, EventPhase.RESIDENT) or model.visible or self._relocation_checked:
             return
         self._relocation_checked = True
         if self.random.random() >= self.config.relocation_probability:

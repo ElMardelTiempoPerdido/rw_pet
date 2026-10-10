@@ -40,7 +40,7 @@ def settle(window):
 
 
 def show_watcher(window):
-    layer = window.overseer_layer
+    layer = window.overseers.layers[1]
     layer.events.preview(layer.model.bounds, Anchor(Edge.BOTTOM, .8))
     for _ in range(65):
         layer.model.step()
@@ -54,7 +54,7 @@ def profile(config, atlas):
         window = OracleDesktopWindow(config, renderer=OracleRenderer(atlas, config.oracle.colors))
     try:
         settle(window)
-        layer, scene = window.overseer_layer, window.motion.scene
+        layer, scene = window.overseers.layers[1], window.motion.scene
         counts = {}
         def trace(obj, attr, label):
             original = getattr(obj, attr)
@@ -122,7 +122,7 @@ def native_click(config, atlas):
         window = OracleDesktopWindow(config, renderer=OracleRenderer(atlas, config.oracle.colors))
         settle(window)
         show_watcher(window)
-        layer = window.overseer_layer
+        layer = window.overseers.layers[1]
         background.setGeometry(layer.geometry())
         button.setGeometry(background.rect())
         background.show()

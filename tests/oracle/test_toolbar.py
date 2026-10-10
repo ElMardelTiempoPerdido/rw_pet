@@ -117,7 +117,7 @@ class OracleToolbarTests(unittest.TestCase):
 
     def test_overseer_manual_trigger_blocks_duplicates_through_hidden_and_exit(self):
         w, toolbar = self.window, self.window.action_toolbar
-        events, model = w.overseer_layer.events, w.overseer_layer.model
+        events, model = w.overseers.layers[1].events, w.overseers.layers[1].model
         scene, hit = w.motion.scene, w.drag_hit
         self.assertFalse(events.config.enabled)
         self.assertTrue(toolbar.buttons['overseer'].isEnabled())
@@ -153,7 +153,7 @@ class OracleToolbarTests(unittest.TestCase):
 
     def test_overseer_rechecks_live_state_and_reports_no_safe_position(self):
         w, toolbar = self.window, self.window.action_toolbar
-        events = w.overseer_layer.events
+        events = w.overseers.layers[1].events
         context = w.overseer_spawn_context()
         blocked = replace(context, obstacles=(context.bounds,))
         with patch.object(w, 'overseer_spawn_context', return_value=blocked):
@@ -168,6 +168,26 @@ class OracleToolbarTests(unittest.TestCase):
         self.click('overseer')
         self.assertEqual(events.event_count, 1)
         self.assertEqual((events.model.root, events.remaining), (root, remaining))
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
+
+    def test_overseer_trigger_fills_one_configured_slot_at_a_time(self):
+        from dataclasses import replace
+        from rw_creature_pet.overseer.config import OverseerSlot
+        w, toolbar = self.window, self.window.action_toolbar
+        w.config = replace(w.config, overseer=replace(w.config.overseer,
+            slots=tuple(OverseerSlot(i) for i in range(1, 5))))
+        w.sync_overseer()
+        for count in range(1, 5):
+            w.sync_toolbar()
+            self.assertTrue(toolbar.buttons['overseer'].isEnabled())
+            self.click('overseer')
+            self.assertEqual(sum(e.model.active for e in w.overseers.group.entries.values()), count)
+        self.assertFalse(toolbar.buttons['overseer'].isEnabled())
+        self.click('overseer')
+        self.assertEqual(sum(e.events.event_count for e in w.overseers.group.entries.values()), 4)
+        w.config = replace(w.config, overseer=replace(w.config.overseer, slots=()))
+        w.sync_overseer()
+        w.sync_toolbar()
         self.assertFalse(toolbar.buttons['overseer'].isEnabled())
 
 

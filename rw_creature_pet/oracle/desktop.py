@@ -1,19 +1,20 @@
-"""Oracle 桌面接入：主屏工作区、物理像素倍率、透明穿透与托盘入口。"""
+"""Oracle 桌面接入：所选屏幕工作区、物理像素倍率、透明穿透与托盘入口。"""
 from dataclasses import dataclass, replace
 from math import isfinite
 from pathlib import Path
 from time import perf_counter
 
 from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer
-from PySide6.QtGui import QActionGroup, QIcon, QPainter, QScreen
+from PySide6.QtGui import QActionGroup, QCursor, QIcon, QPainter, QScreen
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from ..shared.desktop import configure_desktop_overlay
+from ..shared.screens import preferred_screen
 from ..interaction.desktop import DragInputWindow
 from ..interaction.config import AudioConfig
 from ..interaction.windows import desktop_window_tracker
-from ..overseer.desktop import OverseerDesktopLayer
+from ..overseer.desktop import OverseerDesktopGroup
 from ..overseer.events import EventPhase
 from .voice_assets import make_bell_voice_player
 from .input import PuppetHitMap
@@ -47,7 +48,7 @@ class OracleDesktopViewport:
         if self.width <= 0 or self.height <= 0 or self.dpr <= 0:
             raise ValueError('桌面工作区和 DPI 倍率必须大于零')
         if self.requested_scale not in DISPLAY_SCALES:
-            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×、3×、4×')
 
     @property
     def physical_scale(self):
@@ -104,6 +105,7 @@ class OracleDesktopMotion:
                                halo_arcs_enabled=previous.config.halo_arcs_enabled,
                                halo_arc_max_count=previous.config.halo_arc_max_count,
                                pixel_mode=previous.config.pixel_mode,
+                               coarse_pixels_4x=previous.config.coarse_pixels_4x,
                                pearl_matrix_count=previous.config.pearl_matrix_count,
                                pearl_inner_count=previous.config.pearl_inner_count,
                                pearl_outer_count=previous.config.pearl_outer_count,
@@ -134,6 +136,8 @@ class OracleDesktopMotion:
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
             self.scene.eyes.random.setstate(previous.eyes.random.getstate())
             self.scene.window_reaction.attention.random.setstate(previous.window_reaction.attention.random.getstate())
+            self.scene.mouse_reaction.configure(self.scene, previous.mouse_reaction.config)
+            self.scene.mouse_reaction.attention.random.setstate(previous.mouse_reaction.attention.random.getstate())
             for name in ('random', 'eye_random', 'voice_random'):
                 getattr(self.scene.drag_reactions, name).setstate(getattr(previous.drag_reactions, name).getstate())
             self.scene.halo.random.setstate(previous.halo.random.getstate())
@@ -158,7 +162,7 @@ class OracleDesktopWindow(QWidget):
     def __init__(self, config, scale=1., config_path=None, *, renderer=None, config_store=None, assets=None):
         super().__init__()
         if scale not in DISPLAY_SCALES:
-            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×、3×、4×')
         if not QSystemTrayIcon.isSystemTrayAvailable():
             raise RuntimeError('系统托盘不可用，无法提供桌宠退出入口')
         self.config, self.config_path = config, config_path
@@ -206,7 +210,7 @@ class OracleDesktopWindow(QWidget):
         self.drag_hit = PuppetHitMap()
         self.window_tracker = desktop_window_tracker(QApplication.platformName())
         self._next_window_poll = 0.
-        self.overseer_layer = OverseerDesktopLayer(self, config.overseer, renderer.atlas)
+        self.overseers = OverseerDesktopGroup(self, config.overseer, renderer.atlas)
         self.rebuild_timer = QTimer(self)
         self.rebuild_timer.setSingleShot(True)
         self.rebuild_timer.setInterval(100)
@@ -220,9 +224,11 @@ class OracleDesktopWindow(QWidget):
         app = QApplication.instance()
         # 调试窗口是普通顶层窗口，关闭它应回到桌宠，而非退出整个进程。
         app.setQuitOnLastWindowClosed(False)
-        app.primaryScreenChanged.connect(self.bind_screen)
+        app.primaryScreenChanged.connect(self.select_screen)
+        app.screenAdded.connect(self.select_screen)
+        app.screenRemoved.connect(self.screen_removed)
         app.aboutToQuit.connect(self.cleanup)
-        self.bind_screen(app.primaryScreen())
+        self.select_screen()
         self.tray.show()
         self.timer.start(16)
 
@@ -314,6 +320,19 @@ class OracleDesktopWindow(QWidget):
                 pass
         self._screen_connections.clear()
 
+    def select_screen(self, *args, excluded=None):
+        if self._closing:
+            return
+        app = QApplication.instance()
+        screens = [s for s in app.screens() if s is not excluded]
+        screen = preferred_screen(screens, app.primaryScreen(), self.config.desktop.screen)
+        if screen is not self.screen or self.motion is None:
+            self.bind_screen(screen)
+
+    def screen_removed(self, screen):
+        # screenRemoved 期间对象尚可能在枚举结果中；不再读取它的元数据。
+        self.select_screen(excluded=screen)
+
     def bind_screen(self, screen):
         if self._closing:
             return
@@ -346,7 +365,7 @@ class OracleDesktopWindow(QWidget):
             rect = None
         if rect is None or rect.isEmpty():
             self.drag_input.suspend()
-            self.overseer_layer.suspend()
+            self.overseers.suspend()
             self._screen_valid = False
             self._signature = None
             self.sync_pause()
@@ -355,6 +374,8 @@ class OracleDesktopWindow(QWidget):
         viewport = OracleDesktopViewport(rect.x(), rect.y(), rect.width(), rect.height(), dpr,
                                           self.requested_scale)
         self._screen_valid = True
+        # 保存设置时可能已用新工作区预建场景；窗口和监视者仍须先移动。
+        self.setGeometry(rect)
         if viewport != self._signature or reset:
             self.voice_player.stop()
             self.drag_input.suspend()
@@ -366,6 +387,7 @@ class OracleDesktopWindow(QWidget):
                           and old.requested_scale == viewport.requested_scale)
             if same_world:
                 self.motion.scene.window_reaction.cancel(self.motion.scene)
+                self.motion.scene.mouse_reaction.cancel(self.motion.scene)
                 self.motion.viewport = viewport
             else:
                 settings = self.config.oracle
@@ -376,9 +398,9 @@ class OracleDesktopWindow(QWidget):
                     self.motion.scene.set_autonomous_movement(self.config.desktop.autonomous)
                 pass
             self.motion.scene.drag.set_enabled(self.drag_action.isChecked())
+            self.motion.scene.mouse_reaction.configure(self.motion.scene, self.config.interaction)
             self.voice_player.sync(self.motion.scene.drag_reactions.voice, paused=self.clock.paused)
             self._signature = viewport
-            self.setGeometry(rect)
             self.clock.accumulator = 0.
             self.last_time = perf_counter()
             self._last_revision = None
@@ -403,7 +425,7 @@ class OracleDesktopWindow(QWidget):
 
     def change_scale(self, scale):
         if scale not in DISPLAY_SCALES:
-            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×、3×、4×')
         self.requested_scale = scale
         if scale in self.scale_actions:
             self.scale_actions[scale].setChecked(True)
@@ -414,21 +436,28 @@ class OracleDesktopWindow(QWidget):
         self.rebuild(reset=True)
 
     def sync_overseer(self, *, reset=False):
-        layer = self.overseer_layer
-        layer.configure(self.config.overseer, self.renderer.atlas, self.config.oracle.pixel_mode)
+        layer = self.overseers
+        layer.configure(self.config.overseer, self.renderer.atlas, self.config.oracle.pixel_mode,
+                        self.config.oracle.coarse_pixels_4x)
         if self.motion is not None and self.debug_window is None:
             layer.bind(self.motion.viewport, overseer_bounds(self.motion.scene),
                        self.motion.scene.config.allowed_edges, reset=reset)
         layer.refresh(self.clock.alpha, allowed=self._screen_valid and self.debug_window is None)
 
-    def overseer_spawn_context(self):
-        return spawn_context(self.motion.scene, self.overseer_layer.mouse_world())
+    def overseer_spawn_context(self, mouse=None):
+        return spawn_context(self.motion.scene, self.overseers.mouse_world() if mouse is None else mouse)
 
     def step_scene(self):
+        reaction = self.motion.scene.mouse_reaction
+        if reaction.attention.probability > 0 and not self.motion.scene.drag.controlling:
+            pointer = QCursor.pos()
+            reaction.pointer = self.motion.viewport.to_world(Vec2(pointer.x(), pointer.y()))
+        else:
+            reaction.pointer = None
         self.motion.step()
-        layer = self.overseer_layer
+        layer = self.overseers
         layer.step(self.overseer_spawn_context,
-                   puppet=puppet_position(self.motion.scene) if layer.model.active else None)
+                   puppet=puppet_position(self.motion.scene) if layer.group.active else None)
 
     def current_settings(self):
         scene = self.motion.scene if self.motion is not None else None
@@ -488,20 +517,32 @@ class OracleDesktopWindow(QWidget):
             self.sync_overseer()
             return
         motion = None
+        screen_changed = config.desktop.screen != current.desktop.screen
+        target_screen = self.screen
+        viewport = replace(self.motion.viewport, requested_scale=config.desktop.scale) if self.motion else None
+        if screen_changed:
+            app = QApplication.instance()
+            target_screen = preferred_screen(app.screens(), app.primaryScreen(), config.desktop.screen)
+            if target_screen is not None:
+                rect = target_screen.availableGeometry()
+                if not rect.isEmpty():
+                    viewport = OracleDesktopViewport(rect.x(), rect.y(), rect.width(), rect.height(),
+                                                     target_screen.devicePixelRatio(), config.desktop.scale)
         visual = {name: getattr(config.oracle, name)
-                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit')}
+                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit', 'colors', 'coarse_pixels_4x')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
-        if self.motion is not None and (config.oracle != previous_with_visual or config.desktop.scale != self.requested_scale):
-            viewport = replace(self.motion.viewport, requested_scale=config.desktop.scale)
+        if viewport is not None and (screen_changed or config.oracle != previous_with_visual
+                                     or config.desktop.scale != self.requested_scale):
             # 显式修改启动百分比时立即采用新启动位置；其他重建保留当前边内位置。
-            motion = OracleDesktopMotion(config.oracle, viewport, self.motion.scene, preserve_options=False,
+            motion = OracleDesktopMotion(config.oracle, viewport, self.motion.scene if self.motion else None, preserve_options=False,
                                          preserve_anchor=config.oracle.base_fraction == current.oracle.base_fraction)
         self.config_store.save(config)
         self.voice_player.stop()
         self.drag_input.suspend()
         self.config, self.config_path = config, self.config_store.path
         self.renderer, self.asset_message = assets.renderer, assets.message
+        self.renderer.colors = config.oracle.colors
         self.voice_player.clips = dict(assets.voice_paths)
         self.voice_player.asset_error = self.voice_player.error = assets.voice_error
         self.voice_player.configure(enabled=config.audio.enabled, volume=config.audio.volume)
@@ -515,7 +556,7 @@ class OracleDesktopWindow(QWidget):
             self.motion, self._signature = motion, motion.viewport
             self.clock.accumulator = 0.
             if self.debug_window is None:
-                self.overseer_layer.events.cancel()
+                self.overseers.group.cancel()
         if self.motion is not None:
             self.motion.scene.config = replace(self.motion.scene.config, **visual)
             self.motion.scene.appearance.sync_cords(self.motion.scene)
@@ -524,10 +565,13 @@ class OracleDesktopWindow(QWidget):
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
                 self.motion.scene.set_autonomous_movement(config.desktop.autonomous)
             self.motion.scene.drag.set_enabled(config.interaction.drag_enabled)
+            self.motion.scene.mouse_reaction.configure(self.motion.scene, config.interaction)
         self.drag_hit = PuppetHitMap()
         self.last_time = perf_counter()
         self._last_revision = None
         self._next_render_time = 0.
+        if screen_changed:
+            self.bind_screen(target_screen)
         self.sync_overseer()
         self.sync_pause()
         self.tray.setToolTip(tr('当前缩放 {scale:g}×', scale=self.requested_scale))
@@ -567,8 +611,9 @@ class OracleDesktopWindow(QWidget):
             self.drag_input.suspend()
             if self.motion is not None:
                 self.motion.scene.window_reaction.cancel(self.motion.scene)
+                self.motion.scene.mouse_reaction.cancel(self.motion.scene)
             self.window_tracker.reset()
-        self.overseer_layer.refresh(self.clock.alpha,
+        self.overseers.refresh(self.clock.alpha,
             allowed=self._screen_valid and self.debug_window is None and not self._closing)
         self.sync_toolbar()
 
@@ -595,7 +640,7 @@ class OracleDesktopWindow(QWidget):
                    '调试窗口打开中，桌面人偶已暂停' if self.debug_window is not None else
                    '桌宠已暂停，可从托盘菜单继续' if self.clock.paused else '')
         self.action_toolbar.sync(self.motion.scene if self.motion else None, blocked,
-                                 overseer_active=self.overseer_layer.model.active)
+                                 overseer_available=self.overseers.group.available)
 
     def trigger_toolbar_action(self, action):
         self.sync_toolbar()
@@ -603,9 +648,8 @@ class OracleDesktopWindow(QWidget):
         if toolbar is None or action not in toolbar.buttons or not toolbar.buttons[action].isEnabled():
             return
         if action == 'overseer':
-            events = self.overseer_layer.events
-            started = events.start(self.overseer_spawn_context())
-            toolbar.feedback('已触发监视者' if started else events.last_result)
+            started = self.overseers.group.start(self.overseer_spawn_context())
+            toolbar.feedback('已触发监视者' if started else '没有安全的边缘位置，本次跳过')
             self.sync_toolbar()
             return  # 独立显示层在下一仿真步探出，不使人偶重绘或唤醒。
         scene = self.motion.scene  # 每次读取当前场景，工作区/缩放重建后不会操作旧人偶。
@@ -651,7 +695,7 @@ class OracleDesktopWindow(QWidget):
             return
         scene = self.motion.scene
         self.drag_input.sync(scene.drag, self.drag_hit.get(self.renderer, scene, self.clock.alpha,
-                             raster_scale=self.motion.viewport.physical_scale),
+                             raster_scale=self.motion.viewport.requested_scale),
                              self.motion.viewport)
 
     def set_paused(self, paused):
@@ -698,7 +742,7 @@ class OracleDesktopWindow(QWidget):
                    or not s.pearls_settled or s.eyes.moving)
         if now >= self._next_render_time:
             # 显示层分离：监视者刷新不进入人偶损伤矩形、命中图或渲染缓存。
-            overseer_changed = self.overseer_layer.refresh(self.clock.alpha)
+            overseer_changed = self.overseers.refresh(self.clock.alpha)
             if changed:
                 bounds = self.frame_bounds()
                 self.update(bounds.united(self._painted_bounds).intersected(self.rect()))
@@ -729,7 +773,8 @@ class OracleDesktopWindow(QWidget):
                 scale = self.motion.viewport.scale
                 p.scale(scale, scale)
                 p.setRenderHint(QPainter.RenderHint.Antialiasing)
-                self.renderer.draw(p, self.motion.scene, self.clock.alpha)
+                self.renderer.draw(p, self.motion.scene, self.clock.alpha,
+                                   raster_scale=self.motion.viewport.requested_scale)
         finally:
             p.end()
         self._painted_bounds = self.frame_bounds()
@@ -754,9 +799,7 @@ class OracleDesktopWindow(QWidget):
             if self.motion is not None:
                 debug.scene.projection.inherit_cooldown(self.motion.scene.projection)
             # 唯一控制器转交给调试时钟；桌面时钟随后暂停，绝不独立生成第二只。
-            debug.canvas.overseer_events = self.overseer_layer.events
-            debug.canvas.overseer = self.overseer_layer.model
-            debug.canvas.overseer_renderer.atlas = self.renderer.atlas
+            debug.canvas.overseer_group = self.overseers.group
             debug.asset_message = self.asset_message
             debug.assets.setText(self.asset_message+' - 独立调试；关闭窗口返回桌宠')
             debug.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -774,8 +817,9 @@ class OracleDesktopWindow(QWidget):
         self.debug_window = None
         if not self._closing:
             # 无时限的手动外观预览不泄漏到桌面；计时事件则继续本次剩余时长。
-            if self.overseer_layer.events.phase == EventPhase.PREVIEW:
-                self.overseer_layer.events.cancel()
+            for entry in self.overseers.group.entries.values():
+                if entry.events.phase == EventPhase.PREVIEW:
+                    entry.events.cancel()
             self.sync_overseer()
             self.sync_pause()
             if self._screen_valid:
@@ -788,12 +832,14 @@ class OracleDesktopWindow(QWidget):
         self._closing = True
         self.voice_player.stop()
         self.drag_input.close()
-        self.overseer_layer.close()
+        self.overseers.close()
         self.timer.stop()
         self.rebuild_timer.stop()
         self.disconnect_screen()
         app = QApplication.instance()
-        for signal, slot in ((app.primaryScreenChanged, self.bind_screen), (app.aboutToQuit, self.cleanup)):
+        for signal, slot in ((app.primaryScreenChanged, self.select_screen),
+                             (app.screenAdded, self.select_screen), (app.screenRemoved, self.screen_removed),
+                             (app.aboutToQuit, self.cleanup)):
             try:
                 signal.disconnect(slot)
             except (RuntimeError, TypeError):

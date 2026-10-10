@@ -1,7 +1,7 @@
 """从真实 TOML 到启动配置、全部设置控件和保存文件的默认值链路。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-from dataclasses import replace
+from dataclasses import replace, asdict, is_dataclass
 import json
 from pathlib import Path
 import tempfile
@@ -12,6 +12,7 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QSpinBox
 
 from rw_creature_pet.oracle.settings import OracleSettingsDialog
+from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 
 
@@ -20,15 +21,24 @@ PERCENTAGES = {
     'oracle.arm_scale',
     'oracle.drag_projection_probability',
     'oracle.cross_edge_probability', 'oracle.antigravity_probability', 'oracle.pearl_playback_probability',
-    'overseer.appearance_probability', 'overseer.relocation_probability',
+    'overseer.appearance_probability', 'overseer.relocation_probability', 'overseer.observation_probability',
+    'interaction.hover_probability', 'interaction.hover_open_probability',
 }
 
 
 def write_toml(path, data):
     # 测试配置仅含字符串、布尔、数字、列表和表；JSON 的这些字面量也是合法 TOML。
+    def literal(value):
+        if is_dataclass(value):
+            value = asdict(value)
+        if isinstance(value, dict):
+            return '{ ' + ', '.join(f'{k} = {literal(v)}' for k,v in value.items()) + ' }'
+        if isinstance(value, (list, tuple)):
+            return '[' + ', '.join(literal(v) for v in value) + ']'
+        return json.dumps(value, ensure_ascii=False)
     def table(mapping, prefix=''):
         lines = [f'[{prefix}]'] if prefix else []
-        lines.extend(f'{key} = {json.dumps(value, ensure_ascii=False)}'
+        lines.extend(f'{key} = {literal(value)}'
                      for key, value in mapping.items() if not isinstance(value, dict))
         for key, value in mapping.items():
             if isinstance(value, dict):
@@ -62,10 +72,11 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.app.processEvents()
         for key, control in dialog.controls.items():
             with self.subTest(key=key):
-                group, field = key.split('.')
                 # 新增控件必须同时在发布 TOML 中声明，不能仅依赖代码默认值。
-                self.assertIn(field, self.data[group])
-                expected = getattr(getattr(config, group), field)
+                template, expected = self.data, config
+                for field in key.split('.'):
+                    self.assertIn(field, template)
+                    template, expected = template[field], getattr(expected, field)
                 if key in PERCENTAGES:
                     expected *= 100
                 if isinstance(control, QDoubleSpinBox):
@@ -94,10 +105,15 @@ class SettingsDefaultsTests(unittest.TestCase):
 
     def test_all_controls_follow_changed_toml_values_instead_of_fixed_defaults(self):
         values = {
-            'desktop.scale': 1.5, 'desktop.autonomous': False, 'interaction.drag_enabled': False,
+            'desktop.scale': 1.5, 'desktop.autonomous': False, 'desktop.screen': 'DISPLAY2',
+            'interaction.drag_enabled': False,
+            'interaction.hover_radius': 210.5, 'interaction.hover_dwell_seconds': 2.7,
+            'interaction.hover_probability': .723, 'interaction.hover_open_probability': .416,
             'audio.enabled': False, 'audio.volume': .31,
             'oracle.hide_cords': True, 'oracle.glow_enabled': True,
-            'oracle.outfit': 'maid', 'oracle.arm_scale': .67,
+            'oracle.outfit': 'maid', 'oracle.arm_scale': .67, 'oracle.coarse_pixels_4x': True,
+            'oracle.colors.arm': '#234567', 'oracle.colors.arm_highlight': '#abcdef',
+            'oracle.colors.joints': '#102030',
             'oracle.glow_color': '#123456', 'oracle.glow_radius': 9.5, 'oracle.glow_opacity': .63,
             'oracle.pearl_matrix_enabled': False, 'oracle.pearl_matrix_count': 13,
             'oracle.pearl_matrix_avoid_radius': 123, 'oracle.pearl_orbits_enabled': False,
@@ -105,6 +121,7 @@ class SettingsDefaultsTests(unittest.TestCase):
             'oracle.pearl_fixed_count': 6, 'oracle.pearl_satellite_count': 3,
             'oracle.pearl_playback_probability': .67, 'oracle.pearl_bubble_max_size': 19.5,
             'oracle.pearl_bubble_color': '#654321', 'oracle.projection_opacity': .37,
+            'oracle.colors.pearl_glyph': '#123abc',
             'oracle.drag_projection_probability': .42, 'oracle.drag_projection_cooldown_seconds': 73.5,
             'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15,
             'oracle.halo_arcs_enabled': False, 'oracle.halo_arc_max_count': 4,
@@ -112,17 +129,22 @@ class SettingsDefaultsTests(unittest.TestCase):
             'oracle.float_speed': 1.23, 'oracle.cross_edge_probability': .123,
             'oracle.antigravity_probability': .234, 'oracle.drift_speed': .87,
             'oracle.antigravity_duration_seconds': 523.4,
-            'overseer.enabled': True, 'overseer.color': '#abcdef',
+            'overseer.enabled': True, 'overseer.appearance_mode': 'resident',
+            'overseer.slots': [{'id': 1, 'color': '#abcdef', 'appearance': 'standard'}],
             'overseer.check_interval': 17.25, 'overseer.appearance_probability': .543,
             'overseer.duration_min': 31.25, 'overseer.duration_max': 54.5,
             'overseer.cooldown_min': 72.5, 'overseer.cooldown_max': 101.25,
             'overseer.withdraw_distance': 72.5, 'overseer.reemerge_distance': 141.5,
             'overseer.puppet_withdraw_distance': 121.5, 'overseer.puppet_reemerge_distance': 201.5,
             'overseer.relocation_probability': .678,
+            'overseer.observation_probability': .456, 'overseer.observation_interval': 9.25,
         }
         for key, value in values.items():
-            group, field = key.split('.')
-            self.data[group][field] = value
+            target = self.data
+            *path, field = key.split('.')
+            for part in path:
+                target = target[part]
+            target[field] = value
         self.data['oracle'].update(base_side='left', allowed_edges=['top', 'left'])
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
@@ -144,13 +166,38 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertEqual(dialog.controls['desktop.scale'].currentData(), 2.)
         self.assertEqual(dialog.controls['audio.volume'].value(), 0)
         self.assertEqual(dialog.controls['oracle.pearl_matrix_count'].value(), 0)
-        self.assertEqual(dialog.controls['overseer.color'].value(), '#102030')
+        self.assertEqual(dialog.controls['overseer.slots'].colors[1].value(), '#102030')
         self.assertEqual(config.overseer.size, self.data['overseer']['size'])
         self.assertEqual(config.oracle.pearl_bubble_color, self.data['oracle']['pearl_bubble_color'])
         self.assertEqual(config.oracle.glow_opacity, .4)
         self.assertEqual(dialog.controls['oracle.glow_opacity'].value(), 40)
         saved = json.loads(self.store.path.read_text(encoding='utf-8'))
         self.assertEqual(saved['config']['oracle']['glow_opacity'], .4)
+        self.assertFalse(saved['config']['oracle']['coarse_pixels_4x'])
+        self.assertEqual(config.oracle.colors.pearl_glyph, self.data['oracle']['colors']['pearl_glyph'])
+        self.assertEqual(saved['config']['oracle']['colors']['pearl_glyph'], config.oracle.colors.pearl_glyph)
+
+    def test_palette_reset_uses_template_and_preserves_other_tabs_and_drafts(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        colors = replace(config.oracle.colors, skin='#123456', pearl_glyph='#fedcba',
+                         arm='#234567', arm_highlight='#abcdef', joints='#102030')
+        config = replace(config, oracle=replace(config.oracle, colors=colors))
+        dialog = self.audit(config)
+        dialog.controls['audio.volume'].setValue(19)
+        dialog.controls['oracle.colors.pearl_glyph'].setValue('#abcdef')
+        self.data['oracle']['colors']['pearl_glyph'] = '#654321'
+        write_toml(self.source, self.data)
+        dialog.restore_defaults(3)
+        candidate = dialog.candidate()
+        self.assertEqual(candidate.oracle.colors, replace(colors, pearl_glyph='#654321'))
+        self.assertEqual(candidate.audio.volume, .19)
+        self.assertFalse(self.store.path.exists())
+        dialog.restore_defaults(1)
+        arm_colors = {name: self.data['oracle']['colors'][name] for name in ('arm', 'arm_highlight', 'joints')}
+        self.assertEqual(dialog.candidate().oracle.colors, replace(colors, pearl_glyph='#654321', **arm_colors))
+        self.assertEqual(dialog.candidate().audio.volume, .19)
+        self.assertFalse(self.store.path.exists())
 
     def test_valid_advanced_toml_values_are_not_clamped_to_ui_convenience_limits(self):
         self.data['overseer'].update(check_interval=90000., duration_min=.01, duration_max=90001.,
@@ -166,6 +213,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         saved = self.store.path.read_bytes()
         per_tab = (
             {'desktop.scale': 1.5, 'audio.enabled': False, 'audio.volume': .33333,
+             'oracle.coarse_pixels_4x': True,
              'oracle.glow_enabled': True, 'oracle.glow_color': '#123456', 'oracle.glow_opacity': .654321},
             {'oracle.outfit': 'maid', 'oracle.arm_scale': .623456},
             {'oracle.pearl_matrix_count': 13, 'oracle.pearl_playback_probability': .123456,
@@ -174,7 +222,7 @@ class SettingsDefaultsTests(unittest.TestCase):
             {'oracle.base_side': 'left', 'oracle.allowed_edges': ('top', 'left'),
              'oracle.base_fraction': .713456, 'oracle.float_speed': 1.23456},
             {'overseer.enabled': True, 'overseer.check_interval': 90000.,
-             'overseer.color': '#abcdef', 'overseer.appearance_probability': .54321},
+             'overseer.slots': (OverseerSlot(color='#abcdef'),), 'overseer.appearance_probability': .54321},
         )
         for values in per_tab:
             for key, value in values.items():
@@ -216,7 +264,9 @@ class SettingsDefaultsTests(unittest.TestCase):
     def test_reset_all_is_a_draft_and_preserves_hidden_settings_then_saves_exact_defaults(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
-        config = replace(config, oracle=replace(config.oracle, colors=replace(config.oracle.colors, skin='#123456')))
+        config = replace(config, oracle=replace(config.oracle, colors=replace(
+            config.oracle.colors, skin='#123456', pearl_glyph='#fedcba',
+            arm='#234567', arm_highlight='#abcdef', joints='#102030')))
         self.store.save(config)
         saved = self.store.path.read_bytes()
         dialog = self.audit(config)
@@ -224,12 +274,15 @@ class SettingsDefaultsTests(unittest.TestCase):
         dialog.controls['desktop.scale'].setCurrentIndex(2)
         self.data['audio']['volume'] = .701234  # 与旧值显示相同，仍须替换成新的精确默认值。
         self.data['oracle'].update(arm_scale=.623456, glow_opacity=.401234,
+                                   coarse_pixels_4x=True,
                                    base_side='left', allowed_edges=['left'], base_fraction=.713456)
+        self.data['oracle']['colors']['pearl_glyph'] = '#654321'
         write_toml(self.source, self.data)
         template_bytes = self.source.read_bytes()
         from rw_creature_pet.settings_store import load_defaults
         defaults = load_defaults()
-        expected = replace(defaults, oracle=replace(defaults.oracle, colors=config.oracle.colors), ui=config.ui)
+        expected = replace(defaults, oracle=replace(defaults.oracle, colors=replace(
+            defaults.oracle.colors, skin='#123456')), ui=config.ui)
         dialog.reset_all_button.click()
         self.assertEqual(dialog.candidate(), expected)
         self.assertEqual(self.store.path.read_bytes(), saved)

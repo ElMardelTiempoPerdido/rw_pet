@@ -3,7 +3,7 @@ import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage, QPainter
@@ -13,6 +13,8 @@ from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.input import PuppetHitMap
+from rw_creature_pet.oracle.pearl_playback import PearlPlayback, SpectrumCurve
+from rw_creature_pet.shared.raster import pixel_density
 from rw_creature_pet.shared.geometry import Vec2
 from PySide6.QtCore import QPoint
 
@@ -68,7 +70,7 @@ class PixelRenderTests(unittest.TestCase):
             scene.step()
         renderer = OracleRenderer()
         with patch.object(renderer, 'draw_pearl'), patch.object(renderer, 'draw_scene_head'):
-            for scale, dpr in ((1., 1.5), (1.5, 1.25), (2., 2.), (4., 1.5)):
+            for scale, dpr in ((1., 1.5), (1.5, 1.25), (2., 2.)):
                 cached = self.paint(renderer, scene, scale=scale, dpr=dpr)
                 direct = self.paint(renderer, scene, scale=scale, dpr=dpr, direct=True)
                 a, b = bytes(cached.constBits()), bytes(direct.constBits())
@@ -81,6 +83,59 @@ class PixelRenderTests(unittest.TestCase):
                     coarse = self.paint(renderer, scene, scale=scale, dpr=dpr)
                     self.assertNotEqual(a[3::4], bytes(coarse.constBits())[3::4])
                     scene.config = replace(scene.config, pixel_mode='adaptive')
+
+    def test_large_scales_are_nearest_enlargements_including_maid_and_halo(self):
+        renderer = OracleRenderer()
+        scene = OracleScene(OracleConfig(outfit='maid'))
+        scene.start_lap()
+        for _ in range(33):
+            scene.step()
+        # 珍珠贴图原本独立绘制；此处逐像素比较人偶所有部件、机械臂、线缆和光环
+        with patch.object(renderer, 'draw_pearl'):
+            for scale, coarse, base_scale in ((3., False, 1.), (3., True, 1.),
+                                               (4., False, 2.), (4., True, 1.)):
+                scene.config = replace(scene.config, coarse_pixels_4x=coarse)
+                base = self.paint(renderer, scene, scale=base_scale)
+                body, head, halo = renderer._raster_image, renderer._head_image, renderer._halo_image
+                actual = self.paint(renderer, scene, scale=scale, dpr=1.5)
+                expected = base.scaled(actual.size(), Qt.AspectRatioMode.IgnoreAspectRatio,
+                                       Qt.TransformationMode.FastTransformation)
+                self.assertEqual(bytes(actual.constBits()), bytes(expected.constBits()), (scale, coarse))
+                self.assertIs(renderer._raster_image, body)
+                self.assertIs(renderer._head_image, head)
+                self.assertIs(renderer._halo_image, halo)
+
+    def test_coarse_option_only_changes_four_x_and_rejects_non_boolean(self):
+        for scale in (1., 1.5, 2., 3.):
+            self.assertEqual(pixel_density('adaptive', scale, False), pixel_density('adaptive', scale, True))
+        self.assertEqual(pixel_density('adaptive', 4.), 2.)
+        self.assertEqual(pixel_density('adaptive', 4., True), 1.)
+        for value in (None, 0, 1, 'true'):
+            with self.assertRaises(ValueError):
+                OracleConfig(coarse_pixels_4x=value)
+
+    def test_pearls_glyphs_and_playback_also_enlarge_base_pixels_and_cache(self):
+        scene = OracleScene(OracleConfig(pearl_matrix_enabled=True, halo_enabled=False))
+        pearl = scene.pearl_matrix.extract(scene.pearl_matrix.pearls[0].slot)
+        pearl.playback = PearlPlayback(SpectrumCurve((.6, .8)*400, 20.), 0., 400)
+        for _ in range(25):
+            pearl.playback.step()
+        glyph = QImage(15, 15, QImage.Format.Format_ARGB32_Premultiplied)
+        glyph.fill(0)
+        glyph.setPixelColor(2, 3, Qt.GlobalColor.cyan)
+        renderer = OracleRenderer(glyphs=Mock(sprite=Mock(return_value=glyph)))
+        with patch.object(renderer, 'draw_pixel_layer'), patch.object(renderer, 'draw_scene_head'):
+            for scale, coarse, base_scale in ((3., False, 1.), (4., False, 2.), (4., True, 1.)):
+                scene.config = replace(scene.config, coarse_pixels_4x=coarse)
+                base = self.paint(renderer, scene, scale=base_scale)
+                actual = self.paint(renderer, scene, scale=scale)
+                expected = base.scaled(actual.size(), Qt.AspectRatioMode.IgnoreAspectRatio,
+                                       Qt.TransformationMode.FastTransformation)
+                self.assertEqual(bytes(actual.constBits()), bytes(expected.constBits()), (scale, coarse))
+                with patch.object(renderer, 'draw_pearl_sprites') as sprites:
+                    self.paint(renderer, scene, scale=scale)
+                    sprites.assert_not_called()
+        self.assertEqual(pearl.playback.ticks, 25)
 
     def test_one_x_unchanged_and_resolution_change_preserves_sleep_and_geometry(self):
         scene, renderer = OracleScene(), OracleRenderer()
@@ -137,14 +192,20 @@ class PixelRenderTests(unittest.TestCase):
             scene.step()
         cache = PuppetHitMap()
         with patch.object(renderer, 'draw_pearl'), patch.object(renderer, 'draw_arm'):
-            for density in (1., 1.5, 2., 4.):
-                visible = self.paint(renderer, scene, scale=density, cords=False)
-                hit = cache.get(renderer, scene, .5, raster_scale=density)
+            for scale, coarse in ((1., False), (1.5, False), (2., False), (3., False),
+                                  (4., False), (4., True)):
+                scene.config = replace(scene.config, coarse_pixels_4x=coarse)
+                density = pixel_density('adaptive', scale, coarse)
+                visible = self.paint(renderer, scene, scale=scale, cords=False)
+                visible = visible.scaled(round(960*density), round(600*density),
+                                         Qt.AspectRatioMode.IgnoreAspectRatio,
+                                         Qt.TransformationMode.FastTransformation)
+                hit = cache.get(renderer, scene, .5, raster_scale=scale)
                 crop = visible.copy(round(hit.origin.x*density), round(hit.origin.y*density),
                                     hit.image.width(), hit.image.height())
                 self.assertTrue(bytes(crop.constBits())[3::4] == bytes(hit.image.constBits())[3::4],
                                 (density, '可拖拽轮廓与可见轮廓一致'))
-                self.assertIs(cache.get(renderer, scene, .5, raster_scale=density), hit)
+                self.assertIs(cache.get(renderer, scene, .5, raster_scale=scale), hit)
                 head = scene.appearance.head.sample(.5)
                 self.assertTrue(hit.contains(head))
                 self.assertFalse(hit.contains(scene.base))

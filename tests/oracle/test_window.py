@@ -90,17 +90,17 @@ class OracleWindowTests(unittest.TestCase):
         self.assertLess((w.scene.look_target-look).length(), 1.)
         self.assertEqual(w.scene.ticks, 0)
 
-    def test_only_three_fixed_scales_and_zoom_does_not_reset_scene(self):
+    def test_five_fixed_scales_and_zoom_does_not_reset_scene(self):
         w, c = self.window, self.window.canvas
         w.pause_button.setChecked(True)
         w.step_button.click()
-        self.assertEqual([w.scale_input.itemData(i) for i in range(w.scale_input.count())], [1., 1.5, 2.])
+        self.assertEqual([w.scale_input.itemData(i) for i in range(w.scale_input.count())], [1., 1.5, 2., 3., 4.])
         body = tuple(p.position for p in w.scene.body.chunks)
         for index in range(w.scale_input.count()):
             w.scale_input.setCurrentIndex(index)
             self.assertTrue(w.focus_button.isEnabled())
             self.assertTrue(w.clock.paused)
-        for value in (None, .5, 1.25, 3., 4.):
+        for value in (None, .5, 1.25, 2.5, 5.):
             with self.assertRaises(ValueError):
                 c.set_view_scale(value)
         self.assertEqual(tuple(p.position for p in w.scene.body.chunks), body)

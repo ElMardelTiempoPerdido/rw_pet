@@ -19,7 +19,7 @@ class OracleWindowReaction:
 
     @staticmethod
     def allowed(scene):
-        return not scene.drag.controlling
+        return not scene.drag.controlling and not scene.mouse_reaction.active
 
     def notice(self, scene, identity, target, *, changed, enabled=True):
         if not enabled or not self.allowed(scene):

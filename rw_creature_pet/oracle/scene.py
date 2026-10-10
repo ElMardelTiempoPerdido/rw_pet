@@ -22,6 +22,7 @@ from .pose import OraclePose
 from .drag import OracleDrag
 from .drag_reactions import OracleDragReactions
 from .window_reaction import OracleWindowReaction
+from .mouse_reaction import OracleMouseReaction
 
 
 def unit(v: Vec2, fallback=Vec2(0, -1)) -> Vec2:
@@ -109,6 +110,8 @@ class OracleHead(MotionPoint):
     drive_velocity: Vec2 = Vec2()
     NECK_BASE_OFFSET = 6.
     CONNECTION_LENGTH = 8.
+    SETTLE_DISTANCE = .003
+    SETTLE_SPEED = .003
 
     def step(self, upper, direction, look):
         self.previous_position = self.position
@@ -121,6 +124,15 @@ class OracleHead(MotionPoint):
         velocity = self.drive_velocity*.995+upper.velocity*.01+correction
         self.drive_velocity = ((velocity-upper.velocity)*.5+upper.velocity
                                + direction+look*.5)
+        # 定长约束下仍会有极小的切向余震；若胸部已停稳且头已接近受力平衡，
+        # 在固定步结束收尾，避免亚像素摆动被最终绘制放大成左右一整格。
+        rest_axis = unit(direction+look*.5, direction)
+        rest = anchor+rest_axis*self.CONNECTION_LENGTH
+        if (upper.velocity.length() < .03 and (self.position-rest).length() < self.SETTLE_DISTANCE
+                and (self.position-self.previous_position-upper.velocity).length() < self.SETTLE_SPEED):
+            self.position = rest
+            relative = self.drive_velocity-upper.velocity
+            self.drive_velocity = upper.velocity+rest_axis*dot(relative, rest_axis)
         # 静止时仍有被定长约束抵消的径向驱动力，不能把它当成可见运动。
         self.velocity = self.position-self.previous_position
 
@@ -340,6 +352,7 @@ class OracleScene:
         drag_enabled = self.drag.enabled if hasattr(self, 'drag') else False
         previous_projection = getattr(self, 'projection', None)
         previous_window_reaction = getattr(self, 'window_reaction', None)
+        previous_mouse_reaction = getattr(self, 'mouse_reaction', None)
         self.pose = OraclePose()
         self.navigator = None
         base = self.world.anchor_position(self.anchor)
@@ -366,6 +379,9 @@ class OracleScene:
         self.behavior = OracleBehavior()
         self.eyes = OracleEyes()
         self.window_reaction = OracleWindowReaction()
+        self.mouse_reaction = OracleMouseReaction(previous_mouse_reaction.config) if previous_mouse_reaction else OracleMouseReaction()
+        if previous_mouse_reaction is not None:
+            self.mouse_reaction.attention.random.setstate(previous_mouse_reaction.attention.random.getstate())
         if previous_window_reaction is not None:
             self.window_reaction.attention.random.setstate(previous_window_reaction.attention.random.getstate())
         self.drag_reactions = OracleDragReactions(self.config.drag_reactions)
@@ -390,7 +406,7 @@ class OracleScene:
         if not enabled:
             self.halo_arcs.clear()
         if enabled and not was_enabled:
-            self.halo.center = self.halo.previous_center = self.halo.region.clamp(self.orbit_center)
+            self.halo.center = self.halo.previous_center = self.orbit_center
 
     def set_halo_scale(self, scale=1.):
         self.halo.set_scale(scale)
@@ -658,6 +674,7 @@ class OracleScene:
 
     def step(self):
         self.window_reaction.step(self)
+        self.mouse_reaction.step(self)
         if self.drag.controlling:
             self.drag.step_body()
         else:
@@ -736,6 +753,7 @@ class OracleScene:
         self.previous_look_direction = self.look_direction
         desired_look = limited((self.look_target - upper.position) * .01, 1) if self.look_target is not None else Vec2()
         desired_look = self.window_reaction.desired_look(self, desired_look)
+        desired_look = self.mouse_reaction.desired_look(self, desired_look)
         self.look_direction = self.look_direction.lerp(desired_look, .12)
         self.head.step(upper, self.body.direction, self.look_direction)
         if self.pearl_orbits is not None:
@@ -746,11 +764,6 @@ class OracleScene:
         self.projection.avoid_arm(self)
         self.appearance.step(self)
         if self.halo_visible:
-            if self.drag.controlling:
-                preferred = (self.halo.region.clamp(self.orbit_center) if self.drag.recovering
-                             else self.orbit_center)
-                self.halo.step(preferred, region=self.drag.halo_region)
-            else:
-                self.halo.step(self.orbit_center)
+            self.halo.step(self.orbit_center)
         self.halo_arcs.step(self.halo, self.halo_visible and self.config.halo_arcs_enabled)
         self.ticks += 1

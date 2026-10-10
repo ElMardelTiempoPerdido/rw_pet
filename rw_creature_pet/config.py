@@ -5,7 +5,7 @@ from pathlib import Path
 import tomllib
 
 from .lizard.config import DebugConfig
-from .oracle.config import OracleConfig
+from .oracle.config import DISPLAY_SCALES, OracleConfig
 from .overseer.config import OverseerConfig
 from .shared.paths import DEFAULT_GAME_DIR
 from .interaction.config import AudioConfig, InteractionConfig
@@ -16,12 +16,15 @@ from .ui_config import UiConfig
 class DesktopConfig:
     scale: float = 1.
     autonomous: bool = True  # Oracle 自主移动；关闭后仍可原地读珠与观察窗口。
+    screen: str = ''  # 空值跟随主屏；GUI 保存显示器身份，不保存易变的列表序号。
 
     def __post_init__(self):
-        if isinstance(self.scale, bool) or self.scale not in (1., 1.5, 2.):
-            raise ValueError('desktop.scale 必须为 1、1.5 或 2')
+        if isinstance(self.scale, bool) or self.scale not in DISPLAY_SCALES:
+            raise ValueError('desktop.scale 必须为 1、1.5、2、3 或 4')
         if type(self.autonomous) is not bool:
             raise ValueError('desktop.autonomous 必须为布尔值')
+        if not isinstance(self.screen, str):
+            raise ValueError('desktop.screen 必须为字符串')
 
 
 @dataclass(frozen=True, slots=True)

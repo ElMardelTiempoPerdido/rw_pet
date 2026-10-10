@@ -4,6 +4,7 @@ from math import cos, pi, sin
 from random import Random
 
 from ..shared.geometry import Vec2
+from .projection_placement import ProjectionArmObstacles
 
 
 class Activity(str, Enum):
@@ -40,6 +41,7 @@ class OracleBehavior:
     MATRIX_OBSERVATION_SHARE = .5  # 矩阵开启时，观察活动的一半从矩阵抽取一颗。
     OBSERVE_DISTANCE = 50.
     RECALL_DISTANCE = 38.
+    RECALL_RETRIES = 2  # 到位时机械臂仍遮挡则有限次换位，避免反复左右重选。
     ROAM_DISTANCE = (60., 160.)
     MAX_LOCAL_APPROACH = 200.
     MEDITATE_SHARE = .12  # 排除跨边、反重力分支后，从停留份额中分配。
@@ -55,6 +57,8 @@ class OracleBehavior:
         self.playback_random = Random(seed+6)  # 播放分支不扰动选路、普通阅读时长或选珠。
         self.observation_pearl = None
         self.matrix_observation = False
+        self.recall_obstacles = ProjectionArmObstacles()
+        self.recall_retries = 0
         self.last_matrix_slot = None
         self.last_fixed_index = None
         self.enabled = False
@@ -150,8 +154,7 @@ class OracleBehavior:
         elif self.state in (Activity.APPROACH, Activity.ORBIT):
             # 保留已经选中的珠子与阅读意愿，改为珠子过来，而非中断后重抽。
             self.mode = 'recall'
-            scene.observed_pearl.move_to(self.recall_point(scene))
-            self.enter(Activity.RECALL, self.movement_budget(scene))
+            self.start_recall(scene)
         elif moving:
             self.resume_or_idle(scene)
 
@@ -182,6 +185,7 @@ class OracleBehavior:
             return False
         manual = mode is not None
         self.release_observation()
+        self.recall_retries = 0
         if matrix:
             if group.extracted is None:
                 choices = [p.slot for p in group.pearls if p.slot != self.last_matrix_slot]
@@ -595,15 +599,36 @@ class OracleBehavior:
 
     def recall_point(self, scene):
         body, pearl = scene.body.chunks[0].position, scene.observed_pearl.position
-        candidates = []
-        for i in range(16):
-            angle = i*pi/8
-            p = scene.observed_pearl.region.clamp(body+Vec2(cos(angle), sin(angle))*self.RECALL_DISTANCE)
-            if (p-body).length() >= 30 and scene.arm_region.segment_safe(body, p):
-                # 珠子停在脸旁，避免藏进衣袍；优先从原位置一侧召近。
-                score = (p-pearl).length()+abs(p.y-(body.y-12))*.8
-                candidates.append((score, p))
-        return min(candidates, key=lambda item: item[0])[1] if candidates else scene.observed_pearl.home
+        obstacles = self.recall_obstacles.update(scene)
+        diameter = scene.observed_pearl.radius*2
+        # 先保留脸旁的阅读距离；本圈全部被挡时再稍向外找，不跨越活动区内角。
+        # 障碍框含外壳、关节、活塞和底座，并已留出 5px 的空隙。
+        for distance in (self.RECALL_DISTANCE, self.RECALL_DISTANCE+12, self.RECALL_DISTANCE+24):
+            candidates = []
+            for i in range(16):
+                angle = i*pi/8
+                p = scene.observed_pearl.region.clamp(body+Vec2(cos(angle), sin(angle))*distance)
+                if ((p-body).length() >= 30 and scene.arm_region.segment_safe(body, p)
+                        and obstacles.clear(p, diameter, diameter)):
+                    # 珠子停在脸旁，避免藏进衣袍；优先从原位置一侧召近。
+                    score = (p-pearl).length()+abs(p.y-(body.y-12))*.8
+                    candidates.append((score, p))
+            if candidates:
+                return min(candidates, key=lambda item: item[0])[1]
+        return None  # 槽位本身也可能被机械臂挡住，不能当成阅读位置兜底。
+
+    def start_recall(self, scene):
+        point = self.recall_point(scene)
+        if point is None:
+            self.return_pearl(scene)
+            return
+        scene.observed_pearl.move_to(point)
+        self.enter(Activity.RECALL, self.movement_budget(scene))
+
+    def return_pearl(self, scene):
+        scene.observed_pearl.return_home()
+        self.enter(Activity.RETURN)
+        scene.eyes.end_observation()
 
     def movement_budget(self, scene):
         route = scene.navigator.route if scene.navigator else None
@@ -666,17 +691,25 @@ class OracleBehavior:
                 self.enter(Activity.APPROACH, self.movement_budget(scene))
             else:
                 self.mode = 'recall'
-                scene.observed_pearl.move_to(self.recall_point(scene))
-                self.enter(Activity.RECALL, self.movement_budget(scene))
+                self.start_recall(scene)
         elif self.state in (Activity.APPROACH, Activity.RECALL):
             if scene.arrived and scene.observed_pearl.settled:
+                if self.state == Activity.RECALL:
+                    # 选位时机械臂可能还在收拢；真正停稳后复查，不在阅读时逐帧重算。
+                    pearl = scene.observed_pearl
+                    obstacles = self.recall_obstacles.update(scene)
+                    if not obstacles.clear(pearl.position, pearl.radius*2, pearl.radius*2):
+                        if self.recall_retries < self.RECALL_RETRIES:
+                            self.recall_retries += 1
+                            self.start_recall(scene)
+                        else:
+                            self.return_pearl(scene)
+                        return
                 if self.mode != 'orbit' or not self.start_orbit(scene):
                     self.begin_observation(scene)
             elif self.state_ticks > self.duration:
                 scene._move_to(scene.body.chunks[0].position)
-                scene.observed_pearl.return_home()
-                self.enter(Activity.RETURN)
-                scene.eyes.end_observation()
+                self.return_pearl(scene)
         elif self.state == Activity.ORBIT:
             if scene.arrived:
                 self.begin_observation(scene)
@@ -684,9 +717,7 @@ class OracleBehavior:
                 scene._move_to(scene.body.chunks[0].position)
                 self.begin_observation(scene)
         elif self.state == Activity.OBSERVE and self.state_ticks >= self.duration:
-            scene.observed_pearl.return_home()
-            self.enter(Activity.RETURN)
-            scene.eyes.end_observation()
+            self.return_pearl(scene)
         elif (self.state == Activity.RETURN and scene.observation_returned and self.state_ticks >= 24
               and scene.arrived and (self.drift_active or scene.pose.settled)):
             self.completed_cycles += 1

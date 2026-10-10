@@ -10,7 +10,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QPushButton
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
@@ -66,6 +66,47 @@ class OracleSettingsTests(unittest.TestCase):
         d.reject()
         self.assertFalse(self.store.path.exists())
         self.assertEqual(self.config.desktop.scale, 1.)
+
+    def test_large_scale_option_shares_row_enables_only_at_four_and_persists(self):
+        d = self.dialog(assets=self.assets)
+        scale, coarse = d.controls['desktop.scale'], d.controls['oracle.coarse_pixels_4x']
+        self.assertEqual([scale.itemData(i) for i in range(scale.count())], [1., 1.5, 2., 3., 4.])
+        self.assertFalse(coarse.isChecked())
+        self.assertFalse(coarse.isEnabled())
+        scale.setCurrentIndex(scale.findData(4.))
+        self.assertTrue(coarse.isEnabled())
+        coarse.setChecked(True)
+        for value in (1., 1.5, 2., 3.):
+            scale.setCurrentIndex(scale.findData(value))
+            self.assertFalse(coarse.isEnabled())
+            self.assertTrue(coarse.isChecked())
+        scale.setCurrentIndex(scale.findData(4.))
+        self.app.processEvents()
+        a = scale.mapTo(d, scale.rect().center())
+        b = coarse.mapTo(d, coarse.rect().center())
+        self.assertLess(abs(a.y()-b.y()), 4)
+        self.assertLess(a.x(), b.x())
+        d.save()
+        self.config = self.store.load()
+        self.assertEqual(self.config.desktop.scale, 4.)
+        self.assertTrue(self.config.oracle.coarse_pixels_4x)
+        reopened = self.dialog(assets=self.assets)
+        self.assertTrue(reopened.controls['oracle.coarse_pixels_4x'].isChecked())
+        self.assertTrue(reopened.controls['oracle.coarse_pixels_4x'].isEnabled())
+
+    def test_changing_four_x_pixels_does_not_reset_desktop_pose(self):
+        self.config = replace(self.config, desktop=replace(self.config.desktop, scale=4.))
+        w = self.desktop()
+        w.change_scale(4.)
+        scene = w.motion.scene
+        d = self.dialog(assets=self.assets, commit=w.apply_settings)
+        d.controls['oracle.coarse_pixels_4x'].setChecked(True)
+        d.save()
+        self.assertIs(w.motion.scene, scene)
+        self.assertTrue(scene.config.coarse_pixels_4x)
+        self.assertTrue(w.overseers.layers[1].coarse_pixels_4x)
+        w.reset_position()
+        self.assertTrue(w.motion.scene.config.coarse_pixels_4x)
 
     def test_drag_projection_controls_save_percent_seconds_and_keep_cooldown(self):
         w = self.desktop()
@@ -132,12 +173,13 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertFalse(d.controls['overseer.check_interval'].isEnabled())
         d.controls['overseer.enabled'].setChecked(True)
         self.assertTrue(d.controls['overseer.check_interval'].isEnabled())
-        d.controls['overseer.color'].setValue('#fa5577')
+        d.controls['overseer.slots'].colors[1].setValue('#fa5577')
         for key, value in dict(check_interval=8, appearance_probability=45, duration_min=4,
                                duration_max=7, cooldown_min=12, cooldown_max=18,
                                withdraw_distance=80, reemerge_distance=130,
                                puppet_withdraw_distance=110, puppet_reemerge_distance=170,
-                               relocation_probability=70).items():
+                               relocation_probability=70, observation_probability=80,
+                               observation_interval=15).items():
             d.controls['overseer.'+key].setValue(value)
         d.controls['overseer.duration_max'].setValue(2)
         d.save()
@@ -147,9 +189,11 @@ class OracleSettingsTests(unittest.TestCase):
         d.save()
         saved = self.store.load()
         self.assertTrue(saved.overseer.enabled)
-        self.assertEqual(saved.overseer.color, '#fa5577')
+        self.assertEqual(saved.overseer.slots[0].color, '#fa5577')
         self.assertEqual(saved.overseer.appearance_probability, .45)
         self.assertEqual(saved.overseer.reemerge_distance, 130)
+        self.assertEqual(saved.overseer.observation_probability, .8)
+        self.assertEqual(saved.overseer.observation_interval, 15)
         self.assertEqual(saved.overseer.puppet_withdraw_distance, 110)
         self.assertEqual(saved.overseer.puppet_reemerge_distance, 170)
         self.assertEqual(saved.overseer.relocation_probability, .7)
@@ -169,24 +213,133 @@ class OracleSettingsTests(unittest.TestCase):
         w.settings_action.trigger()
         d = w.settings_dialog
         d.controls['overseer.enabled'].setChecked(True)
-        d.controls['overseer.color'].setValue('#123456')
+        d.controls['overseer.slots'].colors[1].setValue('#123456')
         with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
             d.save()
-        self.assertFalse(w.overseer_layer.model.config.enabled)
+        self.assertFalse(w.overseers.layers[1].model.config.enabled)
         with patch.object(w, 'update') as update:
             d.save()
             update.assert_not_called()
         self.assertIs(w.motion.scene, scene)
         self.assertIs(w.drag_hit, hit)
         self.assertTrue(scene.appearance.sleeping)
-        self.assertEqual(w.overseer_layer.model.config.color, '#123456')
-        w.overseer_layer.events.start(w.overseer_spawn_context())
+        self.assertEqual(w.overseers.layers[1].model.config.color, '#123456')
+        w.overseers.layers[1].events.start(w.overseer_spawn_context())
         w.settings_action.trigger()
         d = w.settings_dialog
         d.controls['overseer.enabled'].setChecked(False)
         d.save()
-        self.assertEqual(w.overseer_layer.events.phase, EventPhase.EXITING)
+        self.assertEqual(w.overseers.layers[1].events.phase, EventPhase.EXITING)
         self.assertIs(w.motion.scene, scene)
+
+    def test_overseer_slots_mode_capacity_draft_and_persistence(self):
+        d = self.dialog(assets=self.assets)
+        editor = d.controls['overseer.slots']
+        for _ in range(3):
+            editor.add_button.click()
+        self.assertEqual([s.id for s in editor.value()], [1, 2, 3, 4])
+        self.assertEqual([s.color for s in editor.value()[1:]], ['#ffffff'] * 3)
+        self.assertEqual(editor.value()[0].color, self.config.overseer.slots[0].color)
+        self.assertFalse(editor.add_button.isEnabled())
+        editor.colors[3].setValue('#aabbcc')
+        editor.remove_slot(2)
+        self.assertEqual([s.id for s in editor.value()], [1, 3, 4])
+        editor.add_button.click()
+        self.assertEqual(editor.colors[2].value(), '#ffffff')
+        self.assertEqual(editor.colors[3].value(), '#aabbcc')
+        self.assertFalse(self.store.path.exists())
+        mode = d.controls['overseer.appearance_mode']
+        d.controls['overseer.enabled'].setChecked(True)
+        mode.setCurrentIndex(mode.findData('resident'))
+        self.assertFalse(d.controls['overseer.check_interval'].isEnabled())
+        self.assertFalse(d.controls['overseer.duration_min'].isEnabled())
+        self.assertTrue(d.controls['overseer.withdraw_distance'].isEnabled())
+        d.save()
+        saved = self.store.load()
+        self.assertEqual(saved.overseer.appearance_mode, 'resident')
+        self.assertEqual(len(saved.overseer.slots), 4)
+        self.assertEqual(saved.overseer.slots[2].color, '#aabbcc')
+        self.config = saved
+        reopened = self.dialog(assets=self.assets)
+        for key in (1, 2, 3, 4):
+            reopened.controls['overseer.slots'].remove_slot(key)
+        reopened.save()
+        self.assertEqual(self.store.load().overseer.slots, ())
+
+    def test_overseer_friend_selection_defaults_and_saved_custom_color(self):
+        d = self.dialog(assets=self.assets)
+        editor = d.controls['overseer.slots']
+        editor.add_slot()
+        selector = editor.appearances[2]
+        selector.setCurrentIndex(selector.findData('friend'))
+        self.assertEqual(editor.colors[2].value(), '#000000')
+        selector.setCurrentIndex(selector.findData('standard'))
+        self.assertEqual(editor.colors[2].value(), '#ffffff')
+        selector.setCurrentIndex(selector.findData('friend'))
+        editor.colors[2].setValue('#243447')
+        selector.setCurrentIndex(selector.findData('standard'))
+        self.assertEqual(editor.colors[2].value(), '#243447')
+        selector.setCurrentIndex(selector.findData('friend'))
+        from rw_creature_pet.i18n import language_manager
+        language_manager().set_language('en')
+        self.assertEqual(selector.currentText(), 'Friend?')
+        self.assertEqual(selector.currentData(), 'friend')
+        self.assertEqual(editor.colors[2].value(), '#243447')
+        language_manager().set_language('zh')
+        self.assertEqual(selector.currentText(), '朋友？')
+        d.save()
+        self.config = self.store.load()
+        slot = self.config.overseer.slots[1]
+        self.assertEqual((slot.appearance, slot.color), ('friend', '#243447'))
+        reopened = self.dialog(assets=self.assets).controls['overseer.slots']
+        self.assertEqual(reopened.appearances[2].currentData(), 'friend')
+        self.assertEqual(reopened.colors[2].value(), '#243447')
+
+    def test_overseer_slot_rows_keep_control_height_after_add_remove(self):
+        d = self.dialog(assets=self.assets)
+        editor = d.controls['overseer.slots']
+        d.tabs.setCurrentIndex(next(i for i in range(d.tabs.count())
+                                   if d.tabs.widget(i).isAncestorOf(editor)))
+
+        def check_geometry():
+            for _ in range(4):
+                self.app.processEvents()
+            visible = [row for row in editor.rows.values() if not row.isHidden()]
+            for row in visible:
+                self.assertTrue(editor.rect().contains(row.geometry()))
+                for button in row.findChildren(QPushButton):
+                    self.assertGreaterEqual(button.height(), button.minimumSizeHint().height())
+                for selector in row.findChildren(QComboBox):
+                    self.assertGreaterEqual(selector.height(), selector.minimumSizeHint().height())
+                    self.assertTrue(row.rect().contains(selector.geometry()))
+            self.assertGreaterEqual(editor.add_button.height(), editor.add_button.minimumSizeHint().height())
+            self.assertTrue(editor.rect().contains(editor.add_button.geometry()))
+            content = d.tabs.currentWidget().widget()
+            next_field = d.controls['overseer.check_interval']
+            self.assertLess(editor.mapTo(content, QPoint(0, editor.height())).y(),
+                            next_field.mapTo(content, QPoint()).y())
+
+        for workarea in (QRect(0, 0, 1280, 900), QRect(0, 0, 800, 480)):
+            d.fit_workarea(workarea)
+            check_geometry()
+            initial_height = editor.height()
+            for removed in (2, 1):
+                editor.add_button.click()
+                check_geometry()
+                editor.rows[removed].findChildren(QPushButton)[-1].click()
+                check_geometry()
+                self.assertEqual(editor.height(), initial_height)
+            # 清空后只保留添加按钮，再加满、逐个移除，高度应随内容恢复
+            editor.rows[2].findChildren(QPushButton)[-1].click()
+            check_geometry()
+            self.assertEqual(editor.height(), editor.add_button.height())
+            for _ in range(4):
+                editor.add_button.click()
+                check_geometry()
+            for key in (4, 3, 2):
+                editor.rows[key].findChildren(QPushButton)[-1].click()
+                check_geometry()
+            self.assertEqual(editor.height(), initial_height)
 
     def test_matrix_avoidance_radius_round_trips_and_tracks_matrix_availability(self):
         d = self.dialog(assets=self.assets)
@@ -451,6 +604,38 @@ class OracleSettingsTests(unittest.TestCase):
         w.settings_dialog.save()
         self.assertIs(w.motion.scene, scene)
         self.assertEqual(self.store.startup()[0].oracle.glow_opacity, 0.)
+
+    def test_palette_colors_save_apply_without_reset_and_survive_reload(self):
+        w = self.desktop()
+        scene = w.motion.scene
+        scene.drift()
+        w.open_settings()
+        d = w.settings_dialog
+        control = d.controls['oracle.colors.pearl_glyph']
+        self.assertEqual(control.value(), '#7faabc')
+        arm_colors = dict(arm='#234567', arm_highlight='#abcdef', joints='#102030')
+        for name, value in arm_colors.items():
+            d.controls['oracle.colors.' + name].setValue(value)
+        with patch('rw_creature_pet.oracle.settings.QColorDialog.getColor', return_value=QColor('#ab36ef')):
+            control.choose_color()
+        with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
+            d.save()
+        self.assertEqual(w.renderer.colors, self.config.oracle.colors)
+        self.assertEqual(scene.config.colors, self.config.oracle.colors)
+        self.assertEqual(control.value(), '#ab36ef')
+        d.save()
+        self.assertEqual(d.result(), QDialog.DialogCode.Accepted)
+        self.assertIs(w.motion.scene, scene)
+        self.assertTrue(scene.behavior.drift_active)
+        colors = replace(self.config.oracle.colors, pearl_glyph='#ab36ef', **arm_colors)
+        self.assertEqual(w.renderer.colors, colors)
+        self.assertEqual(scene.config.colors, colors)
+        self.assertEqual(self.store.load().oracle.colors, colors)
+        self.assertEqual(scene.config.pearl_bubble_color, self.config.oracle.pearl_bubble_color)
+        w.open_settings()
+        self.assertEqual(w.settings_dialog.controls['oracle.colors.pearl_glyph'].value(), '#ab36ef')
+        for name, value in arm_colors.items():
+            self.assertEqual(w.settings_dialog.controls['oracle.colors.' + name].value(), value)
 
     def test_small_workarea_keeps_save_buttons_visible(self):
         d = self.dialog(assets=self.assets)

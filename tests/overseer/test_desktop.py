@@ -14,6 +14,7 @@ from rw_creature_pet.oracle.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.render import OracleRenderer
 from rw_creature_pet.oracle.overseer import puppet_position
 from rw_creature_pet.overseer.events import EventPhase
+from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.overseer.model import Anchor, Edge
 from tests.oracle.test_desktop import FakeScreen
 
@@ -27,13 +28,14 @@ class OverseerDesktopTests(unittest.TestCase):
     def setUp(self):
         config = AppConfig()
         config = replace(config, oracle=replace(config.oracle, halo_enabled=False),
+                         interaction=replace(config.interaction, hover_probability=0.),
                          desktop=replace(config.desktop, autonomous=False))
         with patch('rw_creature_pet.oracle.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
             self.w = OracleDesktopWindow(config, renderer=OracleRenderer())
         self.w.timer.stop()
         self.screen = FakeScreen(QRect(-1280, 40, 1280, 680), 1.5)
         self.w.bind_screen(self.screen)
-        self.layer = self.w.overseer_layer
+        self.layer = self.w.overseers.layers[1]
 
     def tearDown(self):
         self.w.close()
@@ -49,6 +51,8 @@ class OverseerDesktopTests(unittest.TestCase):
         self.app.processEvents()
 
     def settle(self):
+        # 此组测量监视者独立开销，显式停用整个人偶行为循环，排除原地读珠。
+        self.w.motion.scene.set_autonomous(False)
         for _ in range(850):
             self.w.motion.step()
         self.assertTrue(self.w.motion.scene.appearance.sleeping)
@@ -81,7 +85,7 @@ class OverseerDesktopTests(unittest.TestCase):
                     self.assertLess(layer.width()*layer.height(), self.screen.rect.width()*self.screen.rect.height()*.15)
                     p = w.motion.viewport.to_global(layer.model.root+layer.model.normal*15)
                     with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(round(p.x), round(p.y))):
-                        self.assertLess((layer.mouse_world()-layer.model.root-layer.model.normal*15).length(), 2)
+                        self.assertLess((w.overseers.mouse_world()-layer.model.root-layer.model.normal*15).length(), 2)
                     image = layer.grab().toImage()
                     self.assertTrue(any(bytes(image.constBits())))
                     # 验证可见根部也贴边，不仅验证锚点；允许不足一个像素的栅格取整。
@@ -115,6 +119,7 @@ class OverseerDesktopTests(unittest.TestCase):
     def test_activity_does_not_repaint_or_wake_sleeping_puppet(self):
         w, layer = self.w, self.layer
         self.settle()
+        layer.events.configure(replace(layer.model.config, observation_probability=1, observation_interval=.1))
         self.show_watcher(Edge.BOTTOM)
         s = w.motion.scene
         revision = s.appearance.revision
@@ -136,6 +141,7 @@ class OverseerDesktopTests(unittest.TestCase):
             cords.assert_not_called()
         self.assertEqual(s.appearance.revision, revision)
         self.assertTrue(s.appearance.sleeping)
+        self.assertEqual(layer.model.lens.up, 1)
 
     def test_absent_event_has_no_cursor_physics_or_paint_work(self):
         w, layer = self.w, self.layer
@@ -168,7 +174,7 @@ class OverseerDesktopTests(unittest.TestCase):
                 delta = near-puppet_position(scene)
                 for chunk in scene.body.chunks:
                     chunk.position += delta
-                with patch.object(w.motion, 'step'), patch.object(layer, 'mouse_world', return_value=None):
+                with patch.object(w.motion, 'step'), patch.object(w.overseers, 'mouse_world', return_value=None):
                     w.step_scene()
                 self.assertTrue(layer.model.scared, (scale, edge))
                 self.assertIsNone(layer.model.target)  # 人偶不是注视目标。
@@ -206,7 +212,7 @@ class OverseerDesktopTests(unittest.TestCase):
         self.assertTrue(layer.isVisible())
         self.assertTrue(self.screen.rect.contains(layer.geometry()))
         self.assertLess(layer.width()*layer.height(), self.screen.rect.width()*self.screen.rect.height()*.15)
-        self.assertIs(w.overseer_layer, layer)
+        self.assertIs(w.overseers.layers[1], layer)
         self.assertIs(w.drag_hit, hit)
         self.assertEqual(scene.appearance.revision, revision)
         self.assertTrue(scene.appearance.sleeping)
@@ -294,6 +300,124 @@ class OverseerDesktopTests(unittest.TestCase):
         w.advance()
         self.assertEqual((layer.events.remaining, layer.model.extended, layer.model.revision), snapshot)
         self.assertTrue(layer.isVisible())
+
+    def configure_four(self):
+        self.w.config = replace(self.w.config, overseer=replace(self.w.config.overseer,
+            enabled=True, appearance_mode='resident', slots=tuple(OverseerSlot(i) for i in range(1, 5))))
+        self.w.sync_overseer()
+
+    def test_four_separate_layers_reuse_sleeping_puppet_and_read_cursor_once(self):
+        from contextlib import ExitStack
+        w = self.w
+        self.settle()
+        self.configure_four()
+        w.config = replace(w.config, overseer=replace(w.config.overseer,
+                           observation_probability=1., observation_interval=.1))
+        w.sync_overseer()
+        target = Vec2(w.motion.scene.world.width/2, w.motion.scene.world.height/2)
+        for layer, edge in zip(w.overseers.layers.values(), Edge):
+            layer.events.preview(layer.model.bounds, Anchor(edge, .5))
+            for _ in range(125):
+                layer.model.step(target)
+            self.assertEqual(layer.model.lens.up, 1.)
+            layer.refresh()
+        self.app.processEvents()
+        far = w.motion.viewport.to_global(Vec2(w.motion.scene.world.width/2, w.motion.scene.world.height/2))
+        scene = w.motion.scene
+        with ExitStack() as stack:
+            cursor = stack.enter_context(patch('rw_creature_pet.overseer.desktop.QCursor.pos',
+                                              return_value=QPoint(round(far.x), round(far.y))))
+            inactive = [stack.enter_context(patch.object(obj, method)) for obj, method in
+                        ((w, 'update'), (w.renderer, 'draw'), (scene.appearance, 'step_cloth'),
+                         (scene.appearance.cords, 'step'))]
+            for _ in range(12):
+                w.step_scene()
+                w.overseers.refresh()
+                self.app.processEvents()
+            self.assertEqual(cursor.call_count, 12)
+            for mock in inactive:
+                mock.assert_not_called()
+        for layer in w.overseers.layers.values():
+            self.assertTrue(layer.windowFlags() & Qt.WindowType.WindowTransparentForInput)
+            self.assertLess(layer.width()*layer.height(), self.screen.rect.width()*self.screen.rect.height()*.15)
+        self.assertTrue(scene.appearance.sleeping)
+
+    def test_four_handoff_pause_resize_and_remove_slots(self):
+        w = self.w
+        self.configure_four()
+        for _ in range(50):
+            w.step_scene()
+        group = w.overseers.group
+        self.assertEqual(len(group.entries), 4)
+        revision = group.revision
+        w.set_paused(True)
+        w.clock.advance(10, w.step_scene)
+        self.assertEqual(group.revision, revision)
+        w.set_paused(False)
+        w.open_debug()
+        debug = w.debug_window
+        debug.timer.stop()
+        self.assertIs(debug.canvas.overseer_group, group)
+        debug.open_overseer_debug()
+        self.assertEqual(debug.overseer_panel.slot.count(), 4)
+        debug.overseer_panel.slot.setCurrentIndex(2)
+        self.assertIs(debug.canvas.overseer, group.entries[3].model)
+        before = group.revision
+        w.clock.advance(10, w.step_scene)
+        self.assertEqual(group.revision, before)
+        debug.step_scene()
+        self.assertNotEqual(group.revision, before)
+        debug.close()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        self.assertIs(w.overseers.group, group)
+        self.screen.rect = QRect(0, 0, 850, 600)
+        w.rebuild()
+        self.assertFalse(group.active)
+        w.step_scene()
+
+        self.assertTrue(group.active)
+        for layer in w.overseers.layers.values():
+            self.assertEqual(layer.model.bounds, w.overseer_spawn_context().bounds)
+        kept = w.overseers.layers[3]
+        removed = w.overseers.layers[2]
+        w.config = replace(w.config, overseer=replace(w.config.overseer, slots=(OverseerSlot(3),)))
+        w.sync_overseer()
+        self.assertEqual(set(w.overseers.layers), {3})
+        self.assertIs(w.overseers.layers[3], kept)
+        self.assertFalse(removed.isVisible())
+        w.config = replace(w.config, overseer=replace(w.config.overseer, slots=()))
+        w.sync_overseer()
+        self.assertFalse(w.overseers.layers)
+        w.step_scene()
+
+    def test_spawning_additional_residents_shares_one_cursor_read(self):
+        w = self.w
+        self.configure_four()
+        # 留一只在场，其余等待常驻补位，同时需要活动注视与新位置选点
+        first = w.overseers.layers[1]
+        first.events.start(w.overseer_spawn_context())
+        with patch('rw_creature_pet.overseer.desktop.QCursor.pos', return_value=QPoint(-640, 380)) as cursor:
+            w.step_scene()
+            self.assertEqual(cursor.call_count, 1)
+        self.assertTrue(all(e.model.active for e in w.overseers.group.entries.values()))
+
+    def test_random_bodies_keep_root_pixels_attached_at_small_logical_scale(self):
+        self.screen.dpr = 2.
+        self.w.requested_scale = 1.
+        self.w.rebuild()
+        layer = self.layer
+        for seed in (0, 1, 2, 8, 947, 123456789):
+            layer.model.seed = seed
+            for edge in Edge:
+                self.show_watcher(edge)
+                image = layer.grab().toImage()
+                def alpha(offset, i):
+                    x, y = {Edge.TOP: (i, offset), Edge.BOTTOM: (i, image.height()-1-offset),
+                            Edge.LEFT: (offset, i), Edge.RIGHT: (image.width()-1-offset, i)}[edge]
+                    return image.pixelColor(x, y).alpha()
+                along = image.width() if edge in (Edge.TOP, Edge.BOTTOM) else image.height()
+                self.assertTrue(any(alpha(offset, i) for offset in (0, 1) for i in range(along)), (seed, edge))
 
 
 if __name__ == '__main__':

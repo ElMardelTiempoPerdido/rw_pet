@@ -4,7 +4,8 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QThread, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap, QWheelEvent
-from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDialog, QDialogButtonBox,
+from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDialog,
+                               QDialogButtonBox,
                                QDoubleSpinBox,
                                QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QRadioButton, QScrollArea,
@@ -13,7 +14,9 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QButtonGroup, QCheckBox, QColor
 from ..settings_store import load_defaults, validate_game_directory
 from ..i18n import WidgetTexts, language_manager, tr
 from ..shared.messages import Message
+from ..shared.screens import find_screen, screen_identity, screen_key
 from ..ui_config import UiConfig
+from ..overseer.config import APPEARANCE_COLORS, OverseerSlot
 from .assets import prepare_oracle_assets
 from .config import DISPLAY_SCALES, EDGE_NAMES, validate_edges
 from .settings_style import PixelRule, apply_settings_style, pixel_box, settings_font, PixelRuleThin, NOTE_STYLE
@@ -22,7 +25,17 @@ PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity
                'oracle.edge_fraction', 'oracle.base_fraction', 'oracle.arm_scale',
                'oracle.cross_edge_probability', 'oracle.antigravity_probability',
                'oracle.pearl_playback_probability', 'oracle.drag_projection_probability',
-               'overseer.appearance_probability', 'overseer.relocation_probability'}
+               'interaction.hover_probability', 'interaction.hover_open_probability',
+               'overseer.appearance_probability', 'overseer.relocation_probability',
+               'overseer.observation_probability'}
+
+
+def _replace_fields(config, changes):
+    """一次替换每组字段，保留未展示的设置和嵌套配色。"""
+    return replace(config, **{
+        name: _replace_fields(getattr(config, name), value) if isinstance(value, dict) else value
+        for name, value in changes.items()
+    })
 
 
 class _WheelScrollsPage:
@@ -54,6 +67,46 @@ class WheelSafeDoubleSpinBox(_WheelScrollsPage, QDoubleSpinBox):
 
 class WheelSafeComboBox(_WheelScrollsPage, QComboBox):
     pass
+
+
+class ScreenComboBox(WheelSafeComboBox):
+    """实时设备候选；热插拔、翻译刷新都保留尚未保存的选择。"""
+    def __init__(self, selection):
+        super().__init__()
+        self.setFixedWidth(180)
+        self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.refresh(selection=selection)
+        app = QApplication.instance()
+        for signal in (app.screenAdded, app.primaryScreenChanged):
+            signal.connect(self.refresh)
+        app.screenRemoved.connect(self.screen_removed)
+        language_manager().changed.connect(self.refresh)
+
+    def screen_removed(self, screen):
+        self.refresh(excluded=screen)
+
+    def refresh(self, *args, selection=None, excluded=None):
+        key = (self.currentData() or '') if selection is None else selection
+        app = QApplication.instance()
+        screens = [s for s in app.screens() if s is not excluded]
+        selected = find_screen(screens, key)
+        blocked = self.blockSignals(True)
+        self.clear()
+        self.addItem(tr('主屏幕（自动）'), '')
+        for screen in screens:
+            name = screen.name().removeprefix('\\\\.\\')
+            model = screen.model()
+            label = f'{name} · {model}' if model and model.casefold() not in name.casefold() else name
+            if screen is app.primaryScreen():
+                label += tr('（主屏幕）')
+            self.addItem(label, key if screen is selected else screen_key(screen))
+            self.setItemData(self.count()-1, label, Qt.ItemDataRole.ToolTipRole)
+        if key and selected is None:
+            label = tr('未连接：{name}', name=screen_identity(key).get('name', key))
+            self.addItem(label, key)
+            self.setItemData(self.count()-1, label, Qt.ItemDataRole.ToolTipRole)
+        self.setCurrentIndex(self.findData(key))
+        self.blockSignals(blocked)
 
 
 class _DirectoryHint(QLabel):
@@ -178,6 +231,90 @@ class ColorButton(QPushButton):
             self.setValue(color.name())
 
 
+class OverseerSlotsEditor(QWidget):
+    """固定编号的四个可选槽位，外观和颜色随整张表单统一保存"""
+    def __init__(self, slots):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.rows, self.colors, self.slots = {}, {}, {}
+        self.appearances = {}
+        for key, label in enumerate(('监视者 1', '监视者 2', '监视者 3', '监视者 4'), 1):
+            row = QWidget()
+            line = QHBoxLayout(row)
+            line.setContentsMargins(0, 0, 0, 0)
+            line.addWidget(QLabel(label))
+            line.addStretch()
+            appearance = QComboBox()
+            appearance.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            appearance.addItem('普通', 'standard')
+            appearance.addItem('朋友？', 'friend')
+            appearance.currentIndexChanged.connect(lambda index, key=key: self.change_appearance(key))
+            line.addWidget(appearance)
+            color = ColorButton(OverseerSlot().color, '监视者颜色')
+            color.setFixedWidth(100)
+            line.addWidget(color)
+            remove = QPushButton('移除')
+            remove.setAutoDefault(False)
+            remove.clicked.connect(lambda checked=False, key=key: self.remove_slot(key))
+            line.addWidget(remove)
+            layout.addWidget(row)
+            self.rows[key], self.colors[key] = row, color
+            self.appearances[key] = appearance
+        self.add_button = QPushButton('添加监视者')
+        self.add_button.setAutoDefault(False)
+        self.add_button.clicked.connect(self.add_slot)
+        layout.addWidget(self.add_button)
+        self.setValue(slots)
+
+    def value(self):
+        return tuple(replace(slot, color=self.colors[key].value(), appearance=self.appearances[key].currentData())
+                     for key, slot in sorted(self.slots.items()))
+
+    def change_appearance(self, key):
+        if key not in self.slots:
+            return
+        slot = self.slots[key]
+        appearance = self.appearances[key].currentData()
+        # 默认配色随外观切换，已自定义的颜色继续保留
+        if self.colors[key].value() == APPEARANCE_COLORS[slot.appearance]:
+            self.colors[key].setValue(APPEARANCE_COLORS[appearance])
+        self.slots[key] = replace(slot, appearance=appearance, color=self.colors[key].value())
+
+    def setValue(self, slots):
+        self.slots = {slot.id: slot for slot in slots}
+        for key, row in self.rows.items():
+            row.setVisible(key in self.slots)
+            if key in self.slots:
+                self.colors[key].setValue(self.slots[key].color)
+                selector = self.appearances[key]
+                selector.blockSignals(True)
+                selector.setCurrentIndex(selector.findData(self.slots[key].appearance))
+                selector.blockSignals(False)
+        self.add_button.setEnabled(len(self.slots) < 4)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if event.size().height() < self.minimumSizeHint().height():
+            # 等当前布局完成后清除父表单的旧高度分配，避免增删行时压缩或重叠控件
+            QTimer.singleShot(0, self, self._refresh_parent_layout)
+
+    def _refresh_parent_layout(self):
+        parent = self.parentWidget()
+        if parent is not None and parent.layout() is not None:
+            parent.layout().invalidate()
+            parent.layout().activate()
+            parent.updateGeometry()
+
+    def add_slot(self):
+        key = next((key for key in self.rows if key not in self.slots), None)
+        if key is not None:
+            self.setValue((*self.value(), OverseerSlot(id=key)))
+
+    def remove_slot(self, key):
+        self.setValue(tuple(slot for slot in self.value() if slot.id != key))
+
+
 class AssetPreparation(QThread):
     def __init__(self, config, parent):
         super().__init__(parent)
@@ -244,8 +381,8 @@ class OracleSettingsDialog(QDialog):
         row.addWidget(self.browse_button)
         game.addRow('雨世界目录', row)
         hint = _DirectoryHint('请选择这台电脑上雨世界的安装目录\n'
-                      '一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容\n'
-                      '首次启动时，需要一点时间从安装目录中读取资源')
+                              '一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容\n'
+                              '首次启动时，需要一点时间从安装目录中读取资源')
         hint.setStyleSheet(NOTE_STYLE)
         hint.setWordWrap(True)
         # 保留按实际宽度计算文字高度，避免 sizeHint 预留过多行高形成上下空白。
@@ -265,7 +402,10 @@ class OracleSettingsDialog(QDialog):
             scale.addItem(f'{value:g}×', value)
         scale.setCurrentIndex(DISPLAY_SCALES.index(config.desktop.scale))
         self.controls['desktop.scale'] = scale
-        general.addRow('桌宠显示大小', scale)
+        left, right = self.two_columns(general)
+        left.addRow('桌宠显示大小', scale)
+        self.check(right, '使用更加狗啃的像素化效果', 'oracle.coarse_pixels_4x', config.oracle.coarse_pixels_4x)
+        self.controls['oracle.coarse_pixels_4x'].setToolTip('仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素')
         self.check(general, '人偶想去哪去哪', 'desktop.autonomous', config.desktop.autonomous)
 
         auto_note = QLabel('*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化')
@@ -274,7 +414,32 @@ class OracleSettingsDialog(QDialog):
         auto_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         general.addRow(auto_note)
 
+        general.addRow(PixelRuleThin())
+
         self.check(general, '启用鼠标拖动', 'interaction.drag_enabled', config.interaction.drag_enabled)
+        general.addRow(PixelRuleThin())
+
+        left, right = self.two_columns(general)
+        self.spin(left, '面向鼠标概率', 'interaction.hover_probability', config.interaction.hover_probability * 100,
+                  0, 100, decimals=1, suffix=' %')
+        self.spin(right, '注视鼠标时睁眼概率', 'interaction.hover_open_probability',
+                  config.interaction.hover_open_probability * 100,
+                  0, 100, decimals=1, suffix=' %')
+
+        left, right = self.two_columns(general)
+        self.spin(left, '鼠标停留半径', 'interaction.hover_radius', config.interaction.hover_radius,
+                  1, 2000, decimals=1, suffix=' px')
+        self.spin(right, '鼠标停留时间', 'interaction.hover_dwell_seconds', config.interaction.hover_dwell_seconds,
+                  0, 60, decimals=1, step=.1, suffix=' 秒')
+
+        hover_note = QLabel('*鼠标进入此范围时，人偶可能会观察鼠标')
+        hover_note.setStyleSheet(NOTE_STYLE)
+        hover_note.setWordWrap(True)
+        hover_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        general.addRow(hover_note)
+
+        general.addRow(PixelRuleThin())
+
         self.check(general, '隐藏电缆', 'oracle.hide_cords', config.oracle.hide_cords)
         self.controls['oracle.hide_cords'].setToolTip('可能会节省一些计算开销')
         general.addRow(PixelRuleThin())
@@ -317,10 +482,21 @@ class OracleSettingsDialog(QDialog):
         self.controls['oracle.outfit'] = outfit
         appearance.addRow(outfit)
         appearance.addRow(PixelRuleThin())
-        self.spin(appearance, '机械臂缩放', 'oracle.arm_scale', config.oracle.arm_scale * 100,
+        left, right = self.two_columns(appearance)
+        self.spin(left, '机械臂缩放', 'oracle.arm_scale', config.oracle.arm_scale * 100,
                   35, 75, decimals=1, suffix=' %')
         self.controls['oracle.arm_scale'].setToolTip(
             '相对于原作臂段长度，默认 60%；修改后会重新安置人偶并更新机械臂可达范围。')
+        joints_color = ColorButton(config.oracle.colors.joints, '关节颜色')
+        joints_color.setFixedWidth(100)
+        self.controls['oracle.colors.joints'] = joints_color
+        right.addRow('关节颜色', joints_color)
+        for column, (label, field) in zip(self.two_columns(appearance),
+                                          (('机械臂主体', 'arm'), ('机械臂高光', 'arm_highlight'))):
+            color = ColorButton(getattr(config.oracle.colors, field), label)
+            color.setFixedWidth(100)
+            self.controls['oracle.colors.' + field] = color
+            column.addRow(label, color)
 
         pearls = self.tab('珍珠')
         o = config.oracle
@@ -353,7 +529,12 @@ class OracleSettingsDialog(QDialog):
         right.addRow('播放光晕特效颜色', bubble_color)
 
         halo = self.tab('投影')
-        self.spin(halo, '投影不透明度', 'oracle.projection_opacity', o.projection_opacity * 100, 0, 100, suffix=' %')
+        left, right = self.two_columns(halo)
+        self.spin(left, '投影不透明度', 'oracle.projection_opacity', o.projection_opacity * 100, 0, 100, suffix=' %')
+        projection_color = ColorButton(o.colors.pearl_glyph, '选择投影颜色')
+        projection_color.setFixedWidth(100)
+        self.controls['oracle.colors.pearl_glyph'] = projection_color
+        right.addRow('投影颜色', projection_color)
         opacity_note = QLabel('*此透明度应用于珍珠文字、光环、电弧等全息投影类特效')
         opacity_note.setStyleSheet(NOTE_STYLE)
         opacity_note.setWordWrap(True)
@@ -371,7 +552,7 @@ class OracleSettingsDialog(QDialog):
         halo.addRow(PixelRuleThin())
         left, right = self.two_columns(halo)
         self.spin(left, '拖动投影触发概率', 'oracle.drag_projection_probability',
-                  o.drag_projection_probability*100, 0, 100, decimals=1, suffix=' %')
+                  o.drag_projection_probability * 100, 0, 100, decimals=1, suffix=' %')
         self.spin(right, '拖动投影冷却时间', 'oracle.drag_projection_cooldown_seconds',
                   o.drag_projection_cooldown_seconds, 0, 3600, decimals=1, suffix=' 秒')
         # projection_note = QLabel('摆手结束后才尝试投影；概率为 0 时关闭。冷却从触发时开始，松手不重置。')
@@ -382,8 +563,13 @@ class OracleSettingsDialog(QDialog):
         activity = self.tab('移动')
         self.edge_selection(activity, o)
 
-        self.spin(activity, '屏幕边缘活动带宽度', 'oracle.edge_fraction', o.edge_fraction * 100, 20, 35, decimals=1,
+        left, right = self.two_columns(activity)
+        self.spin(left, '屏幕边缘活动带宽度', 'oracle.edge_fraction', o.edge_fraction * 100, 20, 35, decimals=1,
                   suffix=' %')
+        screen = ScreenComboBox(config.desktop.screen)
+        screen.setToolTip('保存后将桌宠移至所选显示器。未连接时暂用主屏幕，重新连接后自动返回。')
+        self.controls['desktop.screen'] = screen
+        right.addRow('所在屏幕', screen)
         activity.addRow(PixelRuleThin())
 
         self.spin(activity, '通常移动速度', 'oracle.float_speed', o.float_speed, .3, 2., decimals=2, step=.1)
@@ -403,24 +589,29 @@ class OracleSettingsDialog(QDialog):
         c = config.overseer
         left, right = self.two_columns(watcher)
         self.check(left, '允许出现监视者', 'overseer.enabled', c.enabled)
-        color = ColorButton(c.color, '监视者颜色')
-        color.setFixedWidth(100)
-        self.controls['overseer.color'] = color
-        right.addRow('主色', color)
+        mode = WheelSafeComboBox()
+        mode.addItem('随机出现', 'random')
+        mode.addItem('常驻', 'resident')
+        mode.setCurrentIndex(mode.findData(c.appearance_mode))
+        self.controls['overseer.appearance_mode'] = mode
+        right.addRow('监视者出现方式', mode)
+        slots = OverseerSlotsEditor(c.slots)
+        self.controls['overseer.slots'] = slots
+        watcher.addRow(slots)
         watcher.addRow(PixelRuleThin())
         self.spin(watcher, '出现检查间隔', 'overseer.check_interval', c.check_interval,
                   .1, 86400, decimals=2, suffix=' 秒')
-        self.spin(watcher, '出现概率', 'overseer.appearance_probability', c.appearance_probability*100,
+        self.spin(watcher, '出现概率', 'overseer.appearance_probability', c.appearance_probability * 100,
                   0, 100, decimals=1, suffix=' %')
-        note = QLabel('*每隔此时间，按以上概率触发监视者出现')
+        note = QLabel('*每个槽位独立检查；常驻模式下忽略出现概率、持续时间和冷却')
         note.setWordWrap(True)
         note.setStyleSheet(NOTE_STYLE)
         watcher.addRow(note)
         for prefix, labels, minimum in (('duration', ('持续时间 - 最短', '持续时间 - 最长'), .1),
-                                         ('cooldown', ('冷却时间 - 最短', '冷却时间 - 最长'), 0)):
+                                        ('cooldown', ('冷却时间 - 最短', '冷却时间 - 最长'), 0)):
             for column, suffix, label in zip(self.two_columns(watcher), ('min', 'max'), labels):
-                key = prefix+'_'+suffix
-                self.spin(column, label, 'overseer.'+key, getattr(c, key), minimum,
+                key = prefix + '_' + suffix
+                self.spin(column, label, 'overseer.' + key, getattr(c, key), minimum,
                           86400, decimals=2, suffix=' 秒')
         watcher.addRow(PixelRuleThin())
         left, right = self.two_columns(watcher)
@@ -433,13 +624,23 @@ class OracleSettingsDialog(QDialog):
                   1, 10000, decimals=1, suffix=' px')
         self.spin(right, '人偶安全距离', 'overseer.puppet_reemerge_distance', c.puppet_reemerge_distance,
                   1, 10000, decimals=1, suffix=' px')
-        self.spin(watcher, '缩回后换位概率', 'overseer.relocation_probability', c.relocation_probability*100,
+        self.spin(watcher, '缩回后换位概率', 'overseer.relocation_probability', c.relocation_probability * 100,
                   0, 100, decimals=1, suffix=' %')
         hint = QLabel('*安全距离应当大于缩回距离')
         hint.setWordWrap(True)
         hint.setStyleSheet(NOTE_STYLE)
         watcher.addRow(hint)
+        watcher.addRow(PixelRuleThin())
+        self.spin(watcher, '监视者观察概率', 'overseer.observation_probability', c.observation_probability * 100,
+                  0, 100, decimals=1, suffix=' %')
+        self.spin(watcher, '间隔时间', 'overseer.observation_interval', c.observation_interval,
+                  .1, 86400, decimals=2, suffix=' 秒')
+        note = QLabel('*完全探出并能跟随鼠标时，每隔此时间可能会进行观察')
+        note.setWordWrap(True)
+        note.setStyleSheet(NOTE_STYLE)
+        watcher.addRow(note)
         self.controls['overseer.enabled'].toggled.connect(self.sync_dependencies)
+        mode.currentIndexChanged.connect(self.sync_dependencies)
 
         self.controls['oracle.pearl_matrix_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.pearl_matrix_count'].valueChanged.connect(self.sync_dependencies)
@@ -448,11 +649,12 @@ class OracleSettingsDialog(QDialog):
         self.controls['oracle.halo_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.halo_arcs_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.pearl_fixed_count'].valueChanged.connect(self.sync_dependencies)
+        scale.currentIndexChanged.connect(self.sync_dependencies)
         self.sync_dependencies()
         self.initial_values = {key: self.value(control) for key, control in self.controls.items()}
         layout.addWidget(self.form, 1)
         self._status_message = message or ('点击保存启动桌宠' if first_run else
-                                         '*修改显示大小、珍珠或活动参数时，人偶会重置位置')
+                                           '*修改显示大小、珍珠或活动参数时，人偶会重置位置')
         self.status = QLabel()
         self.status.setStyleSheet(NOTE_STYLE)
         self.status.setWordWrap(True)
@@ -489,6 +691,12 @@ class OracleSettingsDialog(QDialog):
 
     def retranslate(self):
         self._texts.retranslate()
+        mode = self.controls['overseer.appearance_mode']
+        for key, label in (('random', '随机出现'), ('resident', '常驻')):
+            mode.setItemText(mode.findData(key), tr(label))
+        for selector in self.controls['overseer.slots'].appearances.values():
+            for key, label in (('standard', '普通'), ('friend', '朋友？')):
+                selector.setItemText(selector.findData(key), tr(label))
         self.set_status(self._status_message)
         language = language_manager().language
         self.original = replace(self.original, ui=UiConfig(language))
@@ -496,6 +704,8 @@ class OracleSettingsDialog(QDialog):
             self.pending = replace(self.pending, ui=self.original.ui)
         self.setFont(settings_font())
         self.status.setFont(self.font())
+        for selector in self.controls['overseer.slots'].appearances.values():
+            selector.view().setFont(self.font())
         for control in self.controls.values():
             if isinstance(control, QComboBox):
                 control.view().setFont(self.font())
@@ -509,10 +719,10 @@ class OracleSettingsDialog(QDialog):
             label.setWordWrap(True)
         if language == 'en' and self.width() < 780:
             rect = self._workarea if self._workarea is not None else self.screen().availableGeometry()
-            self.resize(max(self.width(), min(780, rect.width()-32)), self.height())
+            self.resize(max(self.width(), min(780, rect.width() - 32)), self.height())
             # 加宽不能把原本靠屏幕右侧的关闭按钮推到工作区外
-            self.move(max(rect.left(), min(self.x(), rect.right()-self.width()+1)),
-                      max(rect.top(), min(self.y(), rect.bottom()-self.height()+1)))
+            self.move(max(rect.left(), min(self.x(), rect.right() - self.width() + 1)),
+                      max(rect.top(), min(self.y(), rect.bottom() - self.height() + 1)))
 
     def tab(self, title):
         area = QScrollArea()
@@ -551,11 +761,14 @@ class OracleSettingsDialog(QDialog):
         for key, control in self.controls.items():
             if page is not None and not page.isAncestorOf(control):
                 continue
-            group, field = key.split('.')
-            value = getattr(getattr(defaults, group), field)
+            value = defaults
+            for field in key.split('.'):
+                value = getattr(value, field)
             shown = value * 100 if key in PERCENTAGES else value
             if isinstance(control, QCheckBox):
                 control.setChecked(shown)
+            elif isinstance(control, ScreenComboBox):
+                control.refresh(selection=shown)
             elif isinstance(control, QComboBox):
                 control.setCurrentIndex(control.findData(shown))
             else:
@@ -608,7 +821,7 @@ class OracleSettingsDialog(QDialog):
             row.addWidget(button)
         row.addStretch(1)
         form.addRow('启动时所在边缘', row)
-        self.spin(form, '启动时在边上的位置', 'oracle.base_fraction', config.base_fraction*100,
+        self.spin(form, '启动时在边上的位置', 'oracle.base_fraction', config.base_fraction * 100,
                   0, 100, decimals=1, step=1, suffix=' %')
         pos_note = QLabel('*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中')
         pos_note.setStyleSheet(NOTE_STYLE)
@@ -661,9 +874,14 @@ class OracleSettingsDialog(QDialog):
 
     def sync_dependencies(self, *args):
         c = self.controls
+        c['oracle.coarse_pixels_4x'].setEnabled(c['desktop.scale'].currentData() == 4.)
         for key in c:
-            if key.startswith('overseer.') and key not in ('overseer.enabled', 'overseer.color'):
+            if key.startswith('overseer.') and key not in ('overseer.enabled', 'overseer.slots', 'overseer.appearance_mode'):
                 c[key].setEnabled(c['overseer.enabled'].isChecked())
+        random_mode = c['overseer.enabled'].isChecked() and c['overseer.appearance_mode'].currentData() == 'random'
+        for field in ('check_interval', 'appearance_probability', 'duration_min', 'duration_max',
+                      'cooldown_min', 'cooldown_max'):
+            c['overseer.'+field].setEnabled(random_mode)
         for key in ('oracle.glow_color', 'oracle.glow_radius', 'oracle.glow_opacity'):
             c[key].setEnabled(c['oracle.glow_enabled'].isChecked())
         c['oracle.pearl_matrix_count'].setEnabled(c['oracle.pearl_matrix_enabled'].isChecked())
@@ -699,14 +917,18 @@ class OracleSettingsDialog(QDialog):
         groups['oracle'].update(base_side=base_side, allowed_edges=validate_edges(edges, base_side))
         for key, control in self.controls.items():
             value = self.value(control)
-            group, field = key.split('.')
             if value == self.initial_values[key]:
-                if key in self._reset_values:
-                    groups[group][field] = self._reset_values[key]
-                continue  # 不把未编辑的精确数值按控件显示位数重新舍入
-            groups[group][field] = value / 100 if key in PERCENTAGES else value
-        return replace(self.original, game_dir=directory,
-                       **{name: replace(getattr(self.original, name), **values) for name, values in groups.items()})
+                if key not in self._reset_values:
+                    continue  # 不把未编辑的精确数值按控件显示位数重新舍入
+                value = self._reset_values[key]
+            elif key in PERCENTAGES:
+                value /= 100
+            target = groups
+            *path, field = key.split('.')
+            for part in path:
+                target = target.setdefault(part, {})
+            target[field] = value
+        return _replace_fields(self.original, {'game_dir': directory, **groups})
 
     def busy(self, value):
         self.form.setEnabled(not value)
@@ -802,5 +1024,5 @@ class OracleSettingsDialog(QDialog):
 
     def fit_workarea(self, rect):
         self._workarea = rect
-        self.resize(min(self.width(), max(320, rect.width()-32)), min(self.height(), max(320, rect.height()-48)))
-        self.move(rect.center().x()-self.width()//2, rect.center().y()-self.height()//2)
+        self.resize(min(self.width(), max(320, rect.width() - 32)), min(self.height(), max(320, rect.height() - 48)))
+        self.move(rect.center().x() - self.width() // 2, rect.center().y() - self.height() // 2)

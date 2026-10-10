@@ -193,6 +193,10 @@ class OracleAppearance:
     NECKLACE_ANCHOR_HALF = 4.5
     NECKLACE_ANCHOR_UP = 8.
     PHONE_SIDE_HYSTERESIS = .08  # 头部局部横向视线超过此幅度才交换耳机前后层。
+    SWAY_MOVE_DAMPING = .78
+    SWAY_REST_DAMPING = .50  # 接近临界阻尼，停止后不继续往返穿过零点。
+    SWAY_SETTLE_ANGLE = .0005  # 弧度；头部横移约 0.007 逻辑像素。
+    SWAY_SETTLE_SPEED = .0001
 
     def __init__(self, scene):
         self.gravity_scale = scene.pose.gravity_scale
@@ -444,8 +448,16 @@ class OracleAppearance:
         acceleration = upper.velocity - self.last_body_velocity
         side = perpendicular(scene.body.direction)
         lateral = acceleration.x*side.x + acceleration.y*side.y
-        self.sway_velocity = self.sway_velocity*.78 - self.sway*.085 + lateral*.035
+        speed = upper.velocity.length()
+        moving = min(1., speed/.2)
+        damping = self.SWAY_REST_DAMPING+(self.SWAY_MOVE_DAMPING-self.SWAY_REST_DAMPING)*moving
+        self.sway_velocity = self.sway_velocity*damping - self.sway*.085 + lateral*.035
         self.sway = max(-.065, min(.065, self.sway + self.sway_velocity))
+        if (speed < .03 and abs(lateral) < .001 and abs(self.sway) < self.SWAY_SETTLE_ANGLE
+                and abs(self.sway_velocity) < self.SWAY_SETTLE_SPEED):
+            # 结束不可见的余震，避免落点恰在像素取整边界时，头部整张图持续跳一格。
+            # 固定物理步内收敛，主画面、放大镜和命中图共用；新加速仍能立即激发摆动。
+            self.sway = self.sway_velocity = 0.
         self.last_body_velocity = upper.velocity
         self.upper = upper.position
         self.direction = rotate(scene.body.direction, self.sway)

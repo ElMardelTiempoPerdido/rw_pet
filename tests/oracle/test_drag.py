@@ -39,6 +39,7 @@ class OracleDragPhysicsTests(unittest.TestCase):
                 for _ in range(220):
                     old = s.body.chunks[0].position
                     s.step()
+                    self.assertEqual(s.halo.center, s.orbit_center)
                     self.assertLess((s.body.chunks[0].position-old).length(), 9.)
                     self.assertLessEqual((s.arm.joints[-1].position-s.base).length(), s.drag.reach+1e-6)
                     self.assertLess(s.arm.constraint_error, .12)
@@ -52,6 +53,7 @@ class OracleDragPhysicsTests(unittest.TestCase):
                 for tick in range(1600):
                     old = s.body.chunks[0].position
                     s.step()
+                    self.assertEqual(s.halo.center, s.orbit_center)
                     self.assertLess((s.body.chunks[0].position-old).length(), 4.)
                     if not s.drag.controlling:
                         break

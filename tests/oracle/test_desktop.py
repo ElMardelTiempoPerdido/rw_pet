@@ -34,7 +34,7 @@ class OracleDesktopMotionTests(unittest.TestCase):
 
     def test_physical_pixel_scale_and_global_coordinates(self):
         for dpr in (1., 1.25, 1.5, 2.):
-            for scale in (1., 1.5, 2.):
+            for scale in (1., 1.5, 2., 3., 4.):
                 for x, y, w, h in ((0, 0, 1920, 1040), (-1920, 40, 1280, 680), (40, -1080, 700, 500)):
                     v = OracleDesktopViewport(x, y, w, h, dpr, scale)
                     point = Vec2(84, 60)
@@ -263,13 +263,13 @@ class OracleDesktopWindowTests(unittest.TestCase):
         debug.reset_scene()
         self.assertEqual(debug.scene.config.pixel_mode, 'adaptive')
 
-    def test_only_three_scale_choices_and_invalid_request_keeps_scene(self):
+    def test_five_scale_choices_and_invalid_request_keeps_scene(self):
         w = self.window
-        self.assertEqual(tuple(w.scale_actions), (1., 1.5, 2.))
+        self.assertEqual(tuple(w.scale_actions), (1., 1.5, 2., 3., 4.))
         w.scale_actions[1.5].trigger()
         self.assertEqual(w.requested_scale, 1.5)
         scene = w.motion.scene
-        for scale in (.5, 1.25, 3., 4., float('nan')):
+        for scale in (.5, 1.25, 2.5, 5., float('nan')):
             with self.assertRaises(ValueError):
                 w.change_scale(scale)
             with self.assertRaises(ValueError):

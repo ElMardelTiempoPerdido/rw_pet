@@ -18,14 +18,14 @@ def main(argv=None, *, default_desktop=False):
     mode.add_argument('--desktop', dest='desktop', action='store_true', help='透明穿透桌面模式，右键托盘控制')
     mode.add_argument('--debug', dest='desktop', action='store_false', help='打开独立调试窗口')
     parser.set_defaults(desktop=default_desktop)
-    parser.add_argument('--scale', type=float, help='本次桌面大小倍率；Oracle 默认使用保存的设置，支持 1 / 1.5 / 2')
+    parser.add_argument('--scale', type=float, help='本次桌面大小倍率；Oracle 默认使用保存的设置，支持 1 / 1.5 / 2 / 3 / 4')
     parser.add_argument('--settings', action='store_true', help='启动 Bell 桌面模式前打开设置')
     parser.add_argument('--activity', choices=('floor', 'wall'), default='floor', help='蜥蜴桌面活动模式')
     args = parser.parse_args(argv)
     if args.creature == 'oracle':
         from .oracle.config import DISPLAY_SCALES
         if args.scale is not None and args.scale not in DISPLAY_SCALES:
-            parser.error('Oracle 的 --scale 仅支持 1、1.5、2')
+            parser.error('Oracle 的 --scale 仅支持 1、1.5、2、3、4')
     bell_desktop = args.creature == 'oracle' and args.desktop
     bell_settings = bell_desktop or (args.creature == 'oracle' and default_desktop)
     if args.settings and not bell_desktop:

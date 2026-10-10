@@ -10,12 +10,6 @@ def unit(v, fallback=Vec2(0, -1)):
     return v*(1/v.length()) if v.length() > 1e-9 else fallback
 
 
-class ScreenRegion(Bounds):
-    """自由拖拽使用凸矩形，不含自主导航的中央孔洞。"""
-    def safe_move(self, previous, candidate):
-        return self.clamp(candidate)
-
-
 class OracleDrag:
     def __init__(self, scene, enabled=False):
         self.scene = scene
@@ -29,8 +23,6 @@ class OracleDrag:
         self.outer = Bounds(w.body_margin, w.body_margin,
                             w.width-w.body_margin, w.height-w.body_margin)
         self.free_arm = Bounds(7., 7., w.width-7., w.height-7.)
-        h = scene.halo.extent
-        self.halo_region = ScreenRegion(h, h, w.width-h, w.height-h)
 
     @property
     def active(self):
@@ -150,7 +142,6 @@ class OracleDrag:
         arm_safe = s.arm.safe_in(self.saved_corridor)
         if ((upper.position-self.home).length() > .15 or upper.velocity.length() > .03
                 or not region.contains(upper.position) or not arm_safe or not s.arm.settled or not s.pose.settled
-                or (s.halo_visible and not s.halo.region.contains(s.halo.center))
                 or (s.navigator and abs(s.navigator.base.velocity) > .01)):
             return
         self.recovering = False

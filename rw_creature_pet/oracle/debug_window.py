@@ -15,6 +15,7 @@ from ..overseer.render import OverseerRenderer
 from ..overseer.debug import OverseerDebugPanel
 from ..overseer.config import OverseerConfig
 from ..overseer.events import OverseerEvents
+from ..overseer.group import OverseerGroup, OverseerEntry
 from .overseer import overseer_bounds, puppet_position, spawn_context
 from .scene import OracleScene, RailSide
 from .config import DISPLAY_SCALES, OracleColors
@@ -29,7 +30,7 @@ COLOR_LABELS = {
     'skin': '皮肤 / 头 / 手脚', 'eyes': '眼睛', 'head_shell': '头部附件底色',
     'head_highlight': '头部附件高光', 'robe_top': '衣袍上部 / 袖子',
     'robe_bottom': '衣袍下部', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
-    'joints': '关节 / 底座', 'third_eye': '额头标记',
+    'joints': '关节颜色', 'third_eye': '额头标记',
     'inner_robe': '高领内搭', 'collar_trim': 'V 形领边', 'beads': '念珠主体',
     'pearl': '珍珠共有色', 'pearl_primary': '珍珠主色', 'pearl_secondary': '珍珠辅色',
     'pearl_glyph': '投影（珍珠/光环）',
@@ -54,14 +55,48 @@ class OracleCanvas(QWidget):
         self.drag_hit = PuppetHitMap()
         self._route = None
         self._route_path = None
-        self.overseer = Overseer(self.overseer_bounds(), overseer_config)
-        self.overseer_events = OverseerEvents(self.overseer)
-        self.overseer_renderer = OverseerRenderer(renderer.atlas)
+        self.overseer_group = OverseerGroup(overseer_config, self.overseer_bounds())
+        self.overseer_slot_id = 1
+        preview = Overseer(self.overseer_bounds(), replace(overseer_config, enabled=False))
+        self._overseer_preview = OverseerEntry(0, preview, OverseerEvents(preview))
+        self._overseer_renderers = {}
         self.overseer_look_mode = 'mouse'
         self.overseer_fixed_target = Vec2(scene.world.width/2, scene.world.height/2)
         self.overseer_guides = self.overseer_focus = False
         self.overseer_avoidance = True
         self.setMinimumSize(640, 420)
+
+    @property
+    def overseer_entry(self):
+        entries = self.overseer_group.entries
+        return entries.get(self.overseer_slot_id) or next(iter(entries.values()), self._overseer_preview)
+
+    @property
+    def overseer(self):
+        return self.overseer_entry.model
+
+    @property
+    def overseer_events(self):
+        return self.overseer_entry.events
+
+    def renderer_for_overseer(self, entry):
+        cached = self._overseer_renderers.get(entry.slot_id)
+        if cached is None or cached[0] is not entry.model:
+            cached = (entry.model, OverseerRenderer(self.renderer.atlas))
+            self._overseer_renderers[entry.slot_id] = cached
+        return cached[1]
+
+    @property
+    def overseer_renderer(self):
+        return self.renderer_for_overseer(self.overseer_entry)
+
+    def draw_overseers(self, painter):
+        entries = self.overseer_group.entries.values() or (self._overseer_preview,)
+        for entry in entries:
+            self.renderer_for_overseer(entry).draw(painter, entry.model, self.clock.alpha,
+                pixel_mode=self.scene.config.pixel_mode,
+                coarse_pixels_4x=self.scene.config.coarse_pixels_4x,
+                guides=self.overseer_guides and entry is self.overseer_entry)
 
     def overseer_bounds(self):
         return overseer_bounds(self.scene)
@@ -86,9 +121,9 @@ class OracleCanvas(QWidget):
     def overseer_threat(self):
         if not self.overseer_avoidance:
             return None
-        return self.overseer_mouse()
+        return self.mouse_world()
 
-    def overseer_mouse(self):
+    def mouse_world(self):
         local = self.mapFromGlobal(QCursor.pos())
         # 边框外但仍在画布内的鼠标也构成威胁；注视目标和避让源相互独立。
         if (not self.rect().contains(local) or
@@ -98,7 +133,10 @@ class OracleCanvas(QWidget):
 
     def overseer_spawn_context(self):
         # 仅在真正尝试出现时计算；外形点包含头、四肢、衣袍，不计装饰线缆。
-        return spawn_context(self.scene, self.overseer_mouse())
+        return self.overseer_group.context(self.overseer_entry.slot_id, self.raw_overseer_spawn_context())
+
+    def raw_overseer_spawn_context(self):
+        return spawn_context(self.scene, self.mouse_world())
 
     def center_on_overseer(self):
         if self.overseer.active:
@@ -118,7 +156,7 @@ class OracleCanvas(QWidget):
 
     def set_view_scale(self, scale):
         if scale not in DISPLAY_SCALES:
-            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×')
+            raise ValueError('Oracle 缩放仅支持 1×、1.5×、2×、3×、4×')
         self.view_scale = scale
         self.view_center = None
         self._pan_position = None
@@ -268,8 +306,7 @@ class OracleCanvas(QWidget):
                 painter.setPen(pen('#b8edba'))
                 painter.drawEllipse(point(nav.guide), 3, 3)
             self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton)
-            self.overseer_renderer.draw(painter, self.overseer, self.clock.alpha,
-                pixel_mode=scene.config.pixel_mode, guides=self.overseer_guides)
+            self.draw_overseers(painter)
 
             def cross(pos, color, size=5):
                 painter.setPen(pen(color))
@@ -349,6 +386,7 @@ class OracleCanvas(QWidget):
                 if focus_overseer:
                     self.overseer_renderer.draw(painter, self.overseer, self.clock.alpha,
                         pixel_mode=scene.config.pixel_mode, raster_scale=scale*self.devicePixelRatioF(),
+                        coarse_pixels_4x=scene.config.coarse_pixels_4x,
                         guides=self.overseer_guides)
                 else:
                     self.renderer.draw(painter, scene, self.clock.alpha, self.skeleton,
@@ -372,6 +410,7 @@ class OracleDebugWindow(QMainWindow):
         super().__init__()
         self.config, self.config_path = config, config_path
         self.scene = OracleScene(config.oracle)
+        self.scene.mouse_reaction.configure(self.scene, config.interaction)
         self.scene.drag.set_enabled(config.interaction.drag_enabled)
         self.voice_player = make_bell_voice_player(config, config_path, self,
                                                   initialize=load_atlas, source=voice_source)
@@ -709,6 +748,7 @@ class OracleDebugWindow(QMainWindow):
     def set_paused(self, paused):
         if paused:
             self.cancel_drag()
+            self.scene.mouse_reaction.cancel(self.scene)
         self.clock.set_paused(paused)
         self.last_time = perf_counter()
         self.pause_button.setText('继续 [Space]' if paused else '暂停 [Space]')
@@ -722,7 +762,8 @@ class OracleDebugWindow(QMainWindow):
     def reset_scene(self):
         self.cancel_drag()
         self.scene.reset()
-        self.canvas.overseer_events.clear()
+        self.canvas.overseer_group.clear()
+        self.canvas._overseer_preview.events.clear()
         self.canvas.overseer_focus = False
         self.clock.set_paused(self.pause_button.isChecked())
         self.clock.dropped_seconds = 0
@@ -842,13 +883,19 @@ class OracleDebugWindow(QMainWindow):
         self.overseer_panel.raise_()
 
     def step_scene(self):
+        reaction = self.scene.mouse_reaction
+        reaction.pointer = (self.canvas.mouse_world() if self.canvas.isVisible()
+                            and reaction.attention.probability > 0 and not self.scene.drag.controlling else None)
         self.scene.step()
         canvas = self.canvas
-        active = canvas.overseer.active
-        canvas.overseer_events.step(canvas.overseer_target() if active else None,
+        group = canvas.overseer_group
+        group.bind(canvas.overseer_bounds(), self.scene.config.allowed_edges)
+        active = group.active or canvas.overseer.active
+        scheduler = group if group.entries else canvas.overseer_events
+        scheduler.step(canvas.overseer_target() if active else None,
             threat=canvas.overseer_threat() if active else None,
             puppet=puppet_position(self.scene) if active and canvas.overseer_avoidance else None,
-            context_factory=canvas.overseer_spawn_context)
+            context_factory=canvas.raw_overseer_spawn_context)
 
     def on_timer(self):
         now = perf_counter()
@@ -871,7 +918,7 @@ class OracleDebugWindow(QMainWindow):
         self.orbit_pearl_button.setEnabled(scene.sliding_base and available)
         now = perf_counter()
         revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
-                    scene.halo_visual_revision, scene.projection.revision, self.canvas.overseer.revision)
+                    scene.halo_visual_revision, scene.projection.revision, self.canvas.overseer_group.revision, self.canvas.overseer.revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
                                                    or not scene.pearls_settled or scene.eyes.moving))
                        or revision != self._last_visual_revision)

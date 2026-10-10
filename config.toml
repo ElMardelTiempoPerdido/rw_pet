@@ -5,11 +5,16 @@ game_dir = 'D:\steam\steamapps\common\Rain World'
 language = 'auto'               # 首次按系统界面语言选择，保存后固定为 zh / en
 
 [desktop]
-scale = 1.0                    # 桌宠显示大小：1 / 1.5 / 2
+scale = 1.0                    # 桌宠显示大小：1 / 1.5 / 2 / 3 / 4
 autonomous = true              # 允许人偶自主活动
+screen = ''                    # 空值自动选择主屏；在设置→移动中选择后保存设备身份
 
 [interaction]
 drag_enabled = true             # 启用鼠标拖动
+hover_radius = 160.0            # 鼠标邻近停留半径，逻辑像素
+hover_dwell_seconds = 1.5        # 在范围内连续停留多久后抽签
+hover_probability = 0.60        # 每轮停留面向鼠标的概率；0 关闭
+hover_open_probability = 0.25   # 开始注视鼠标时睁眼的概率
 
 [audio]
 enabled = true                  # 启用语音
@@ -60,6 +65,7 @@ halo_enabled = true             # 圆环与短条光环
 halo_scale = 0.8                # 光环相对原版的缩放
 halo_arcs_enabled = true        # 低频连接附近工作区边框的电弧
 halo_arc_max_count = 10         # 数量上限可选 1～10；手动与自动均随机，邻边合计最多上限的一半（向下取整）
+coarse_pixels_4x = false        # 仅 4×：使用 1× 像素放大；关闭时使用 2× 像素，3× 固定使用 1×
 pixel_mode = 'adaptive'         # adaptive：大倍率缩放时精细像素 / classic：放大原始像素（比较狗啃锯齿
 
 # 设置面板中的参数均在本文件列出；未列出的高级参数使用代码默认值。
@@ -71,13 +77,14 @@ head_shell = '#969ca1'          # 头部附件底色
 head_highlight = '#c2c7ca'      # 头部附件高光
 robe_top = '#ff6569'            # 衣袍上部和袖子
 robe_bottom = '#d2373b'         # 衣袍下部
-arm = '#6b6765'                 # 机械臂主体
-arm_highlight = '#d1c9c5'       # 机械臂高光
-joints = '#424c5d'              # 机械关节和底座
+arm = '#8b94a2'                 # 机械臂与底座主体
+arm_highlight = '#dfd6d2'       # 机械臂与底座高光
+joints = '#113246'              # 关节与细支架颜色；不影响底座主体和高光
 third_eye = '#0d5885'           # 额头标记
 pearl = '#d8cdc5'               # 珍珠白色
 pearl_primary = '#024866'       # 珍珠主色
 pearl_secondary = '#ff2c07'     # 珍珠辅色
+pearl_glyph = '#c5dedd'         # 投影颜色：珍珠文字、光环及电弧
 
 [oracle.drag_reactions]
 enabled = true
@@ -88,20 +95,24 @@ eye_open_probability = 0.65     # 鼠标拖动时睁眼的概率
 voice_probability = 0.55        # 鼠标拖动时触发语音概率
 
 [overseer]
-enabled = false                # 允许在桌面或 Oracle 调试场景自动出现；可在桌面设置中开启
-check_interval = 120.0           # 空闲且冷却结束后，每隔这些秒检查一次
-appearance_probability = 0.85   # 每次检查的概率，不是每帧概率
-duration_min = 120.0             # 每次事件持续时间（秒），包含中途避让隐藏
+# 最多 4 个固定编号槽位；空列表关闭所有槽位，appearance 为后续外观预留
+appearance_mode = "random" # random 随机出现；resident 常驻
+slots = [{ id = 1, color = "#ff557f", appearance = "standard" }]
+enabled = false                     # 允许在桌面或调试场景自动出现
+check_interval = 120.0              # 空闲且冷却结束后，每隔这些秒检查一次
+appearance_probability = 0.85       # 每次检查的概率
+duration_min = 120.0                # 每次事件持续时间（秒），包含中途避让隐藏
 duration_max = 480.0
-cooldown_min = 60.0             # 完成退场后抽取冷却（秒），随后再等一个检查间隔
+cooldown_min = 60.0                 # 完成退场后抽取冷却（秒），随后再等一个检查间隔
 cooldown_max = 120.0
-color = '#ff557f'               # 监视者主色；调试面板可以临时预览其他颜色
 size = 0.8
-withdraw_distance = 60.0        # 距离固定根部的逻辑像素；进入此范围缩回
-reemerge_distance = 100.0       # 离开更大范围，并持续安全后才再次探出
-puppet_withdraw_distance = 100.0 # 人偶躯干中心到根部的距离，粗略覆盖整个身体
-puppet_reemerge_distance = 150.0 # 人偶也需离开更大的安全范围
-relocation_probability = 0.5    # 完整避让缩回后换位的概率；每次避让只抽签一次
-safe_delay = 0.45               # 连续安全等待（秒）
-emerge_seconds = 0.5            # 探出的主要动作时长，末段平滑收敛
-withdraw_seconds = 0.25         # 缩回的主要动作时长
+withdraw_distance = 60.0            # 距离固定根部的逻辑像素，进入此范围缩回
+reemerge_distance = 100.0           # 离开更大范围，并持续安全后才再次探出
+puppet_withdraw_distance = 100.0    # 人偶躯干中心到根部的距离，粗略覆盖整个身体
+puppet_reemerge_distance = 150.0    # 人偶也需离开更大的安全范围
+relocation_probability = 0.5        # 完整避让缩回后换位的概率；每次避让只抽签一次
+observation_probability = 0.35      # 完全探出并有鼠标目标时，每次检查展开镜片的概率；0 为关闭
+observation_interval = 12.0         # 观察检查间隔（秒），观察结束合拢后重新计时
+safe_delay = 0.45                   # 连续安全等待（秒）
+emerge_seconds = 0.5                # 探出的主要动作时长，末段平滑收敛
+withdraw_seconds = 0.25             # 缩回的主要动作时长

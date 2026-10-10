@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QEvent, QRectF, Qt
-from PySide6.QtGui import QColor, QImage, QPainter, QTransform
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QTransform
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
@@ -388,6 +388,33 @@ class OutfitTests(unittest.TestCase):
                     for p in (top, bottom):
                         delta = p-origin
                         self.assertAlmostEqual(delta.x*axis.y-delta.y*axis.x, 0.)
+
+    def test_apron_pixels_do_not_shift_when_returning_through_upright(self):
+        scene = OracleScene(OracleConfig(outfit='maid', hide_cords=True))
+        renderer = OracleRenderer()
+        mask = QPainterPath()
+        mask.addRect(QRectF(0, 0, 96, 96))
+        for scale in (1., 1.5, 2.):
+            reference = None
+            for angle, offset in ((0., Vec2()), (-.1, Vec2()), (.1, Vec2()),
+                                  (-.01, Vec2(.137, .293)), (.01, Vec2(.137, .293))):
+                image = QImage(round(96*scale), round(96*scale), QImage.Format.Format_ARGB32_Premultiplied)
+                image.fill(0)
+                painter = QPainter(image)
+                try:
+                    painter.scale(scale, scale)
+                    painter.translate(offset.x, offset.y)
+                    # 固定世界领口；缓存身体的局部平移不能改变最终贴图的采样网格。
+                    with patch.object(renderer, 'apron_geometry',
+                                      return_value=(mask, Vec2(48, 30)-offset, angle)):
+                        renderer.draw_apron(painter, scene, 1., Vec2(), Vec2(), Vec2(0, -1),
+                                            Vec2(), mask, mask, scale, offset=offset)
+                finally:
+                    painter.end()
+                self.assertTrue(any(bytes(image.constBits())))
+                if reference is not None:
+                    self.assertEqual(image, reference, (scale, angle, offset))
+                reference = image
 
     def test_defaults_old_profile_radio_selection_and_persistence(self):
         with tempfile.TemporaryDirectory() as temp:

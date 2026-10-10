@@ -43,13 +43,13 @@ class OracleActionToolbar(QWidget):
         self.status.setToolTip(self.status.text())
         self.adjustSize()
 
-    def sync(self, scene, blocked='', *, overseer_active=False):
+    def sync(self, scene, blocked='', *, overseer_available=True):
         drag = bool(scene and scene.drag.controlling)
         matrix = bool(scene and scene.pearl_matrix is not None)
         halo = bool(scene and scene.halo_visible)
         arcs = bool(halo and scene.config.halo_arcs_enabled)
         active_arcs = bool(scene and scene.halo_arcs.arcs)
-        state = (blocked, drag, matrix, halo, arcs, active_arcs, overseer_active)
+        state = (blocked, drag, matrix, halo, arcs, active_arcs, overseer_available)
         if state == self._state:
             return
         self._state = state
@@ -63,8 +63,8 @@ class OracleActionToolbar(QWidget):
                 reason = '光环关闭或投影透明度为 0'
             if not reason and name == 'arcs':
                 reason = ('配置中已关闭电弧' if not arcs else '电弧显示中' if active_arcs else '')
-            if not reason and name == 'overseer' and overseer_active:
-                reason = '已有监视者（包含避让隐藏或退场中），请等待本次事件结束'
+            if not reason and name == 'overseer' and not overseer_available:
+                reason = '没有空闲的监视者槽位，请在设置中添加或等待事件结束'
             button.setEnabled(not reason)
             hint = ('手动触发一次；自动出现关闭或冷却时也可使用，仍遵守安全选点'
                     if name == 'overseer' else '跳过等待，仍遵守距离及活动带限制' if name == 'arcs' else '')

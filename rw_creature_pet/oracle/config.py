@@ -5,7 +5,7 @@ from math import isfinite
 import re
 
 
-DISPLAY_SCALES = (1., 1.5, 2.)
+DISPLAY_SCALES = (1., 1.5, 2., 3., 4.)
 EDGE_NAMES = ('top', 'right', 'bottom', 'left')
 
 
@@ -114,6 +114,7 @@ class OracleConfig:
     halo_arcs_enabled: bool = True
     halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
+    coarse_pixels_4x: bool = False  # 4× 改用 1× 像素画布；默认使用 2×，3× 始终使用 1×
     outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
     hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
@@ -124,6 +125,8 @@ class OracleConfig:
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
 
     def __post_init__(self):
+        if type(self.coarse_pixels_4x) is not bool:
+            raise ValueError('oracle.coarse_pixels_4x 必须为布尔值')
         if self.outfit not in ('normal', 'maid'):
             raise ValueError('oracle.outfit 必须为 normal / maid')
         if type(self.hide_cords) is not bool:

@@ -13,13 +13,29 @@ from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene, OracleWorld
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.halo import OracleHalo
-from rw_creature_pet.oracle.halo_arcs import HaloArcs
+from rw_creature_pet.oracle.halo_arcs import HaloArcs, curve_length_bound
 from rw_creature_pet.oracle.desktop import OracleDesktopMotion, OracleDesktopViewport
 from rw_creature_pet.oracle.render import OracleRenderer, bezier
 from rw_creature_pet.oracle.damage import visual_bounds
 
 
+def sampled_length(curve, count=512):
+    samples = [bezier(*curve, i/count) for i in range(count+1)]
+    return sum((b-a).length() for a, b in zip(samples, samples[1:]))
+
+
 class HaloArcTests(unittest.TestCase):
+    def test_length_bound_resolves_large_handles_and_collinear_reversal(self):
+        curves = ((Vec2(), Vec2(400, 0), Vec2(-250, 250), Vec2(200, 0)),
+                  (Vec2(), Vec2(400, 0), Vec2(-250, 0), Vec2(200, 0)),
+                  (Vec2(), Vec2(120, 0), Vec2(-120, 80), Vec2()),
+                  (Vec2(), Vec2(30, 20), Vec2(60, 40), Vec2(90, 60)))
+        for curve in curves:
+            measured = sampled_length(curve, 4096)
+            bound = curve_length_bound(*curve)
+            self.assertGreaterEqual(bound+1e-7, measured)
+            self.assertLess(bound-measured, .21)
+
     def test_long_arcs_have_visible_bows_and_radial_tangents_on_all_edges(self):
         world = OracleWorld(960, 960, .2)
         for edge in range(4):
@@ -34,7 +50,9 @@ class HaloArcTests(unittest.TestCase):
                     arcs.MAX_DISTANCE = 480.  # 固定本测试几何尺度，独立于用户调节的默认距离
                     arcs.random.seed(seed)
                     band = arcs.edge_regions()[edge]
-                    arc = arcs.make_arc(halo, band, target, edge, turn(endpoint))
+                    # 端点要像实际生成流程一样留出当前线宽，不能写死为距屏幕 1px。
+                    with patch.object(arcs, 'sample_shape', return_value='arc'):
+                        arc = arcs.make_arc(halo, band, target, edge, band.clamp(turn(endpoint)))
                     self.assertIsNotNone(arc)
                     controls = arc.controls(halo, 1., arcs.MAX_DISTANCE)
                     start, a, b, end = controls
@@ -48,55 +66,58 @@ class HaloArcTests(unittest.TestCase):
                     self.assertLessEqual(bow, 40.+1e-6)
                     self.assertTrue(all(v >= -1e-6 for v in offsets)
                                     or all(v <= 1e-6 for v in offsets), '不再强制反向 S 形')
-                    self.assertTrue(all(band.contains(p) for p in controls))
+                    self.assertLessEqual(sampled_length(controls), arcs.MAX_DISTANCE)
                     self.assertTrue(all(arc.region.contains(p) for p in controls))
 
-    def test_bow_yields_to_narrow_band_and_length_budget(self):
-        bows = []
-        for height in (960, 180):
-            world = OracleWorld(960, height, .2)
-            halo = OracleHalo(world, Vec2(480, 20))
-            halo.center = halo.previous_center = Vec2(480, 20)
+    def test_large_bows_enter_center_and_hooks_reverse_within_length_budget(self):
+        world = OracleWorld(960, 600, .2)
+        halo = OracleHalo(world, Vec2(480, 110))
+        for shape in ('wide', 'hook'):
             arcs = HaloArcs(world)
-            arcs.MAX_DISTANCE = 480.
-            arcs.random.seed(4)
-            band = arcs.edge_regions()[0]
-            arc = arcs.make_arc(halo, band, 0, 0, Vec2(899, 1))
+            arcs.random.seed(11)
+            with patch.object(arcs, 'sample_shape', return_value=shape):
+                arc = arcs.make_arc(halo, arcs.edge_regions()[0], 0, 0, Vec2(710, 1.5))
             self.assertIsNotNone(arc)
-            controls = arc.controls(halo, 1., arcs.MAX_DISTANCE)
-            start, _, _, end = controls
-            chord = end-start
-            samples = [bezier(*controls, i/100) for i in range(101)]
-            bows.append(max(abs(chord.x*(p.y-start.y)-chord.y*(p.x-start.x))/chord.length()
-                            for p in samples))
-            self.assertTrue(all(band.contains(p) for p in samples))
-            self.assertLessEqual(sum((b-a).length() for a, b in zip(controls, controls[1:])), arcs.MAX_DISTANCE)
-        self.assertGreater(bows[0], 20.)
-        self.assertLess(bows[1], bows[0]*.5)
+            curve = arc.controls(halo, 1., arcs.MAX_DISTANCE)
+            samples = [bezier(*curve, i/512) for i in range(513)]
+            self.assertTrue(any(world.inner.contains(p) for p in samples), shape)
+            self.assertLessEqual(sampled_length(curve), arcs.MAX_DISTANCE)
+            self.assertGreater(sum((b-a).length() for a,b in zip(curve, curve[1:])), arcs.MAX_DISTANCE)
+            if shape == 'hook':
+                chord = curve[-1]-curve[0]
+                self.assertTrue(any((b-a).x*chord.x+(b-a).y*chord.y < -.001
+                                    for a,b in zip(samples, samples[1:])))
 
+    def test_near_limit_curves_shrink_without_changing_endpoints(self):
         world = OracleWorld(1920, 1080, .2)
         halo = OracleHalo(world, Vec2(960, 105))
         arcs = HaloArcs(world)
         arcs.MAX_DISTANCE = 480.
-        # 端点弦长接近上限时必须减小弧度，不能生成超长曲线。
-        arc = arcs.make_arc(halo, arcs.edge_regions()[0], 0, 0, Vec2(1460, 1))
-        self.assertIsNotNone(arc)
-        controls = arc.controls(halo, 1., arcs.MAX_DISTANCE)
-        self.assertLessEqual(sum((b-a).length() for a, b in zip(controls, controls[1:])), arcs.MAX_DISTANCE)
+        endpoint = Vec2(1460, 1.5)
+        for shape in ('arc', 'wide', 'hook'):
+            with patch.object(arcs, 'sample_shape', return_value=shape):
+                arc = arcs.make_arc(halo, arcs.edge_regions()[0], 0, 0, endpoint)
+            self.assertIsNotNone(arc)
+            controls = arc.controls(halo, 1., arcs.MAX_DISTANCE)
+            self.assertEqual(controls[-1], endpoint)
+            self.assertLessEqual(sampled_length(controls), arcs.MAX_DISTANCE)
 
     def test_wall_handle_stays_fixed_while_halo_moves(self):
         world = OracleWorld(960, 600, .2)
         halo, arcs = OracleHalo(world, Vec2(480, 65)), HaloArcs(world)
         arcs.MAX_DISTANCE = 480.
-        arc = arcs.make_arc(halo, arcs.edge_regions()[0], 1, 0, Vec2(959, 65))
+        band = arcs.edge_regions()[0]
+        arc = arcs.make_arc(halo, band, 1, 0, band.clamp(Vec2(959, 65)))
         self.assertIsNotNone(arc)
         state = arcs.random.getstate()
         halo.previous_center = halo.center
         halo.center += Vec2(-2, 1)
         previous = None
         for i in range(11):
-            points = arc.controls(halo, i/10, arcs.MAX_DISTANCE)
+            with patch('rw_creature_pet.oracle.halo_arcs.curve_length_bound', side_effect=AssertionError('显示期间不细分曲线')):
+                points = arc.controls(halo, i/10, arcs.MAX_DISTANCE)
             self.assertIsNotNone(points)
+            self.assertLessEqual(sampled_length(points), arcs.MAX_DISTANCE)
             self.assertEqual(points[2], arc.wall_handle)
             self.assertEqual(points[-1], arc.endpoint)
             if previous:
@@ -104,7 +125,7 @@ class HaloArcTests(unittest.TestCase):
             previous = points
         self.assertEqual(arcs.random.getstate(), state)
 
-    def test_four_edges_and_corners_keep_entire_curves_in_one_band(self):
+    def test_four_edges_and_corners_keep_endpoints_nearby_and_curves_bounded(self):
         w = OracleWorld(1920, 1080, .2)
         cases = ((Vec2(960, 105), 0), (Vec2(1815, 540), 1),
                  (Vec2(960, 975), 2), (Vec2(105, 540), 3),
@@ -125,11 +146,11 @@ class HaloArcTests(unittest.TestCase):
                         points = arc.controls(h, alpha, arcs.MAX_DISTANCE)
                         self.assertIsNotNone(points)
                         self.assertTrue(all(arc.region.contains(p) for p in points))
-                        self.assertLessEqual(sum((b-a).length() for a, b in zip(points, points[1:])), arcs.MAX_DISTANCE)
+                        self.assertLessEqual(sampled_length(points), arcs.MAX_DISTANCE)
+                        self.assertTrue(arcs.edge_regions()[primary].contains(arc.endpoint))
                         for i in range(101):
                             p = bezier(*points, i/100)
-                            self.assertTrue(arcs.edge_regions()[primary].contains(p))
-                            self.assertFalse(w.inner.contains(p))
+                            self.assertTrue(arc.region.contains(p))
 
     def test_adjacent_edges_are_available_outside_corners_with_shared_half_quota(self):
         w = OracleWorld(960, 600, .2)
@@ -164,7 +185,7 @@ class HaloArcTests(unittest.TestCase):
                 self.assertGreater(arcs.trigger(h, manual=True), 0)
                 for curve in arcs.curves(h):
                     lengths.append((curve[-1]-curve[0]).length())
-                    self.assertLessEqual(sum((b-a).length() for a, b in zip(curve, curve[1:])), maximum)
+                    self.assertLessEqual(sampled_length(curve), maximum)
             longest.append(max(lengths))
         self.assertGreater(longest[0], 120.)
         self.assertGreater(longest[1], 400.)
@@ -267,7 +288,12 @@ class HaloArcRenderTests(unittest.TestCase):
 
     def test_pixels_opacity_bounds_and_read_only_drawing(self):
         s, renderer = OracleScene(), OracleRenderer()
-        self.assertGreater(s.trigger_halo_arcs(), 0)
+        s.halo.center = s.halo.previous_center = Vec2(480, 110)
+        s.halo_arcs.random.seed(11)
+        with patch.object(s.halo_arcs, 'sample_shape', return_value='wide'):
+            arc = s.halo_arcs.make_arc(s.halo, s.halo_arcs.edge_regions()[0], 0, 0, Vec2(710, 1.5))
+        self.assertIsNotNone(arc)
+        s.halo_arcs.arcs = (arc,)
         before = s.halo_arcs.revision, s.halo_arcs.random.getstate(), s.halo_arcs.age
         for scale in (1., 1.5, 2.):
             image = QImage(round(980*scale), round(620*scale), QImage.Format.Format_RGBA8888)
@@ -282,9 +308,8 @@ class HaloArcRenderTests(unittest.TestCase):
             self.assertGreater(mask.getextrema()[1], 0)
             self.assertLessEqual(mask.getextrema()[1], ceil(255*s.config.projection_opacity*s.halo_arcs.OPACITY))
             inner = s.world.inner
-            self.assertIsNone(mask.crop(tuple(round(v*scale) for v in
+            self.assertIsNotNone(mask.crop(tuple(round(v*scale) for v in
                 (inner.left+10, inner.top+10, inner.right+10, inner.bottom+10))).getbbox())
-            self.assertIsNone(mask.crop((0, 0, image.width(), round(10*scale))).getbbox())
             bounds = visual_bounds(s)
             for curve in s.halo_arcs.curves(s.halo):
                 self.assertTrue(all(bounds.contains(v.x, v.y) for v in curve))
@@ -324,6 +349,8 @@ class HaloArcRenderTests(unittest.TestCase):
     def test_subpixel_strokes_lose_pixels_without_losing_opacity_at_all_scales(self):
         from PIL import Image
         s, renderer = OracleScene(), OracleRenderer()
+        # 给收缩足够长的测试时段以进入亚像素阶段，独立于用户调短的默认寿命。
+        s.halo_arcs.DURATION_TICKS = 32
         self.assertGreater(s.trigger_halo_arcs(), 0)
         for scale in (1., 1.5, 2.):
             counts, peak = [], None

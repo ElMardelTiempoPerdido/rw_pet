@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QCheckBox, QColorDialog, QComboBox, QDialog, QFor
 from ..shared.geometry import Vec2
 from .model import Anchor, Edge, State
 from .events import EventPhase
+from .config import APPEARANCE_COLORS
 
 
 class OverseerDebugPanel(QDialog):
@@ -21,6 +22,14 @@ class OverseerDebugPanel(QDialog):
         self.setWindowFlag(Qt.WindowType.Tool, True)
         layout = QVBoxLayout(self)
         form = QFormLayout()
+        self.slot = QComboBox()
+        for key in canvas.overseer_group.entries:
+            self.slot.addItem(f'监视者 {key}', key)
+        if not self.slot.count():
+            self.slot.addItem('未配置槽位 - 仅预览', 0)
+        form.addRow('调试槽位', self.slot)
+        self.slot.currentIndexChanged.connect(self.select_slot)
+        self._slot_keys = tuple(canvas.overseer_group.entries)
         self.edge = QComboBox()
         for text, edge in (('上边', Edge.TOP), ('右边', Edge.RIGHT), ('下边', Edge.BOTTOM), ('左边', Edge.LEFT)):
             self.edge.addItem(text, edge.value)
@@ -47,6 +56,12 @@ class OverseerDebugPanel(QDialog):
         coords.addWidget(QLabel('Y'))
         coords.addWidget(self.target_y)
         form.addRow('固定目标', coords)
+        self.appearance = QComboBox()
+        self.appearance.addItem('普通', 'standard')
+        self.appearance.addItem('朋友？', 'friend')
+        self.appearance.setCurrentIndex(self.appearance.findData(canvas.overseer.appearance))
+        self.appearance.currentIndexChanged.connect(self.preview_appearance)
+        form.addRow('外观预览', self.appearance)
         layout.addLayout(form)
         self.color_button = QPushButton()
         self.color_button.clicked.connect(self.choose_color)
@@ -57,7 +72,7 @@ class OverseerDebugPanel(QDialog):
         colors.addWidget(self.color_button)
         colors.addWidget(self.reload_color_button)
         layout.addLayout(colors)
-        self.color_hint = QLabel('配色仅在本窗口预览；持久修改请编辑 [overseer] color。')
+        self.color_hint = QLabel('外观与配色仅在本窗口预览；持久修改请使用桌面设置中的监视者槽位')
         self.color_hint.setWordWrap(True)
         layout.addWidget(self.color_hint)
         self.avoidance = QCheckBox('鼠标 / 人偶靠近时缩回（与观察方式独立）')
@@ -122,6 +137,18 @@ class OverseerDebugPanel(QDialog):
         self.set_color(canvas.overseer.config.color)
         self.refresh_status()
 
+    def select_slot(self):
+        self.canvas.overseer_slot_id = self.slot.currentData()
+        model = self.canvas.overseer
+        for control in (self.edge, self.fraction):
+            control.blockSignals(True)
+        self.edge.setCurrentIndex(self.edge.findData(model.anchor.edge.value))
+        self.fraction.setValue(round(model.anchor.fraction*100))
+        for control in (self.edge, self.fraction):
+            control.blockSignals(False)
+        self.set_color(model.config.color)
+        self.refresh_status()
+
     def show_overseer(self):
         self.canvas.overseer_events.preview(self.canvas.overseer_bounds(),
             Anchor(Edge(self.edge.currentData()), self.fraction.value()/100))
@@ -150,17 +177,35 @@ class OverseerDebugPanel(QDialog):
         self.canvas.overseer_avoidance = enabled
 
     def refresh_status(self):
+        keys = tuple(self.canvas.overseer_group.entries)
+        if keys != self._slot_keys:
+            self._slot_keys = keys
+            selected = self.canvas.overseer_entry.slot_id
+            self.slot.blockSignals(True)
+            self.slot.clear()
+            for key in keys:
+                self.slot.addItem(f'监视者 {key}', key)
+            if not keys:
+                self.slot.addItem('未配置槽位 - 仅预览', 0)
+            self.slot.setCurrentIndex(self.slot.findData(selected))
+            self.slot.blockSignals(False)
+            self.select_slot()
+            return
         model = self.canvas.overseer
         events = self.canvas.overseer_events
+        self.appearance.blockSignals(True)
+        self.appearance.setCurrentIndex(self.appearance.findData(model.appearance))
+        self.appearance.blockSignals(False)
         self.emerge_button.setEnabled(model.active and events.phase != EventPhase.EXITING)
         self.withdraw_button.setEnabled(model.active)
-        self.start_event_button.setEnabled(events.phase not in (EventPhase.ACTIVE, EventPhase.EXITING))
-        self.finish_event_button.setEnabled(events.phase in (EventPhase.ACTIVE, EventPhase.PREVIEW))
+        self.start_event_button.setEnabled(events.phase not in (EventPhase.ACTIVE, EventPhase.RESIDENT, EventPhase.EXITING))
+        self.finish_event_button.setEnabled(events.phase in (EventPhase.ACTIVE, EventPhase.RESIDENT, EventPhase.PREVIEW))
         self.check_event_button.setEnabled(events.phase == EventPhase.WAITING)
         self.skip_cooldown_button.setEnabled(events.phase == EventPhase.COOLDOWN)
         phase = {EventPhase.DISABLED: '自动出现已关闭', EventPhase.PREVIEW: '不计时预览（自动检查挂起）',
                  EventPhase.WAITING: f'下次检查 {events.check_remaining:.1f} s',
                  EventPhase.ACTIVE: f'事件剩余 {events.remaining:.1f} s（包含避让隐藏）',
+                 EventPhase.RESIDENT: '常驻（仍会避让和换位）',
                  EventPhase.EXITING: '正在退场，不再探出',
                  EventPhase.COOLDOWN: f'冷却剩余 {events.cooldown_remaining:.1f} s'}[events.phase]
         self.event_status.setText(f'{phase}\n检查 {events.check_count} 次 - 事件 {events.event_count} 次 - 换位 {events.relocation_count} 次\n{events.last_result}')
@@ -171,7 +216,8 @@ class OverseerDebugPanel(QDialog):
                  State.WATCHING: '观察', State.WITHDRAWING: '缩回'}[model.state]
         reason = ('等待鼠标和人偶离开安全范围' if model.scared else
                   '手动保持缩回' if not model.wants_out else '原位观察')
-        self.status.setText(f'{label} - 展开 {model.extended:.0%} - {reason}')
+        self.status.setText(f'{label} - 展开 {model.extended:.0%} - {reason}\n'
+                            f'镜片 {model.lens.up:.0%} - 观察 {model.lens.observation_count} 次')
 
     def start_event(self):
         if self.canvas.overseer_events.start(self.canvas.overseer_spawn_context()):
@@ -192,7 +238,14 @@ class OverseerDebugPanel(QDialog):
         self.refresh_status()
 
     def apply_settings(self, config):
-        self.canvas.overseer_events.configure(config)
+        looks = {key: (entry.model.config.color, entry.model.appearance)
+                 for key, entry in self.canvas.overseer_group.entries.items()}
+        self.canvas.overseer_group.configure(config)
+        for key, entry in self.canvas.overseer_group.entries.items():
+            if key in looks:
+                color, appearance = looks[key]
+                entry.model.set_color(color)
+                entry.model.set_appearance(appearance)
         self.canvas.update()
         self.refresh_status()
 
@@ -200,10 +253,10 @@ class OverseerDebugPanel(QDialog):
         from ..config import AppConfig
         from .settings import OverseerSettingsDialog
         if self.settings_dialog is None:
-            self.settings_dialog = OverseerSettingsDialog(self.canvas.overseer, self.apply_settings,
+            self.settings_dialog = OverseerSettingsDialog(self.canvas.overseer_group, self.apply_settings,
                 self.app_config or AppConfig(overseer=self.initial_config), self, source=self.config_path)
         elif not self.settings_dialog.isVisible():
-            self.settings_dialog.fill(self.canvas.overseer.config)
+            self.settings_dialog.fill(self.canvas.overseer_group.config)
         self.settings_dialog.show()
         self.settings_dialog.raise_()
 
@@ -211,6 +264,14 @@ class OverseerDebugPanel(QDialog):
         color = QColorDialog.getColor(QColor(self.canvas.overseer.config.color), self, '监视者主色预览')
         if color.isValid():
             self.set_color(color.name())
+
+    def preview_appearance(self):
+        model = self.canvas.overseer
+        appearance = self.appearance.currentData()
+        if model.config.color == APPEARANCE_COLORS[model.appearance]:
+            self.set_color(APPEARANCE_COLORS[appearance])
+        model.set_appearance(appearance)
+        self.canvas.update()
 
     def set_color(self, color):
         self.canvas.overseer.set_color(color)
@@ -222,7 +283,8 @@ class OverseerDebugPanel(QDialog):
     def reload_color(self):
         from ..config import AppConfig
         try:
-            color = AppConfig.load(self.config_path).overseer.color if self.config_path else self.initial_config.color
+            config = AppConfig.load(self.config_path).overseer if self.config_path else self.initial_config
+            color = next((s.color for s in config.slots if s.id == self.canvas.overseer_entry.slot_id), config.color)
             self.set_color(color)
             self.color_hint.setText('已重新读取配色；预览修改不会写入配置文件。')
         except (OSError, ValueError, TypeError) as exc:

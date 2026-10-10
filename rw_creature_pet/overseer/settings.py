@@ -2,7 +2,7 @@
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDoubleSpinBox, QFileDialog,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout)
 
 from ..config import AppConfig
@@ -26,6 +26,11 @@ class OverseerSettingsDialog(QDialog):
         enabled = QCheckBox('允许自动出现')
         self.controls['enabled'] = enabled
         form.addRow(enabled)
+        mode = QComboBox()
+        mode.addItem('随机出现', 'random')
+        mode.addItem('常驻', 'resident')
+        self.controls['appearance_mode'] = mode
+        form.addRow('监视者出现方式', mode)
         for key, label, low, high, suffix in (
             ('check_interval', '检查间隔', .025, 86400, ' s'),
             ('appearance_probability', '每次检查的出现概率', 0, 100, ' %'),
@@ -39,6 +44,8 @@ class OverseerSettingsDialog(QDialog):
             ('puppet_reemerge_distance', '人偶重新探出安全距离', .025, 10000, ' px'),
             ('relocation_probability', '完全缩回后换位概率', 0, 100, ' %'),
             ('safe_delay', '连续安全等待', 0, 60, ' s'),
+            ('observation_probability', '监视者观察概率', 0, 100, ' %'),
+            ('observation_interval', '间隔时间', .1, 86400, ' s'),
         ):
             control = QDoubleSpinBox()
             control.setDecimals(3)
@@ -81,18 +88,21 @@ class OverseerSettingsDialog(QDialog):
             value = getattr(config, key)
             if key == 'enabled':
                 control.setChecked(value)
+            elif isinstance(control, QComboBox):
+                control.setCurrentIndex(control.findData(value))
             else:
-                control.setValue(value*100 if key in ('appearance_probability', 'relocation_probability') else value)
+                control.setValue(value*100 if key in ('appearance_probability', 'relocation_probability', 'observation_probability') else value)
         self.initial_values = self.values()
 
     def values(self):
-        return {key: c.isChecked() if isinstance(c, QCheckBox) else c.value()
+        return {key: c.isChecked() if isinstance(c, QCheckBox) else
+                c.currentData() if isinstance(c, QComboBox) else c.value()
                 for key, c in self.controls.items()}
 
     def candidate(self):
         # 保留未显示字段和未编辑的精度，不覆盖另一个面板刚预览的颜色。
         values = {key: (getattr(self.loaded, key) if value == self.initial_values[key] else
-                        value/100 if key in ('appearance_probability', 'relocation_probability') else value)
+                        value/100 if key in ('appearance_probability', 'relocation_probability', 'observation_probability') else value)
                   for key, value in self.values().items()}
         return replace(self.model.config, **values)
 
@@ -109,6 +119,7 @@ class OverseerSettingsDialog(QDialog):
 
     def preset(self):
         self.controls['enabled'].setChecked(True)
+        self.controls['appearance_mode'].setCurrentIndex(0)
         for key, value in dict(check_interval=1, appearance_probability=100,
                                duration_min=4, duration_max=6, cooldown_min=2, cooldown_max=3).items():
             self.controls[key].setValue(value)
