@@ -28,6 +28,39 @@ class OverseerGroupTests(unittest.TestCase):
         for _ in range(count):
             self.group.step(Vec2(960, 540), context_factory=lambda: self.context, **kwargs)
 
+    def test_individual_shapes_apply_without_restarting_neighbors_or_events(self):
+        self.step(100)
+        neighbor = self.group.entries[2]
+        unchanged = (neighbor.model.head.position, neighbor.model.time,
+                     neighbor.events.event_count, neighbor.model.random.getstate())
+        entry = self.group.entries[1]
+        event_count = entry.events.event_count
+        original_head = entry.model.head.position
+        slots = (replace(self.config.slots[0], filament_count=5), *self.config.slots[1:])
+        self.group.configure(replace(self.config, slots=slots))
+        self.assertIs(entry, self.group.entries[1])
+        self.assertEqual(len(entry.model.filaments), 5)
+        self.assertEqual(entry.model.head.position, original_head)
+        slots = (replace(slots[0], size=1.), *slots[1:])
+        self.group.configure(replace(self.config, slots=slots))
+        self.assertTrue(entry.model.active)
+        self.assertEqual(entry.events.phase, EventPhase.RESIDENT)
+        self.assertEqual(entry.events.event_count, event_count)
+        self.assertEqual(entry.model.reach, 50.)
+        self.assertAlmostEqual((entry.model.hover-entry.model.root).length(), 30.)
+        self.assertEqual(unchanged, (neighbor.model.head.position, neighbor.model.time,
+                                     neighbor.events.event_count, neighbor.model.random.getstate()))
+        self.step(100)
+        self.assertTrue(entry.model.visible)
+        slots = (replace(slots[0], appearance='friend', filament_count=3), *slots[1:])
+        self.group.configure(replace(self.config, slots=slots))
+        self.assertEqual(len(entry.model.filaments), 2)
+        slots = (replace(slots[0], appearance='standard'), *slots[1:])
+        self.group.configure(replace(self.config, slots=slots))
+        self.assertEqual(len(entry.model.filaments), 3)
+        self.step(10)
+
+
     def test_resident_starts_all_without_probability_and_does_not_expire(self):
         self.step(120)
         roots = []

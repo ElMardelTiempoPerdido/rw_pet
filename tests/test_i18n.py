@@ -161,7 +161,8 @@ class TranslationUiTests(unittest.TestCase):
         self.assertEqual(d.game_dir.text(), str(self.root))
         self.assertEqual(d.pending.ui.language, 'en')
         self.assertEqual(d.candidate().ui.language, 'en')
-        self.assertEqual(d.save_button.text(), tr('保存并应用'))
+        self.assertEqual(d.save_button.text(), tr('保存并关闭'))
+        self.assertEqual(d.apply_button.text(), tr('保存并应用'))
         self.assertEqual(d.buttons.button(QDialogButtonBox.StandardButton.Cancel).text(), 'Cancel')
         for _, source in d._texts.bindings:
             self.assertNotEqual(tr(source), source, source)

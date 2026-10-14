@@ -4,11 +4,39 @@ import tempfile
 import unittest
 
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.overseer.config import OverseerConfig
+from rw_creature_pet.overseer.config import OverseerConfig, OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 
 
 class OverseerConfigTests(unittest.TestCase):
+    def test_slot_shape_defaults_legacy_size_and_roundtrip(self):
+        legacy = AppConfig.from_mapping({'overseer': {'size': .83, 'slots': [
+            {'id': 1, 'color': '#ffffff'}, {'id': 2, 'appearance': 'friend'}]}})
+        self.assertEqual([s.size for s in legacy.overseer.slots], [.83, .83])
+        self.assertEqual([s.filament_count for s in legacy.overseer.slots], [4, 4])
+        self.assertEqual(OverseerConfig(size=.9).slots[0].size, .9)
+        self.assertEqual(OverseerSlot().size, .6)
+        slots = (OverseerSlot(1, size=.5, filament_count=3),
+                 OverseerSlot(2, appearance='friend', size=1., filament_count=5))
+        config = replace(legacy, overseer=replace(legacy.overseer, slots=slots))
+        with tempfile.TemporaryDirectory() as temp:
+            store = SettingsStore(Path(temp)/'settings.json')
+            store.save(config)
+            self.assertEqual(store.load().overseer.slots, slots)
+            path = Path(temp)/'slots.toml'
+            path.write_text('[overseer]\nsize=0.9\nslots=[{id=1,size=0.5,filament_count=3},'
+                            '{id=2,appearance="friend",size=1.0,filament_count=5}]\n', encoding='utf-8')
+            self.assertEqual(AppConfig.load(path).overseer.slots, slots)
+
+    def test_slot_and_single_model_reject_invalid_shapes(self):
+        for cls in (OverseerSlot, OverseerConfig):
+            for size in (.49, 1.01, True, None, '0.6', float('nan'), float('inf')):
+                with self.subTest(cls=cls, size=size), self.assertRaises(ValueError):
+                    cls(size=size)
+            for count in (-1, 0, 2, 6, 8, True, 2.5, '4', None):
+                with self.subTest(cls=cls, count=count), self.assertRaises(ValueError):
+                    cls(filament_count=count)
+
     def test_toml_and_user_settings_roundtrip(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp)/'test.toml'

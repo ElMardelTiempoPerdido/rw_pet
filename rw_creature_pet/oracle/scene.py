@@ -455,6 +455,7 @@ class OracleScene:
         if self.drag.controlling:
             self.drag.release(cancel=True)
             return
+        self.mouse_reaction.cancel(self)
         self.behavior.cancel(self, stop_body=False)
         self._move_to(point)
 
@@ -463,13 +464,16 @@ class OracleScene:
         if getattr(self, 'drag', None) is not None and self.drag.controlling:
             return
         finite_point(point)
+        if point == self.body.chunks[0].position:
+            point = self.mouse_reaction.avoidance.neutral_position(self)
         self.requested_target = point
         self.target = self.project_target(point)
         self.travel_speed = speed
         if self.navigator:
             upper = self.body.chunks[0]
             self.navigator.set_route(route if route is not None else
-                                     self.navigator.planner.plan(upper.position, self.target, upper.velocity))
+                                     self.navigator.planner.plan(self.mouse_reaction.avoidance.neutral_position(self),
+                                                                 self.target, upper.velocity))
 
     def set_sliding_base(self, enabled):
         self.sliding_base = bool(enabled)
@@ -669,7 +673,7 @@ class OracleScene:
 
     @property
     def arrived(self):
-        return ((self.body.chunks[0].position - self.target).length() < .3
+        return ((self.mouse_reaction.avoidance.neutral_position(self) - self.target).length() < .3
                 and max(c.velocity.length() for c in self.body.chunks) < .03
                 and self.arm.settled
                 and (self.navigator is None or (self.navigator.done and abs(self.navigator.base.velocity) < .01)))
@@ -696,19 +700,23 @@ class OracleScene:
             guide, feedforward = self.navigator.guide, self.navigator.velocity
         self.pose.step(self)
         direction = self.desired_direction
+        avoidance = self.mouse_reaction.avoidance
+        guide = guide+avoidance.offset
         observe_force = Vec2(-direction.y, direction.x)*self.pose.observation_force(self)
         for i, chunk in enumerate(self.body.chunks):
             chunk.previous_position = chunk.position
+            # 支点补偿是姿态位移，不作为下一帧导航惯性再次积分
+            velocity = chunk.velocity-avoidance.offset_velocity
             goal = guide - direction * (i * self.body.connection_length)
             # 失重时下身少接受一部分导航前馈，由连接带着跟上上身。
             # 差异只存在于移动中，提供运动产生的转矩，不指定躺倒角度。
             carry = .6-(.12*self.pose.weightlessness if i == 1 and self.behavior.drift_active else 0.)
-            desired_velocity = limited(chunk.velocity * .4 + limited(goal - chunk.position, 100)
+            desired_velocity = limited(velocity * .4 + limited(goal - chunk.position, 100)
                                        * (.062 if i == 0 else .032) + feedforward * carry
                                        + observe_force*(1 if i == 0 else -1), 2.4)
             if not self.navigator:
                 desired_velocity = limited(desired_velocity, self.travel_speed or 2.4)
-            chunk.velocity = (chunk.velocity + limited(desired_velocity - chunk.velocity, .12)
+            chunk.velocity = (velocity + limited(desired_velocity - velocity, .12)
                               if self.navigator else desired_velocity)
             chunk.position = chunk.position + chunk.velocity
         upper, lower = self.body.chunks
@@ -727,6 +735,9 @@ class OracleScene:
         center = upper.position.lerp(lower.position, .5)
         upper.position = center + axis * (self.body.connection_length * .5)
         lower.position = center - axis * (self.body.connection_length * .5)
+        pivot_shift = avoidance.advance_pivot(axis)
+        upper.position = upper.position+pivot_shift
+        lower.position = lower.position+pivot_shift
         if self.navigator:
             candidate = self.base + limited(upper.position - self.base, self.arm.maximum_reach)
             safe = self.navigator.region.safe_move(upper.previous_position, candidate)

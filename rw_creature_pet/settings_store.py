@@ -7,6 +7,8 @@ import sys
 import tempfile
 
 from .config import AppConfig
+from .oracle.config import migrate_shoulder_width
+from .oracle.eye_config import EYE_FIELDS
 from .shared.messages import Message
 
 
@@ -38,7 +40,9 @@ def absolute_paths(config, source=None):
             voice = 'auto'
         else:
             voice = str(resolved)
-    return replace(config, game_dir=game.resolve(), oracle=replace(config.oracle, voice_directory=voice))
+    shape = config.oracle.custom_appearance.resolve_image_paths(base)
+    return replace(config, game_dir=game.resolve(), oracle=replace(config.oracle, voice_directory=voice,
+                   custom_appearance=shape))
 
 
 def load_defaults(source=None):
@@ -85,13 +89,42 @@ class SettingsStore:
         if not isinstance(data.get('config'), dict):
             raise ValueError('配置必须为对象')
         user_config = dict(data['config'])
+        oracle = user_config.get('oracle')
+        palette_migrated = isinstance(oracle, dict) and 'custom_colors' not in oracle
+        if palette_migrated:
+            # 必须在补默认值之前复制旧配色，避免升级时丢失用户已调好的颜色
+            colors, _ = _fill_missing(oracle.get('colors', {}), defaults['oracle']['colors'])
+            user_config['oracle'] = {**oracle, 'custom_colors': colors}
+        oracle = user_config.get('oracle')
+        eyes_migrated = False
+        if isinstance(oracle, dict):
+            shape = oracle.get('custom_appearance', {})
+            palette = oracle.get('custom_colors', {})
+            if isinstance(shape, dict) and isinstance(palette, dict) and 'eyes' in palette:
+                shape = dict(shape)
+                # 在补默认模板前保留旧统一眼睛色，已有单眼颜色优先
+                for name in EYE_FIELDS:
+                    eye = shape.get(name, {})
+                    if isinstance(eye, dict) and 'color' not in eye:
+                        shape[name] = {**eye, 'color': palette['eyes']}
+                        eyes_migrated = True
+                if eyes_migrated:
+                    user_config['oracle'] = {**oracle, 'custom_appearance': shape}
+        oracle = user_config.get('oracle')
+        shoulders_migrated = False
+        if isinstance(oracle, dict) and isinstance(oracle.get('custom_appearance'), dict):
+            shape = oracle['custom_appearance']
+            upgraded = migrate_shoulder_width(shape)
+            if upgraded is not shape:
+                user_config['oracle'] = {**oracle, 'custom_appearance': upgraded}
+                shoulders_migrated = True
         watcher = user_config.get('overseer')
         migrated = isinstance(watcher, dict) and 'slots' not in watcher and 'color' in watcher
         if migrated:
             user_config['overseer'] = {**watcher, 'slots': [
                 {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
         merged, changed = _fill_missing(user_config, defaults)
-        changed |= migrated
+        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
         if merged['ui']['language'] != config.ui.language:

@@ -6,6 +6,17 @@ import re
 
 
 APPEARANCE_COLORS = {'standard': '#ffffff', 'friend': '#000000'}
+SIZE_RANGE = (.5, 1.)
+FILAMENT_COUNT_MIN = 3
+FILAMENT_COUNT_MAX = 5
+
+
+def validate_shape(size, filament_count):
+    if (isinstance(size, bool) or not isinstance(size, (int, float))
+            or not isfinite(size) or not SIZE_RANGE[0] <= size <= SIZE_RANGE[1]):
+        raise ValueError('监视者体型必须在 0.5～1 范围内')
+    if type(filament_count) is not int or not FILAMENT_COUNT_MIN <= filament_count <= FILAMENT_COUNT_MAX:
+        raise ValueError('监视者触须数量必须为 3～5 的整数')
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,8 +24,11 @@ class OverseerSlot:
     id: int = 1
     color: str | None = None
     appearance: str = 'standard'
+    size: float = .6
+    filament_count: int = 4  # 只控制普通外观，朋友？固定两条
 
     def __post_init__(self):
+        validate_shape(self.size, self.filament_count)
         if type(self.id) is not int or not 1 <= self.id <= 4:
             raise ValueError('overseer.slots id 必须为 1～4 的整数')
         if not isinstance(self.appearance, str) or self.appearance not in APPEARANCE_COLORS:
@@ -37,6 +51,7 @@ class OverseerConfig:
     cooldown_min: float = 60.
     cooldown_max: float = 120.
     size: float = .6
+    filament_count: int = 4  # 单模型默认值；多槽位运行时由槽位覆盖
     color: str = '#72e6c4'  # 兼容旧配置和单模型绘制，运行时由对应槽位主色覆盖
     withdraw_distance: float = 60.
     reemerge_distance: float = 100.
@@ -50,15 +65,18 @@ class OverseerConfig:
     withdraw_seconds: float = .25
 
     def __post_init__(self):
+        validate_shape(self.size, self.filament_count)
         if self.appearance_mode not in ('random', 'resident'):
             raise ValueError('overseer.appearance_mode 必须为 random 或 resident')
         # 兼容旧 TOML/JSON 中的单色设置；显式空列表表示不配置任何监视者
         slots = self.slots
         if slots is None:
-            slots = (OverseerSlot(color=self.color),)
+            slots = (OverseerSlot(color=self.color, size=self.size, filament_count=self.filament_count),)
         if not isinstance(slots, (tuple, list)) or len(slots) > 4:
             raise ValueError('overseer.slots 最多允许 4 个槽位')
-        slots = tuple(OverseerSlot(**s) if isinstance(s, dict) else s for s in slots)
+        # 旧配置未声明槽位体型时沿用原全局值，避免升级后所有个体变回 0.6
+        slots = tuple(OverseerSlot(**{'size': self.size, 'filament_count': self.filament_count, **s})
+                      if isinstance(s, dict) else s for s in slots)
         if any(not isinstance(s, OverseerSlot) for s in slots):
             raise ValueError('overseer.slots 必须为监视者槽位列表')
         if len({s.id for s in slots}) != len(slots):
@@ -71,8 +89,6 @@ class OverseerConfig:
             if (isinstance(probability, bool) or not isinstance(probability, (int, float))
                     or not isfinite(probability) or not 0 <= probability <= 1):
                 raise ValueError(Message('overseer.{value0} 必须在 0～1 之间', value0=key))
-        if isinstance(self.size, bool) or not isinstance(self.size, (int, float)) or not isfinite(self.size) or not .5 <= self.size <= 1.:
-            raise ValueError('overseer.size 必须在原版的 0.5～1 范围内')
         if not isinstance(self.color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.color):
             raise ValueError('overseer.color 必须为 #RRGGBB 颜色')
         for key in ('withdraw_distance', 'reemerge_distance', 'emerge_seconds', 'withdraw_seconds',

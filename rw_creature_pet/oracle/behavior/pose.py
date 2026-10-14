@@ -14,6 +14,7 @@ class OraclePose:
 
     def __init__(self):
         self.angle = self.velocity = self.target = 0.
+        self.base_angle = 0.
         self.weightlessness = self._weightlessness_target = 0.
 
     def measured_angle(self, scene):
@@ -63,6 +64,7 @@ class OraclePose:
                 target = target*.35+lean
         # 普通移动/阅读先限制在直立附近；躲避偏移独立叠加，幅度由 LEAN 决定
         target = max(-25., min(25., scene.tilt_degrees+target))-scene.tilt_degrees
+        self.base_angle = target
         target += scene.mouse_reaction.avoidance.lean
         # 回正与普通活动都以直立为基准，选择最近的等价角；即使漫游
         # 已绕过 ±180° 或转过多圈，也不会为了归零反向旋转一整圈。

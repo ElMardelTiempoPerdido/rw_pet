@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPat
 
 from ...shared.geometry import Vec2
 from ..config import OracleColors
+from ..ear_config import ear_radius
 from ..scene import unit
 from .appearance import HangingHand, perpendicular, rotate
 from .arm import base_outline, base_support_region, detail_scale, ik_bend, make_arm_frame
@@ -14,6 +15,11 @@ from .damage import body_bounds, point_bounds
 from .raster import (aligned_sprite, attached_sprite_rect, local_canvas, painter_density, painter_scale,
                      pixel_density, stable_pixel_angle)
 from .glow import GlowLayer
+from .styles import style_for
+from .face_decals import draw_face_decals
+from .inner_robe import inner_collar_path, inner_robe_clip, inner_robe_path
+from .neckline import neckline_paths, sleeve_neckline_path
+from .shoulders import attach_sleeve_root
 from .outfits import (maid_apron_layer, maid_head_layer, maid_lace_layers, maid_ribbon_down_layer,
                       maid_ribbon_up_layer, maid_scale)
 
@@ -40,6 +46,10 @@ class PaintCommands:
     def __init__(self):
         self.commands = []
         self.names = set()
+
+    def draw_deferred(self, command):
+        """依赖实际像素密度的部件，在重放时生成"""
+        self.commands.append((None, command))
 
     def __getattr__(self, name):
         commands = self.commands
@@ -115,6 +125,7 @@ class OracleRenderer:
     SLEEVE_CUFF_DROP = 2.  # 抬臂时衣料相对手腕的最大下垂量；不移动手部质点。
     SLEEVE_ROOT_RISE = HangingHand.SHOULDER_RISE
     SLEEVE_SHOULDER_OUTSET = 3.
+    CUSTOM_SLEEVE_SHOULDER_OUTSET = 5.
     OPEN_EYE_WIDTH = 2.
     OPEN_EYE_HEIGHT = 2.
     HEAD_CROWN_RISE = 1.  # 仅增加头顶空间；椭圆下缘及五官锚点不动。
@@ -181,6 +192,7 @@ class OracleRenderer:
         self._sleeve_frame = None
         self._collar_frame = None
         self._body_front_frame = None
+        self._body_sleeves = [None, None]
         self._apron_geometry_key = None
         self._apron_key = None
         self._head_key = None
@@ -402,11 +414,35 @@ class OracleRenderer:
                 painter.drawPolygon(QPolygonF([point(v) for v in vertices]))
         painter.restore()
 
-    def sleeve_edges(self, shoulder, end, direction, sign):
-        """原版七段袖根/段间延伸构造，截面沿 Bell 的袖宽平滑展开。"""
+    def sleeve_shoulder(self, upper, direction, sign, shape=None):
+        rise = self.SLEEVE_ROOT_RISE if shape is None else 0.
+        half = HangingHand.SHOULDER_HALF if shape is None else shape.shoulder_width/2
+        return upper+perpendicular(direction)*(sign*half)+direction*rise
+
+    def body_sleeve_edges(self, scene, alpha, upper, direction, index):
+        """袖子、领边覆盖与手掌遮挡共用同一个连接轮廓"""
+        shape = scene.config.active_custom_appearance
+        sign = -1 if index == 0 else 1
+        waist = scene.appearance.waist_direction(direction, alpha)
+        end = scene.appearance.hands[index].sample(alpha)
+        key = (upper, direction, waist, end, shape)
+        cached = self._body_sleeves[index]
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        shoulder = self.sleeve_shoulder(upper, direction, sign, shape)
+        torso = None
+        if shape is not None:
+            torso = self.torso_path(upper, upper-waist*9, direction, waist, shape=shape)
+        edges = self.sleeve_edges(shoulder, end, direction, sign, shape, torso=torso)
+        self._body_sleeves[index] = (key, edges)
+        return edges
+
+    def sleeve_edges(self, shoulder, end, direction, sign, shape=None, *, torso=None):
+        """原版七段袖子；Bell 保留溜肩，自定义在通用曲线基础上衔接躯干"""
         outward = perpendicular(direction)*sign
         # 原版向外伸 5；Bell 收到 3，让肩部转折靠近衣袍，形成较缓的溜肩。
-        a = shoulder+outward*self.SLEEVE_SHOULDER_OUTSET
+        outset = self.CUSTOM_SLEEVE_SHOULDER_OUTSET if shape is not None else self.SLEEVE_SHOULDER_OUTSET
+        a = shoulder+outward*outset
         b = end+unit(shoulder-end)*3+direction
         arm = unit(end-shoulder, direction*(-1))
         raised = max(0., min(1., (arm.x*direction.x+arm.y*direction.y+.85)/.8))
@@ -417,13 +453,14 @@ class OracleRenderer:
         drop = (Vec2(0, 1)-cuff_forward*cuff_forward.y)*(self.SLEEVE_CUFF_DROP*raised)
         previous = shoulder-outward*2
         edges = []
+        root_half = shape.sleeve_root_width/2 if shape else self.SLEEVE_ROOT_HALF_WIDTH
+        cuff_half = shape.sleeve_cuff_width/2 if shape else self.SLEEVE_CUFF_HALF_WIDTH
         for i in range(7):
             t = i/6
             center = bezier(shoulder, a, b, end, t)
             tangent = unit(center-previous, outward)
             normal = perpendicular(tangent)*(-sign)
-            half = (self.SLEEVE_ROOT_HALF_WIDTH
-                    + (self.SLEEVE_CUFF_HALF_WIDTH-self.SLEEVE_ROOT_HALF_WIDTH)*t*t*(3-2*t))
+            half = root_half+(cuff_half-root_half)*t*t*(3-2*t)
             back = center-tangent*((center-previous).length()*.3)
             # 袖根的前三分之一不动；只让远端衣料下垂。每对截面同移，
             # 保留末端切向与开口平面，使手掌仍由袖口遮住靠腕的一半。
@@ -432,6 +469,11 @@ class OracleRenderer:
             edges.extend(((back+offset-normal*half, back+offset+normal*half),
                           (center+offset-normal*half, center+offset+normal*half)))
             previous = center
+        if shape is not None:
+            upper = shoulder-outward*(shape.shoulder_width/2)
+            if torso is None:
+                torso = self.torso_path(upper, upper-direction*9, direction, shape=shape)
+            edges = attach_sleeve_root(edges, upper, direction, sign, torso, shape)
         return edges
 
     @staticmethod
@@ -442,14 +484,15 @@ class OracleRenderer:
         path.closeSubpath()
         return path
 
-    def sleeve_path(self, edges):
+    def sleeve_path(self, edges, shape=None):
         """只向内修圆袖口两角，保留原网格、横向渐变和袖口中央的手腕遮挡。"""
         outline = self.strip_path(edges)
         a, b = edges[-1]
         center = a.lerp(b, .5)
         previous = edges[-2][0].lerp(edges[-2][1], .5)
         forward = unit(center-previous)
-        radius = min(self.SLEEVE_CUFF_RADIUS, (b-a).length()*.25,
+        radius = shape.sleeve_cuff_radius if shape else self.SLEEVE_CUFF_RADIUS
+        radius = min(radius, (b-a).length()*.25,
                      (center-edges[0][0].lerp(edges[0][1], .5)).length()*.25)
         if radius <= 1e-9:
             return outline
@@ -465,9 +508,9 @@ class OracleRenderer:
             cuts.closeSubpath()
         return outline.subtracted(cuts)
 
-    def draw_sleeve(self, painter, edges):
+    def draw_sleeve(self, painter, edges, shape=None):
         painter.save()
-        painter.setClipPath(self.sleeve_path(edges), Qt.ClipOperation.IntersectClip)
+        painter.setClipPath(self.sleeve_path(edges, shape), Qt.ClipOperation.IntersectClip)
         c = self.colors
         self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
         painter.restore()
@@ -485,15 +528,14 @@ class OracleRenderer:
         c = self.colors
         side = perpendicular(direction)
         points = scene.appearance.hands if hands else scene.appearance.feet
-        for sign, p in zip((-1, 1), points):
+        for index, (sign, p) in enumerate(zip((-1, 1), points)):
             end = p.sample(alpha)
             if hands:
-                # 沿身体轴抬高袖根，倾斜时仍与衣领保持同样的相对位置。
-                shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
                 self.draw_hand(painter, end)
                 # 对应 Gown.Color(0.4) / Color(0)，从现有衣袍配色取色。
                 # 原版顺序是先手掌再袖子，袖口自然覆盖靠手腕的一部分。
-                self.draw_sleeve(painter, self.sleeve_edges(shoulder, end, direction, sign))
+                shape = scene.config.active_custom_appearance
+                self.draw_sleeve(painter, self.body_sleeve_edges(scene, alpha, upper, direction, index), shape)
             else:
                 knee = lower.lerp(end, .5)+side*(4*sign)
                 self.ribbon(painter, lower, lower.lerp(knee, .9), end.lerp(knee, .9),
@@ -551,14 +593,15 @@ class OracleRenderer:
         path.closeSubpath()
         return path
 
-    def torso_path(self, upper, lower, direction, lower_direction=None):
+    def torso_path(self, upper, lower, direction, lower_direction=None, *, shape=None):
         """胸肩保留原朝向，腰侧平滑弯向下身，平下摆垂直于下身轴。"""
         lower_direction = direction if lower_direction is None else lower_direction
         side = perpendicular(direction)
         hem_side = perpendicular(lower_direction)
-        chest = upper-direction*(self.CHEST_TOP_DROP*.5)
-        height = (16-self.CHEST_TOP_DROP)*.5
-        width = self.TORSO_CHEST_HALF
+        drop = self.CHEST_TOP_DROP if shape is None else 0.
+        chest = upper-direction*(drop*.5)
+        height = (16-drop)*.5 if shape is None else shape.chest_height
+        width = self.TORSO_CHEST_HALF if shape is None else shape.chest_width*.5
         hem = lower-lower_direction*self.TORSO_HEM_DEPTH
         k = .5522847498307936  # 四分之一椭圆的三次曲线控制点。
         top = chest+direction*height
@@ -593,18 +636,39 @@ class OracleRenderer:
         coverage.closeSubpath()
         return coverage
 
-    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None):
+    def neck_width(self, shape=None):
+        return shape.neck_width if shape else 2*self.INNER_NECK_HALF
+
+    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None, shape=None):
         # 胸肩沿真实身体轴，下身随衣袍弯曲，仍共用连续轮廓。
         # 领口距头部保持固定距离，随真实头颈伸缩、偏转，并保持平直截面。
         c = self.colors
+        if shape is not None:
+            torso = self.torso_path(upper, lower, direction, lower_direction, shape=shape)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(c.skin))
+            painter.drawPath(torso)
+            self.line(painter, upper, head, c.skin, self.neck_width(shape))
+            if not shape.inner_robe_enabled:
+                return
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(c.inner_robe))
+            # 两次使用同一条躯干曲线，避免布尔裁切后的折线边缘漏出肤色
+            painter.save()
+            painter.setClipPath(inner_robe_clip(upper, direction), Qt.ClipOperation.IntersectClip)
+            painter.drawPath(torso)
+            painter.restore()
+            # 高领独立覆盖，不合并恰好相接的轮廓，避免旋转时整块内搭丢失
+            painter.drawPath(inner_collar_path(upper, direction, head, shape))
+            return
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(c.inner_robe))
         painter.drawPath(self.torso_path(upper, lower, direction, lower_direction))
-        self.line(painter, upper, head, c.inner_robe, 2*self.INNER_NECK_HALF)
+        self.line(painter, upper, head, c.inner_robe, self.neck_width(shape))
         painter.save()
         painter.setClipPath(self.neck_skin_clip(upper, direction, head), Qt.ClipOperation.IntersectClip)
         # 只在领口以上画皮肤，避免颈部抗锯齿边缘透出底层肤色细线。
-        self.line(painter, upper, head, c.skin, 2*self.INNER_NECK_HALF)
+        self.line(painter, upper, head, c.skin, self.neck_width(shape))
         painter.restore()
 
     def apron_geometry(self, scene, alpha, upper, lower, direction, head, opening, gown, offset):
@@ -612,13 +676,18 @@ class OracleRenderer:
         neck = QPainterPath(point(upper))
         neck.lineTo(point(head))
         stroke = QPainterPathStroker()
-        stroke.setWidth(2*self.INNER_NECK_HALF)
+        stroke.setWidth(self.neck_width(scene.config.active_custom_appearance))
         stroke.setCapStyle(Qt.PenCapStyle.RoundCap)
         neck = stroke.createStroke(neck)
         waist_direction = scene.appearance.waist_direction(direction, alpha)
         mask = gown.subtracted(opening)
-        mask.addPath(self.torso_path(upper, lower, direction, waist_direction))
-        mask.addPath(neck.subtracted(self.neck_skin_clip(upper, direction, head)))
+        shape = scene.config.active_custom_appearance
+        torso = self.torso_path(upper, lower, direction, waist_direction, shape=shape)
+        if shape is not None:
+            mask.addPath(inner_robe_path(torso, upper, direction, head, shape))
+        else:
+            mask.addPath(torso)
+            mask.addPath(neck.subtracted(self.neck_skin_clip(upper, direction, head)))
         # 用非零绕组组合轮廓，保留躯干的原始贝塞尔曲线；布尔并集会
         # 将曲线折线化，1× 时可能多覆盖衣料边缘的一格像素。
         mask.setFillRule(Qt.FillRule.WindingFill)
@@ -675,9 +744,13 @@ class OracleRenderer:
         outer = QPainterPath()
         outer.addPolygon(QPolygonF([point(p) for p in outline]))
         outer.closeSubpath()
-        opening = self.neck_opening(cloth, n, self.GOWN_NECK_HALF, self.GOWN_NECK_DEPTH)
-        trim = self.neck_opening(cloth, n, self.GOWN_TRIM_HALF, self.GOWN_TRIM_DEPTH,
-                                 clip_to_gown=False)
+        shape = scene.config.active_custom_appearance
+        if shape is None:
+            opening = self.neck_opening(cloth, n, self.GOWN_NECK_HALF, self.GOWN_NECK_DEPTH)
+            trim = self.neck_opening(cloth, n, self.GOWN_TRIM_HALF, self.GOWN_TRIM_DEPTH,
+                                     clip_to_gown=False).subtracted(opening)
+        else:
+            opening, trim = neckline_paths(cloth, scene.appearance._cloth_local, n, shape)
         # 同时裁掉轮廓底色和内部网格，内搭才会从真实开口露出。
         painter.setClipPath(outer.subtracted(opening), Qt.ClipOperation.IntersectClip)
         gradient = QLinearGradient(point(cloth[n//2]), point(cloth[-n+n//2]))
@@ -701,22 +774,37 @@ class OracleRenderer:
                 painter.drawPolygon(QPolygonF([vertices[i], vertices[i+1], vertices[j+1]]))
                 painter.drawPolygon(QPolygonF([vertices[i], vertices[j+1], vertices[j]]))
         painter.restore()
-        return opening, trim.subtracted(opening), outer
+        return opening, trim, outer
 
     def draw_collar(self, painter, scene, alpha, upper, direction, trim, gown):
         # 领边最后覆盖袖根；允许跨越衣袍边缘，但不能新增肩部外轮廓。
         coverage = gown
-        side = perpendicular(direction)
-        for sign, hand in zip((-1, 1), scene.appearance.hands):
-            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
-            edges = self.sleeve_edges(shoulder, hand.sample(alpha), direction, sign)
-            # 每个采样点有两个截面；前六个截面覆盖袖子曲线最靠肩的 1/3。
-            coverage = coverage.united(self.strip_path(edges[:6]))
+        for index in range(2):
+            edges = self.body_sleeve_edges(scene, alpha, upper, direction, index)
+            # 自定义近端加密为半步采样，第十个截面对应原来的第六个截面
+            # 领边仍只覆盖原袖子曲线靠肩的 1/3，不随采样数量改变
+            count = 10 if scene.config.active_custom_appearance is not None else 6
+            coverage = coverage.united(self.strip_path(edges[:count]))
         painter.save()
         painter.setClipPath(coverage, Qt.ClipOperation.IntersectClip)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(self.colors.collar_trim))
         painter.drawPath(trim)
+        painter.restore()
+
+    def draw_neckline_shoulders(self, painter, scene, alpha, upper, direction, opening):
+        """宽领口跨过躯干时补齐袖根内的皮肤或内搭，不扩大肩部轮廓"""
+        shape = scene.config.active_custom_appearance
+        if shape is None or opening.isEmpty():
+            return
+        painter.save()
+        painter.setClipPath(opening, Qt.ClipOperation.IntersectClip)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(self.colors.inner_robe if shape.inner_robe_enabled else self.colors.skin))
+        for index in range(2):
+            edges = self.body_sleeve_edges(scene, alpha, upper, direction, index)
+            # 与下方袖子实际挖去的区域一致，不能按网格段数截短，否则宽弧两侧会漏底
+            painter.drawPath(self.sleeve_path(edges, shape))
         painter.restore()
 
     def bead_images(self):
@@ -787,7 +875,7 @@ class OracleRenderer:
         painter.restore()
 
     def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False,
-                  raster_scale=1., outfit='normal', near_phone=None):
+                  raster_scale=1., outfit='normal', near_phone=None, shape=None):
         head_direction = unit(head-upper, direction)
         side_axis = perpendicular(head_direction)
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
@@ -798,24 +886,27 @@ class OracleRenderer:
         gx, gy, angle = round(gx, 6), round(gy, 6), stable_pixel_angle(angle)
         openness = max(0., min(1., openness))
         density = pixel_density('adaptive', raster_scale)
-        phone_pixels = self.PHONE_PIXEL_WIDTHS.get(density)
-        phone_widths = phone_pixels or (1., 1.)
-        phone_cosmetic = phone_pixels is not None
-        mark_pixels = self.FACE_MARK_PIXEL_WIDTHS.get(density)
+        style = style_for(shape)
+        phone_widths, phone_cosmetic, mark_pixels = style.head_options(self, density)
         # 场景传入固定步更新后的滞回状态；独立静态预览按当前视线决定层级。
         near_phone = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
-        geometry_key = (gx, gy, openness, self.colors, phone_widths, phone_cosmetic, mark_pixels, near_phone)
+        head_length = shape.head_length if shape else 1.
+        geometry_key = (gx, gy, openness, self.colors, phone_widths, phone_cosmetic, mark_pixels, near_phone,
+                        head_length, style.name, style.head_assets_key(shape))
         if geometry_key != self._head_geometry_key:
             commands = PaintCommands()
-            self.draw_head_parts(commands, gx, gy, openness,
+            style.draw_head(self, commands, gx, gy, openness,
                                  phone_widths=phone_widths, phone_cosmetic=phone_cosmetic,
-                                 mark_pixels=mark_pixels, near_phone=near_phone)
+                                 mark_pixels=mark_pixels, near_phone=near_phone, head_length=head_length, shape=shape)
             self._head_geometry_key, self._head_frame = geometry_key, commands
         key = (geometry_key, angle, density, outfit)
         if key != self._head_key:
             # 在当前显示精度下完成投影、倾斜和遮挡；只有线宽档位变化
             # 才因倍率重建几何。世界平移复用小图，旋转重放已有几何。
-            pixels = ceil(self.HEAD_PIXELS*density)
+            # 对称增加整像素留白，不改变原头图中心的像素相位
+            pixels = ceil(self.HEAD_PIXELS*density)+2*ceil(
+                max(max(0., head_length-1)*(100/11+self.HEAD_CROWN_RISE),
+                    ear_radius(shape)-self.HEAD_PIXELS/2)*density)
             image = QImage(pixels, pixels, QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(Qt.GlobalColor.transparent)
             local = QPainter(image)
@@ -826,11 +917,11 @@ class OracleRenderer:
                 local.scale(density, density)
                 local.rotate(angle)
                 if outfit == 'maid':
-                    cap, rect = maid_head_layer(density, -50/11-self.HEAD_CROWN_RISE)
+                    cap, rect = maid_head_layer(density, self.head_rect(head_length).top())
                     local.drawImage(rect, cap)  # 整个头部（包括两侧耳机）覆盖在头饰前方。
                 self._head_frame.replay(local)
                 if outfit == 'maid':
-                    ribbon, rect = maid_ribbon_up_layer(density, -50/11-self.HEAD_CROWN_RISE)
+                    ribbon, rect = maid_ribbon_up_layer(density, self.head_rect(head_length).top())
                     local.drawImage(rect, ribbon)  # 单侧头饰在脸部、耳机与头巾前方。
             finally:
                 local.end()
@@ -868,40 +959,56 @@ class OracleRenderer:
         segments.append((project(y, offset), project(y+self.PHONE_OUTER_ROD_LENGTH, offset)))
         return segments
 
-    def draw_head_parts(self, painter, gx, gy, openness=0., *, phone_widths=(1., 1.),
-                        phone_cosmetic=False, mark_pixels=None, near_phone=None):
+    def head_rect(self, length=1.):
+        # 固定下缘及颈部连接处，只改变头顶高度；Bell 的 1px 上缘修正仍独立保留
+        extra = (100/11+self.HEAD_CROWN_RISE)*(length-1)
+        return QRectF(-50/9, -50/11-self.HEAD_CROWN_RISE-extra,
+                      100/9, 100/11+self.HEAD_CROWN_RISE+extra)
+
+    def draw_phone_parts(self, painter, segments, color, widths, cosmetic, *, shell=None):
+        parts = PhoneParts(segments, color, widths, cosmetic, shell=shell)
+        if isinstance(painter, PaintCommands):
+            painter.commands.append((None, parts))
+        else:
+            parts.replay(painter)
+
+    def draw_face(self, painter, gx, gy, openness=0., head_length=1., *, shape=None):
+        """通用头部轮廓、自定义面部贴图和睁闭眼，耳机由外观入口绘制"""
         c = self.colors
-        head_rect = QRectF(-50/9, -50/11-self.HEAD_CROWN_RISE,
-                          100/9, 100/11+self.HEAD_CROWN_RISE)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(c.skin))
+        painter.drawEllipse(self.head_rect(head_length))
+        painter.drawEllipse(QRectF(gx*2-10/3, 1.8-10/3, 20/3, 20/3))
+        if shape is not None:
+            draw_face_decals(self, painter, shape, gx, gy)
+        eyes = (shape.eye_1, shape.eye_2) if shape is not None else (None, None)
+        for sign, settings in zip((-1, 1), eyes):
+            if settings is not None and not settings.visible:
+                continue
+            painter.setBrush(QColor(settings.color if settings is not None else c.eyes))
+            eye = Vec2(max(-5., min(5., gx*3+2.5*sign)), 2-gy*3)
+            foreshortening = max(0., min(1., (sign*gx-.5)*2))
+            width = self.OPEN_EYE_WIDTH-foreshortening
+            opened = settings.openness(openness) if settings is not None else openness
+            height = 1+(self.OPEN_EYE_HEIGHT-1)*opened
+            painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
+
+    def draw_head_parts(self, painter, gx, gy, openness=0., *, phone_widths=(1., 1.),
+                        phone_cosmetic=False, mark_pixels=None, near_phone=None, head_length=1.):
+        c = self.colors
+        head_rect = self.head_rect(head_length)
         def phone(sign):
             ear = Vec2(sign*(7-self.PHONE_CORE_INSET-2*abs(gx)), 0)
             # 耳壳使用原外层椭圆的包围矩形，统一为原亮面颜色；支架仍在上方。
             w = self.PHONE_CORE_WIDTH+1.5*abs(gx)
-            parts = PhoneParts(self.phone_segments(sign, gx, gy), c.head_shell,
-                               phone_widths, phone_cosmetic,
-                               shell=(QRectF(ear.x-w/2, ear.y-2.75, w, 5.5), c.head_highlight))
-            if isinstance(painter, PaintCommands):
-                painter.commands.append((None, parts))
-            else:
-                parts.replay(painter)
+            self.draw_phone_parts(painter, self.phone_segments(sign, gx, gy), c.head_shell,
+                                  phone_widths, phone_cosmetic,
+                                  shell=(QRectF(ear.x-w/2, ear.y-2.75, w, 5.5), c.head_highlight))
         # 原版 PhoneSprite 的近侧与转头方向相反；否则转头一侧的耳壳
         # 会盖掉已经向该侧移动的眼睛，而背后的附件反倒浮在脸上。
         near = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
         phone(-near)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(c.skin))
-        painter.drawEllipse(head_rect)
-        painter.drawEllipse(QRectF(gx*2-10/3, 1.8-10/3, 20/3, 20/3))
-        painter.setBrush(QColor(c.eyes))
-        for sign in (-1, 1):
-            # Bell 双眼相对原版沿面部局部向下平移 1，随头部一起旋转。
-            eye = Vec2(max(-5., min(5., gx*3+2.5*sign)), 2-gy*3)
-            # 原版 InverseLerp：正面及轻微侧视保留宽 2，超过半侧视后
-            # 对应一眼逐渐缩至 1。闭眼高 1，完全睁眼高 2；保持二值像素轮廓。
-            foreshortening = max(0., min(1., (sign*gx-.5)*2))
-            width = self.OPEN_EYE_WIDTH-foreshortening
-            height = 1+(self.OPEN_EYE_HEIGHT-1)*openness
-            painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
+        self.draw_face(painter, gx, gy, openness, head_length)
         mark = Vec2(gx*2.5, self.FOREHEAD_CENTER_Y-gy*1.5)
         # Bell 两侧的小标记与额头图案共享面部坐标和透视，不增加物理节点。
         # 大幅侧视时让标记自然隐入头部轮廓，避免像附件一样突出脸侧。
@@ -951,7 +1058,8 @@ class OracleRenderer:
         if app.sleeping:
             alpha = 1.
         outfit_scale = maid_scale(density) if scene.config.outfit == 'maid' else None
-        key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale)
+        key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale,
+               scene.config.active_custom_appearance)
         if key != self._frame_key:
             commands = PaintCommands()
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
@@ -1291,10 +1399,12 @@ class OracleRenderer:
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
                        scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
                        raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
-                       outfit=scene.config.outfit, near_phone=app.near_phone)
+                       outfit=scene.config.outfit, near_phone=app.near_phone,
+                       shape=scene.config.active_custom_appearance)
 
     def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
                       include_head=True, halo=True, arm=True, raster_scale=None, include_chest_ribbon=True):
+        style = style_for(scene.config.active_custom_appearance)
         if halo:
             self.draw_halo(painter, scene, alpha)
         if pearl:
@@ -1320,13 +1430,13 @@ class OracleRenderer:
             for p in (app.head, *app.hands, *app.feet, *app.cloth):
                 v = p.sample(alpha)
                 pose.extend((v.x-upper.x, v.y-upper.y))
-            key = (app, self.colors, self.atlas)
+            key = (app, self.colors, self.atlas, scene.config.active_custom_appearance)
             if (key != self._body_key or len(pose) != len(self._body_pose)
                     or any(abs(a-b) > .001 for a, b in zip(pose, self._body_pose))):
                 self._body_frame = PaintCommands()
                 self._sleeve_frame, self._collar_frame = PaintCommands(), PaintCommands()
-                self._body_garment_paths = self.draw_body(
-                    self._body_frame, scene, alpha, upper, lower, direction, head, look,
+                self._body_garment_paths = style.draw_body(
+                    self, self._body_frame, scene, alpha, upper, lower, direction, head, look,
                     sleeves_painter=self._sleeve_frame, collar_painter=self._collar_frame)
                 self._body_front_frame = PaintCommands()
                 self.draw_body_front(self._body_front_frame, scene, alpha, upper, lower, direction, head, look,
@@ -1349,7 +1459,7 @@ class OracleRenderer:
             painter.restore()
             if outfit_density is not None:
                 self.draw_shoulder_lace(painter, upper, direction, head, outfit_density)
-            self.draw_necklace(painter, scene, alpha)
+            style.draw_body_decorations(self, painter, scene, alpha)
             if outfit_density is None:
                 painter.save()
                 painter.translate(offset.x, offset.y)
@@ -1357,19 +1467,20 @@ class OracleRenderer:
                 painter.restore()
         else:
             sleeves = PaintCommands() if outfit_density is not None else None
-            paths = self.draw_body(painter, scene, alpha, upper, lower, direction, head, look,
+            paths = style.draw_body(self, painter, scene, alpha, upper, lower, direction, head, look,
                                    sleeves_painter=sleeves)
             if outfit_density is not None:
                 self.draw_apron(painter, scene, alpha, upper, lower, direction, head, *paths, outfit_density)
                 sleeves.replay(painter)
                 self.draw_shoulder_lace(painter, upper, direction, head, outfit_density)
-            self.draw_necklace(painter, scene, alpha)
+            style.draw_body_decorations(self, painter, scene, alpha)
             if outfit_density is None:
                 self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
                            raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
-                           outfit=scene.config.outfit, near_phone=app.near_phone)
+                           outfit=scene.config.outfit, near_phone=app.near_phone,
+                           shape=scene.config.active_custom_appearance)
         if include_chest_ribbon:
             self.draw_chest_ribbon(painter, scene, alpha, raster_scale=raster_scale)
 
@@ -1378,8 +1489,16 @@ class OracleRenderer:
         waist_direction = scene.appearance.waist_direction(direction, alpha)
         # 腿根在内搭后方，粉色平下摆完整覆盖近端，露出的双腿保持肤色。
         self.draw_limbs(painter, scene, alpha, upper, lower, waist_direction, hands=False)
-        self.draw_inner_robe(painter, upper, lower, direction, head, lower_direction=waist_direction)
+        self.draw_inner_robe(painter, upper, lower, direction, head, lower_direction=waist_direction,
+                             shape=scene.config.active_custom_appearance)
         opening, trim, gown = self.draw_gown(painter, scene, alpha)
+        sleeve_opening = opening
+        shape = scene.config.active_custom_appearance
+        if shape is not None:
+            app = scene.appearance
+            sleeve_opening = sleeve_neckline_path([p.sample(alpha) for p in app.cloth],
+                                                  app._cloth_local, app.CLOTH_DIVS, shape, opening)
+        self.draw_neckline_shoulders(painter, scene, alpha, upper, direction, sleeve_opening)
         # 只拆分绘制指令，复用同一份袖子和领边几何；切换套装仅重排图层。
         collar_painter = painter if collar_painter is None else collar_painter
         painter = painter if sleeves_painter is None else sleeves_painter
@@ -1388,7 +1507,7 @@ class OracleRenderer:
         sleeves = QPainterPath()
         sleeves.addRect(QRectF(upper.x-30, upper.y-30, 60, 60))
         painter.save()
-        painter.setClipPath(sleeves.subtracted(opening), Qt.ClipOperation.IntersectClip)
+        painter.setClipPath(sleeves.subtracted(sleeve_opening), Qt.ClipOperation.IntersectClip)
         self.draw_limbs(painter, scene, alpha, upper, lower, direction, hands=True)
         painter.restore()
         self.draw_collar(collar_painter, scene, alpha, upper, direction, trim, gown)
@@ -1396,12 +1515,10 @@ class OracleRenderer:
 
     def draw_body_front(self, painter, scene, alpha, upper, lower, direction, head, look, *, include_head=True):
         # 手掌仍在念珠前；只重放袖口外的可见部分，避免再次把手腕盖到袖子上。
-        side = perpendicular(direction)
-        for sign, hand in zip((-1, 1), scene.appearance.hands):
+        for index, hand in enumerate(scene.appearance.hands):
             end = hand.sample(alpha)
-            shoulder = upper+side*(sign*HangingHand.SHOULDER_HALF)+direction*self.SLEEVE_ROOT_RISE
-            edges = self.sleeve_edges(shoulder, end, direction, sign)
-            sleeve = self.sleeve_path(edges)
+            edges = self.body_sleeve_edges(scene, alpha, upper, direction, index)
+            sleeve = self.sleeve_path(edges, scene.config.active_custom_appearance)
             palm = QPainterPath()
             palm.addRect(QRectF(end.x-6, end.y-6, 12, 12))
             painter.save()
@@ -1411,7 +1528,7 @@ class OracleRenderer:
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
                            raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.outfit,
-                           near_phone=scene.appearance.near_phone)
+                           near_phone=scene.appearance.near_phone, shape=scene.config.active_custom_appearance)
 
     def draw_skeleton(self, painter, scene, alpha):
         pen = QPen(QColor('#8befcc'), 1, Qt.PenStyle.DashLine)

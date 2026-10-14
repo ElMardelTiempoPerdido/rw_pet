@@ -63,11 +63,14 @@ def view_matrix(gaze, depth, up):
 
 
 @lru_cache(maxsize=128)
-def _project(matrix, density):
+def _project(matrix, density, petal_color='#000000'):
     """仅扫描每片三角形的小包围盒，不遍历窗口或生成整屏网格"""
     import numpy as np
 
     triangles, colors, extent = _surface()
+    # 只替换花瓣像素的 RGB，保留素材透明度；不修改共用素材或脸盘颜色
+    colors = colors.copy()
+    colors[:, :3] = QColor(petal_color).getRgb()[:3]
     matrix = np.asarray(matrix).reshape(3, 3)
     projected = triangles @ matrix.T
     half = ceil(extent*density)+1
@@ -111,15 +114,16 @@ def _project(matrix, density):
     return image, half/density
 
 
-def head_image(gaze, depth, up, density):
+def head_image(gaze, depth, up, density, petal_color='#000000'):
     matrix = view_matrix(gaze, depth, up)
     # 千分之一的方向精度远小于一个显示像素，限制缓存条目并复用静止结果
-    return _project(tuple(round(value, 3) for value in matrix), round(density, 6))
+    return _project(tuple(round(value, 3) for value in matrix), round(density, 6),
+                    QColor(petal_color).name())
 
 
 def draw_head(painter, model, alpha, density):
     head = model.eye_position(alpha)
     gaze, depth = model.head_gaze(alpha)
-    image, half = head_image(gaze, depth, head-model.root, density)
+    image, half = head_image(gaze, depth, head-model.root, density, model.config.color)
     radius = half*model.segment_extension(1., alpha)
     painter.drawImage(QRectF(head.x-radius, head.y-radius, radius*2, radius*2), image)

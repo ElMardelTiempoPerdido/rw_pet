@@ -67,8 +67,7 @@ class OverseerEvents:
 
     def configure(self, config):
         old = self.config
-        self.model.config = config
-        self.model.revision += 1
+        self.model.configure(config)
         if (old.enabled != config.enabled or old.check_interval != config.check_interval
                 or old.appearance_mode != config.appearance_mode):
             self.check_remaining = config.check_interval

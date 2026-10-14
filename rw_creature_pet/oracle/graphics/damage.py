@@ -1,5 +1,6 @@
 """透明桌面的保守外形包围盒，包含前后物理帧，供缓存与清除旧像素使用。"""
 from PySide6.QtCore import QRectF
+from ..ear_config import ear_radius
 
 
 def point_bounds(points, padding):
@@ -17,6 +18,10 @@ def body_bounds(scene):
     points = scene.appearance.body_points if scene.config.hide_cords else scene.appearance.points
     soft = point_bounds((v for p in points
                          for v in (p.previous_position, p.position)), 20.)
+    head = scene.appearance.head
+    radius = ear_radius(scene.config.active_custom_appearance)
+    if radius > 20:
+        soft = soft.united(point_bounds((head.previous_position, head.position), radius))
     # 外壳弯折至多 24，活塞可伸出 length/4，另含底座和抗锯齿余量。
     arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
                         for v in (p.previous_position, p.position)),

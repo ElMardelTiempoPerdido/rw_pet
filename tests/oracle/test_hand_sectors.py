@@ -66,7 +66,7 @@ class HandSectorTests(unittest.TestCase):
         origin, up, outward, host = Vec2(100, 80), Vec2(0, -1), Vec2(1, 0), Vec2(2, -1)
         for angle in (-80*pi/180, 80*pi/180):
             for radius in (8., 25.):
-                shoulder = HangingHand.shoulder(origin, up, 1)
+                shoulder = HangingHand.at(origin).shoulder(origin, up, 1)
                 hand = HangingHand.at(shoulder+(outward*cos(angle)+up*sin(angle))*radius)
                 hand.reach_weight = 1.
                 limit = hand.SWING_MIN if angle < 0 else hand.SWING_MAX

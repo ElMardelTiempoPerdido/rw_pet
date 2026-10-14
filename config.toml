@@ -29,6 +29,7 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
+body_appearance = 'bell'        # bell 手势之铃 / custom 使用下方独立的自定义尺寸
 outfit = 'normal'               # normal 常规 / maid 女仆套装
 hide_cords = false              # 隐藏粗细线缆并停止其物理计算；保留机械臂
 glow_enabled = false            # 不透明部件的外发光
@@ -71,6 +72,109 @@ pixel_mode = 'adaptive'         # adaptive：大倍率缩放时精细像素 / cl
 
 # 设置面板中的参数均在本文件列出；未列出的高级参数使用代码默认值。
 # 升级时只补齐用户配置缺少的字段，已有值不会被本文件覆盖。
+[oracle.custom_appearance]
+chest_width = 12.0            # 胸肩最宽处的完整宽度，8～18 逻辑像素
+chest_height = 8.0            # 胸部中心至胸肩最高点，4～10 逻辑像素
+shoulder_width = 8.0          # 左右袖根参考点之间的完整距离，4～18 逻辑像素，独立于胸肩宽度
+head_length = 1.0              # 存储比例 0.7～1.5；设置面板换算为逻辑像素，默认约 10.1px
+sleeve_root_width = 6.0        # 袖根完整宽度，2～12 逻辑像素
+sleeve_cuff_width = 10.0       # 袖口完整宽度，2～16 逻辑像素
+robe_length = 1.0              # 下半部存储比例 0.7～1.5；面板显示中央领口至下摆长度，默认约 27.6px
+sleeve_cuff_radius = 2.0       # 袖口圆角半径，0～4 逻辑像素；0 为直角，实际半径受袖宽与袖长限制
+neck_width = 3.0               # 颈部完整宽度，1～8 逻辑像素
+inner_robe_enabled = true      # 自定义内搭，关闭后露出皮肤
+inner_collar_enabled = true    # 内搭高领，关闭后保留平领口内搭
+inner_collar_height = 3.0      # 高领高度，0～8 逻辑像素
+inner_collar_top_width = 3.0   # 高领上口完整宽度，1～12 逻辑像素
+inner_collar_bottom_width = 4.0 # 高领下口完整宽度，1～12 逻辑像素
+neckline_shape = 'v'           # 外层衣袍领口：arc 弧形 / v 型
+neckline_width = 7.6           # 领口完整宽度，2～18 逻辑像素
+neckline_depth = 6.0           # 从起始高度向下的深度，0～16 逻辑像素
+neckline_height = 3.5          # 起始高度相对胸部中心，正值向头部、负值向下摆，-6～8 逻辑像素
+neckline_roundness = 0.55      # 弧形圆润度，0～1；越大越接近 U 形
+neckline_tip_radius = 0.0      # V 型尖端圆角，0～4 逻辑像素；0 为尖角
+neckline_trim_enabled = true  # 单色领边装饰，使用 oracle.custom_colors.collar_trim
+neckline_trim_width = 2.0     # 领边宽度，0～6 逻辑像素；0 不绘制
+neckline_trim_gap = 0.0       # 与实际开口的间隔，0～6 逻辑像素；0 包边，>0 襟线
+
+# 正面排列为眼睛1、眼睛2；编号随头部固定，转头或旋转不交换
+[oracle.custom_appearance.eye_1]
+color = '#211920'
+visible = true
+default_open = false          # 默认闭眼仍可在观察或交互时短暂睁开
+
+[oracle.custom_appearance.eye_2]
+color = '#211920'
+visible = true
+default_open = false
+
+# 1× PNG：每个源像素对应 1 逻辑像素，画布最大 32×32；偏移以头部中心为原点
+[oracle.custom_appearance.forehead]
+enabled = false
+image_path = ''
+image_name = ''
+offset_x = 0.0
+offset_y = -3.0
+
+[oracle.custom_appearance.face]
+enabled = false
+image_path = ''
+image_name = ''
+offset_x = 0.0
+offset_y = 0.0
+
+# 耳机主体及三个配件；左右镜像，X 正值向外、Y 正值向下，尺寸与偏移为逻辑像素
+# kind: ellipse / rectangle / trapezoid / triangle / line / png
+# tone: shell 附件底色 / highlight 附件高光 / split 双面色；PNG 保留原色
+[oracle.custom_appearance.ear_body]
+enabled = true
+kind = 'rectangle'
+width = 2.0
+height = 5.5
+offset_x = 0.0
+offset_y = 0.0
+rotation = 0.0
+tone = 'split'
+image_path = ''
+image_name = ''
+
+[oracle.custom_appearance.ear_part_1]
+enabled = false
+kind = 'line'
+width = 1.0
+height = 8.0
+offset_x = 0.0
+offset_y = 2.0
+rotation = 0.0
+tone = 'shell'
+image_path = ''
+image_name = ''
+
+[oracle.custom_appearance.ear_part_2]
+enabled = false
+kind = 'line'
+width = 1.0
+height = 3.0
+offset_x = 0.0
+offset_y = 6.0
+rotation = 90.0
+tone = 'shell'
+image_path = ''
+image_name = ''
+
+[oracle.custom_appearance.ear_part_3]
+enabled = false
+kind = 'ellipse'
+width = 2.0
+height = 2.0
+offset_x = 0.0
+offset_y = 7.0
+rotation = 0.0
+tone = 'shell'
+image_path = ''
+image_name = ''
+
+# Bell 配色；切换自定义外观不会改写此组
 [oracle.colors]
 skin = '#478ca1'                # 肤色
 eyes = '#211920'                # 眼睛
@@ -78,6 +182,9 @@ head_shell = '#969ca1'          # 头部附件底色
 head_highlight = '#c2c7ca'      # 头部附件高光
 robe_top = '#ff6569'            # 衣袍上部和袖子
 robe_bottom = '#d2373b'         # 衣袍下部
+inner_robe = '#ffb7c5'          # 高领内搭
+collar_trim = '#ff949f'         # V 形领边
+beads = '#9cddd8'               # 念珠主体
 arm = '#8b94a2'                 # 机械臂与底座主体
 arm_highlight = '#dfd6d2'       # 机械臂与底座高光
 joints = '#113246'              # 关节与细支架颜色；不影响底座主体和高光
@@ -86,6 +193,26 @@ pearl = '#d8cdc5'               # 珍珠白色
 pearl_primary = '#024866'       # 珍珠主色
 pearl_secondary = '#ff2c07'     # 珍珠辅色
 pearl_glyph = '#c5dedd'         # 投影颜色：珍珠文字、光环及电弧
+
+# 自定义迭代器的独立配色，初始值与 Bell 相同
+[oracle.custom_colors]
+skin = '#478ca1'
+eyes = '#211920'               # 旧配置迁移来源；实际双眼颜色由 custom_appearance.eye_1 / eye_2 设置
+head_shell = '#969ca1'
+head_highlight = '#c2c7ca'
+robe_top = '#ff6569'
+robe_bottom = '#d2373b'
+inner_robe = '#ffb7c5'
+collar_trim = '#ff949f'
+beads = '#9cddd8'               # 保留数据，当前自定义模板不绘制念珠
+arm = '#8b94a2'
+arm_highlight = '#dfd6d2'
+joints = '#113246'
+third_eye = '#0d5885'           # 保留数据，后续由自定义标记使用
+pearl = '#d8cdc5'
+pearl_primary = '#024866'
+pearl_secondary = '#ff2c07'
+pearl_glyph = '#c5dedd'
 
 [oracle.drag_reactions]
 enabled = true
@@ -96,9 +223,9 @@ eye_open_probability = 0.65     # 鼠标拖动时睁眼的概率
 voice_probability = 0.55        # 鼠标拖动时触发语音概率
 
 [overseer]
-# 最多 4 个固定编号槽位；空列表关闭所有槽位，appearance 为后续外观预留
+# 最多 4 个固定编号槽位；size 为体型 0.5～1；filament_count 为普通触须数量 3～5，朋友？固定两条
 appearance_mode = "random" # random 随机出现；resident 常驻
-slots = [{ id = 1, color = "#ff557f", appearance = "standard" }]
+slots = [{ id = 1, color = "#ff557f", appearance = "standard", size = 0.8, filament_count = 4 }]
 enabled = false                     # 允许在桌面或调试场景自动出现
 check_interval = 120.0              # 空闲且冷却结束后，每隔这些秒检查一次
 appearance_probability = 0.85       # 每次检查的概率
@@ -106,7 +233,7 @@ duration_min = 120.0                # 每次事件持续时间（秒），包含
 duration_max = 480.0
 cooldown_min = 60.0                 # 完成退场后抽取冷却（秒），随后再等一个检查间隔
 cooldown_max = 120.0
-size = 0.8
+size = 0.8                         # 旧配置省略槽位体型时沿用；新增槽位的初始体型
 withdraw_distance = 60.0            # 距离固定根部的逻辑像素，进入此范围缩回
 reemerge_distance = 100.0           # 离开更大范围，并持续安全后才再次探出
 puppet_withdraw_distance = 100.0    # 人偶躯干中心到根部的距离，粗略覆盖整个身体

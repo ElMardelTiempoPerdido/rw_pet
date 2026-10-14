@@ -19,7 +19,7 @@ class OracleAssets:
 
 def prepare_oracle_assets(config):
     atlas = Atlas(extract_atlas(config.game_dir))
-    renderer = OracleRenderer(atlas, config.oracle.colors)
+    renderer = OracleRenderer(atlas, config.oracle.active_colors)
     message = ''
     try:
         renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)

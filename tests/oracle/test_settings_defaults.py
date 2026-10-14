@@ -1,7 +1,7 @@
 """从真实 TOML 到启动配置、全部设置控件和保存文件的默认值链路。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-from dataclasses import replace, asdict, is_dataclass
+from dataclasses import fields, replace, asdict, is_dataclass
 import json
 from pathlib import Path
 import tempfile
@@ -12,6 +12,7 @@ from unittest.mock import patch
 from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QSpinBox
 
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, OracleColors
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 
@@ -79,6 +80,10 @@ class SettingsDefaultsTests(unittest.TestCase):
                     template, expected = template[field], getattr(expected, field)
                 if key in PERCENTAGES:
                     expected *= 100
+                elif key == 'oracle.custom_appearance.head_length':
+                    expected *= 100/11+1
+                elif key == 'oracle.custom_appearance.robe_length':
+                    expected = expected*19.13725+8.41275
                 if isinstance(control, QDoubleSpinBox):
                     expected = round(expected, control.decimals())
                 elif isinstance(control, QSpinBox):
@@ -113,6 +118,36 @@ class SettingsDefaultsTests(unittest.TestCase):
             'audio.enabled': False, 'audio.volume': .31,
             'oracle.hide_cords': True, 'oracle.glow_enabled': True,
             'oracle.outfit': 'maid', 'oracle.arm_scale': .67, 'oracle.coarse_pixels_4x': True,
+            'oracle.body_appearance': 'custom',
+            'oracle.custom_appearance.head_length': 1.23456,
+            'oracle.custom_appearance.robe_length': .87654,
+            'oracle.custom_appearance.sleeve_root_width': 4.56789,
+            'oracle.custom_appearance.sleeve_cuff_width': 12.34567,
+            'oracle.custom_appearance.sleeve_cuff_radius': 1.23456,
+            'oracle.custom_appearance.neck_width': 4.56789,
+            'oracle.custom_appearance.inner_robe_enabled': False,
+            'oracle.custom_appearance.inner_collar_enabled': False,
+            'oracle.custom_appearance.inner_collar_height': 5.12345,
+            'oracle.custom_appearance.inner_collar_top_width': 4.56789,
+            'oracle.custom_appearance.inner_collar_bottom_width': 7.12345,
+            'oracle.custom_appearance.neckline_shape': 'arc',
+            'oracle.custom_appearance.chest_width': 14.23456,
+            'oracle.custom_appearance.chest_height': 5.12345,
+            'oracle.custom_appearance.shoulder_width': 10.23456,
+            'oracle.custom_appearance.neckline_width': 11.23456,
+            'oracle.custom_appearance.neckline_depth': 9.12345,
+            'oracle.custom_appearance.neckline_height': -1.23456,
+            'oracle.custom_appearance.neckline_roundness': .712345,
+            'oracle.custom_appearance.neckline_tip_radius': 1.23456,
+            'oracle.custom_appearance.neckline_trim_enabled': False,
+            'oracle.custom_appearance.neckline_trim_width': 1.23456,
+            'oracle.custom_appearance.neckline_trim_gap': 2.12345,
+            'oracle.custom_appearance.eye_1': {'color': '#f0a123', 'visible': False, 'default_open': True},
+            'oracle.custom_appearance.eye_2': {'color': '#23a1f0', 'visible': True, 'default_open': False},
+            'oracle.custom_appearance.forehead': {'enabled': False, 'image_path': '', 'image_name': '',
+                                                 'offset_x': 1.25, 'offset_y': -2.75},
+            'oracle.custom_appearance.face': {'enabled': False, 'image_path': '', 'image_name': '',
+                                             'offset_x': -.25, 'offset_y': .5},
             'oracle.colors.arm': '#234567', 'oracle.colors.arm_highlight': '#abcdef',
             'oracle.colors.joints': '#102030',
             'oracle.glow_color': '#123456', 'oracle.glow_radius': 9.5, 'oracle.glow_opacity': .63,
@@ -140,6 +175,15 @@ class SettingsDefaultsTests(unittest.TestCase):
             'overseer.relocation_probability': .678,
             'overseer.observation_probability': .456, 'overseer.observation_interval': 9.25,
         }
+        values.update({'oracle.colors.' + field.name: f'#{index + 1:06x}'
+                       for index, field in enumerate(fields(OracleColors))})
+        for index, name in enumerate(('ear_body', 'ear_part_1', 'ear_part_2', 'ear_part_3')):
+            values['oracle.custom_appearance.'+name] = {
+                'enabled': True, 'kind': 'triangle', 'width': 2.12345+index, 'height': 5.6789,
+                'offset_x': -1.23456, 'offset_y': index+1.5, 'rotation': 35.12345,
+                'tone': 'highlight', 'image_path': '', 'image_name': ''}
+        values.update({'oracle.custom_colors.'+name: f'#{index+256:06x}'
+                       for index, name in enumerate(CUSTOM_COLOR_NAMES)})
         for key, value in values.items():
             target = self.data
             *path, field = key.split('.')
@@ -177,6 +221,59 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertFalse(saved['config']['oracle']['coarse_pixels_4x'])
         self.assertEqual(config.oracle.colors.pearl_glyph, self.data['oracle']['colors']['pearl_glyph'])
         self.assertEqual(saved['config']['oracle']['colors']['pearl_glyph'], config.oracle.colors.pearl_glyph)
+        self.assertEqual(config.oracle.body_appearance, 'bell')
+        self.assertEqual(saved['config']['oracle']['body_appearance'], 'bell')
+        for name in ('sleeve_cuff_radius', 'neck_width', 'inner_robe_enabled', 'inner_collar_enabled',
+                     'inner_collar_height', 'inner_collar_top_width', 'inner_collar_bottom_width',
+                     'chest_width', 'chest_height', 'shoulder_width'):
+            self.assertEqual(saved['config']['oracle']['custom_appearance'][name],
+                             self.data['oracle']['custom_appearance'][name])
+
+    def test_hidden_custom_neck_and_cuff_reset_from_current_template(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        self.store.save(config)
+        dialog = self.audit(config)
+        for name, edited, default in (('sleeve_cuff_radius', 0., 1.2), ('neck_width', 7., 4.5),
+                                      ('chest_width', 18., 11.), ('chest_height', 10., 6.),
+                                      ('shoulder_width', 18., 9.)):
+            dialog.controls['oracle.custom_appearance.'+name].setValue(edited)
+            self.data['oracle']['custom_appearance'][name] = default
+        write_toml(self.source, self.data)
+        dialog.restore_defaults(1)
+        self.assertEqual(dialog.candidate().oracle.custom_appearance,
+                         replace(config.oracle.custom_appearance, sleeve_cuff_radius=1.2, neck_width=4.5,
+                                 chest_width=11., chest_height=6., shoulder_width=9.))
+        self.assertEqual(self.store.load().oracle.custom_appearance, config.oracle.custom_appearance)
+
+    def test_missing_shoulder_width_preserves_old_root_spacing_before_defaults_merge(self):
+        from rw_creature_pet.oracle.config import CustomAppearance
+        write_toml(self.source, self.data)
+        self.store.path.parent.mkdir()
+        for shape, expected in (({'chest_width': 14.}, 28/3),
+                                ({'chest_width': 14., 'shoulder_width': 10.5}, 10.5),
+                                ({}, self.data['oracle']['custom_appearance']['shoulder_width'])):
+            with self.subTest(shape=shape):
+                original = json.dumps({'version': 1, 'config': {
+                    'game_dir': str(self.game), 'oracle': {'body_appearance': 'custom',
+                                                         'custom_appearance': shape}}})
+                self.store.path.write_text(original, encoding='utf-8')
+                self.assertEqual(CustomAppearance.from_mapping(shape).shoulder_width, expected)
+                loaded = self.store.load()
+                self.assertEqual(loaded.oracle.custom_appearance.shoulder_width, expected)
+                self.assertEqual(self.store.path.read_text(encoding='utf-8'), original)
+                config, first, message = self.store.startup()
+                self.assertFalse(first)
+                self.assertEqual(message, '')
+                self.assertEqual(config, loaded)
+                self.assertEqual(self.store.path.with_suffix('.json.bak').read_text(encoding='utf-8'), original)
+                # 不编辑输入框时保存仍保留完整精度，不能把 9.333… 反复舍入成 9.3
+                self.assertEqual(self.audit(config).candidate(), config)
+                saved = json.loads(self.store.path.read_text(encoding='utf-8'))
+                self.assertEqual(saved['config']['oracle']['custom_appearance']['shoulder_width'], expected)
+                with patch.object(self.store, '_write') as write:
+                    self.assertEqual(self.store.startup()[0], config)
+                    write.assert_not_called()
 
     def test_palette_reset_uses_template_and_preserves_other_tabs_and_drafts(self):
         write_toml(self.source, self.data)
@@ -195,8 +292,9 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertEqual(candidate.audio.volume, .19)
         self.assertFalse(self.store.path.exists())
         dialog.restore_defaults(1)
-        arm_colors = {name: self.data['oracle']['colors'][name] for name in ('arm', 'arm_highlight', 'joints')}
-        self.assertEqual(dialog.candidate().oracle.colors, replace(colors, pearl_glyph='#654321', **arm_colors))
+        self.assertEqual(dialog.candidate().oracle.colors, OracleColors(**self.data['oracle']['colors']))
+        self.assertTrue(all(editor.value() == '#654321'
+                            for editor in dialog.color_editors['oracle.colors.pearl_glyph']))
         self.assertEqual(dialog.candidate().audio.volume, .19)
         self.assertFalse(self.store.path.exists())
 
@@ -216,7 +314,7 @@ class SettingsDefaultsTests(unittest.TestCase):
             {'desktop.scale': 1.5, 'audio.enabled': False, 'audio.volume': .33333,
              'oracle.coarse_pixels_4x': True,
              'oracle.glow_enabled': True, 'oracle.glow_color': '#123456', 'oracle.glow_opacity': .654321},
-            {'oracle.outfit': 'maid', 'oracle.arm_scale': .623456},
+            {'oracle.outfit': 'maid', 'oracle.arm_scale': .623456, 'oracle.body_appearance': 'custom'},
             {'oracle.pearl_matrix_count': 13, 'oracle.pearl_playback_probability': .123456,
              'oracle.pearl_bubble_color': '#654321'},
             {'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15, 'oracle.projection_opacity': .334455},
@@ -265,7 +363,7 @@ class SettingsDefaultsTests(unittest.TestCase):
     def test_reset_all_is_a_draft_and_preserves_hidden_settings_then_saves_exact_defaults(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
-        config = replace(config, oracle=replace(config.oracle, colors=replace(
+        config = replace(config, oracle=replace(config.oracle, base_speed=3.1, colors=replace(
             config.oracle.colors, skin='#123456', pearl_glyph='#fedcba',
             arm='#234567', arm_highlight='#abcdef', joints='#102030')))
         self.store.save(config)
@@ -282,8 +380,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         template_bytes = self.source.read_bytes()
         from rw_creature_pet.settings_store import load_defaults
         defaults = load_defaults()
-        expected = replace(defaults, oracle=replace(defaults.oracle, colors=replace(
-            defaults.oracle.colors, skin='#123456')), ui=config.ui)
+        expected = replace(defaults, oracle=replace(defaults.oracle, base_speed=3.1), ui=config.ui)
         dialog.reset_all_button.click()
         self.assertEqual(dialog.candidate(), expected)
         self.assertEqual(self.store.path.read_bytes(), saved)

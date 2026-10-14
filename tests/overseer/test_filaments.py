@@ -13,6 +13,33 @@ def arc_length(strand):
 
 
 class FilamentTests(unittest.TestCase):
+    def test_configurable_counts_keep_distinct_tips_and_render_on_each_edge(self):
+        from PySide6.QtGui import QImage, QPainter
+        from rw_creature_pet.overseer.graphics.render import OverseerRenderer
+        for count in (3, 4, 5):
+            for edge in Edge:
+                with self.subTest(count=count, edge=edge):
+                    model = Overseer(Bounds(0, 0, 256, 256), OverseerConfig(filament_count=count))
+                    model.show(anchor=Anchor(edge, .5))
+                    for _ in range(140):
+                        model.step(model.root+model.local_vector(Vec2(100, 180)))
+                    self.assertEqual(len(model.filaments), count)
+                    tips = model._filament_tips()
+                    for i, tip in enumerate(tips):
+                        self.assertTrue(all((tip-other).length() > .1 for other in tips[:i]))
+                    for strand in model.filaments:
+                        self.assertLessEqual(arc_length(strand), model.filament_length+1e-6)
+                        self.assertTrue(all(math.isfinite(p.position.x) and math.isfinite(p.position.y)
+                                            for p in strand))
+                    canvas = QImage(256, 256, QImage.Format.Format_ARGB32_Premultiplied)
+                    canvas.fill(0)
+                    painter = QPainter(canvas)
+                    try:
+                        OverseerRenderer().draw(painter, model)
+                    finally:
+                        painter.end()
+                    self.assertTrue(any(bytes(canvas.constBits())))
+
     def test_full_extension_keeps_length_across_sizes_and_gaze_directions(self):
         for size in (.5, .6, 1.):
             for look in (Vec2(0, 24), Vec2(0, 180), Vec2(400, 60), Vec2(0, 500)):

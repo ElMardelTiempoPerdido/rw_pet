@@ -74,7 +74,7 @@ class FriendTests(unittest.TestCase):
                         self.assertTrue(bounds.contains(a))
                         self.assertTrue(bounds.contains(b))
 
-    def test_disc_is_pale_yellow_with_two_filaments_and_recolor_is_body_only(self):
+    def test_recolor_preserves_pale_disc_and_pose_but_reaches_flower_and_filaments(self):
         self.model.show(anchor=Anchor(Edge.BOTTOM, .5))
         for _ in range(100):
             self.model.step(Vec2(170, 170))
@@ -88,11 +88,32 @@ class FriendTests(unittest.TestCase):
         self.assertEqual(image.pixelColor(round(head.x), round(head.y)), QColor('#E4E1CF'))
         before = self.model.root, self.model.head.position, self.model.extended
         self.model.set_color('#aa3322')
-        changed = self.render()
+        from rw_creature_pet.overseer.graphics.friend import head as friend_head
+        from rw_creature_pet.overseer.graphics import render
+        with patch.object(friend_head, 'head_image', wraps=friend_head.head_image) as flower, \
+                patch.object(render, 'friend_filament_colors', wraps=render.friend_filament_colors) as colors:
+            changed = self.render()
+        self.assertEqual(flower.call_args.args[-1], '#aa3322')
+        colors.assert_called_once_with('#aa3322')
         self.assertNotEqual(image, changed)
         self.assertEqual(changed.pixelColor(round(head.x), round(head.y)), QColor('#E4E1CF'))
         self.assertEqual(before, (self.model.root, self.model.head.position, self.model.extended))
         self.assertEqual(changed, self.render())
+
+    def test_filament_hue_preserves_light_dark_pair_and_achromatic_defaults(self):
+        from rw_creature_pet.overseer.graphics.render import friend_filament_colors
+        from rw_creature_pet.overseer.graphics.friend.filaments import COLORS
+        defaults = tuple(QColor(c) for c in COLORS)
+        for selected in ('#f06080', '#408060', '#437ad0', '#806020'):
+            short, long = colors = friend_filament_colors(selected)
+            self.assertGreater(short.lightnessF(), long.lightnessF())
+            for original, tinted in zip(defaults, colors):
+                self.assertAlmostEqual(tinted.hslHueF(), QColor(selected).hslHueF(), places=4)
+                self.assertAlmostEqual(tinted.hslSaturationF(), original.hslSaturationF(), places=4)
+                self.assertAlmostEqual(tinted.lightnessF(), original.lightnessF(), places=4)
+            self.assertIs(colors, friend_filament_colors(selected))
+        for selected in ('#000000', '#888888', '#ffffff'):
+            self.assertEqual(friend_filament_colors(selected), defaults)
 
     def test_flower_and_observation_light_share_head_gaze_without_hologram(self):
         self.model.show(anchor=Anchor(Edge.BOTTOM, .5))

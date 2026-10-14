@@ -1,6 +1,6 @@
 """不可变应用配置；TOML 默认值与用户设置共用验证。"""
 from .shared.messages import Message
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 import tomllib
 
@@ -48,7 +48,9 @@ class AppConfig:
             return SettingsStore(path).load()
         with path.open("rb") as stream:
             data = tomllib.load(stream)
-        return cls.from_mapping(data)
+        config = cls.from_mapping(data)
+        shape = config.oracle.custom_appearance.resolve_image_paths(path.resolve().parent)
+        return replace(config, oracle=replace(config.oracle, custom_appearance=shape))
 
     @classmethod
     def from_mapping(cls, data) -> "AppConfig":

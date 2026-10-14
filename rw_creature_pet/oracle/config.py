@@ -1,13 +1,39 @@
 """Oracle 调试配置：以完好 Moon / DM 为基础的 Bell 外观。"""
 from ..shared.messages import Message
 from .space import ALL_EDGES, EDGE_FRACTION_MIN, EDGE_FRACTION_MAX, SpaceAssessment
-from dataclasses import dataclass, fields
+from .face_config import FaceDecal
+from .ear_config import EAR_PART_FIELDS, EarPart
+from .eye_config import EYE_FIELDS, EyeAppearance
+from dataclasses import dataclass, fields, replace
 from math import isfinite
+from pathlib import Path
 import re
 
 
 DISPLAY_SCALES = (1., 1.5, 2., 3., 4.)
 EDGE_NAMES = ALL_EDGES
+
+# 显示长度 = 存储比例 × 可变段长度 + 固定段长度；与头部椭圆、衣袍中央理想轮廓一致
+# 衣袍中央顶端为 5×0.65，下摆为 -18×1.35，前 45% 的领口区域不伸缩
+_ROBE_LENGTH_ANCHOR = (5-23*.45)*(1+.35*(2*.45-1))
+CUSTOM_LENGTH_UNITS = {
+    'head_length': (100/11+1., 0.),
+    'robe_length': (_ROBE_LENGTH_ANCHOR+18*1.35, 5*.65-_ROBE_LENGTH_ANCHOR),
+}
+
+# 调试窗口与桌面设置共用同一份配色名称
+COLOR_LABELS = {
+    'skin': '皮肤 / 头 / 手脚', 'eyes': '眼睛', 'head_shell': '头部附件底色',
+    'head_highlight': '头部附件高光', 'robe_top': '衣袍上部 / 袖子',
+    'robe_bottom': '衣袍下部', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
+    'joints': '关节颜色', 'third_eye': '额头标记',
+    'inner_robe': '高领内搭', 'collar_trim': '领边装饰', 'beads': '念珠主体',
+    'pearl': '珍珠共有色', 'pearl_primary': '珍珠主色', 'pearl_secondary': '珍珠辅色',
+    'pearl_glyph': '投影（珍珠/光环）',
+}
+
+# 自定义模板的双眼单独编辑，标记和念珠暂不使用公共调色项
+CUSTOM_COLOR_NAMES = tuple(name for name in COLOR_LABELS if name not in ('third_eye', 'beads', 'eyes'))
 
 
 def validate_edges(edges, base_side):
@@ -75,6 +101,103 @@ class DragReactionConfig:
                 raise ValueError(Message('oracle.drag_reactions.{value0} 必须在 0～1 之间', value0=name))
 
 
+def migrate_shoulder_width(data):
+    """为已有胸肩配置保留原先的袖根间距，新配置使用独立肩宽默认值"""
+    width = data.get('chest_width')
+    if ('shoulder_width' not in data and not isinstance(width, bool)
+            and isinstance(width, (int, float)) and 8 <= width <= 18):
+        return {**data, 'shoulder_width': width*2/3}
+    return data
+
+
+@dataclass(frozen=True, slots=True)
+class CustomAppearance:
+    """独立保存的尺寸和面部贴图；长度为比例，其余尺寸为逻辑像素，宽度为完整宽度"""
+    head_length: float = 1.
+    sleeve_root_width: float = 6.
+    sleeve_cuff_width: float = 10.
+    robe_length: float = 1.
+    sleeve_cuff_radius: float = 2.
+    neck_width: float = 3.
+    chest_width: float = 12.
+    chest_height: float = 8.
+    shoulder_width: float = 8.
+    inner_robe_enabled: bool = True
+    inner_collar_enabled: bool = True
+    inner_collar_height: float = 3.
+    inner_collar_top_width: float = 3.
+    inner_collar_bottom_width: float = 4.
+    neckline_shape: str = 'v'
+    neckline_width: float = 7.6
+    neckline_depth: float = 6.
+    neckline_height: float = 3.5
+    neckline_roundness: float = .55
+    neckline_tip_radius: float = 0.
+    neckline_trim_enabled: bool = True
+    neckline_trim_width: float = 2.
+    neckline_trim_gap: float = 0.
+    eye_1: EyeAppearance = EyeAppearance()
+    eye_2: EyeAppearance = EyeAppearance()
+    forehead: FaceDecal = FaceDecal(offset_y=-3.)
+    face: FaceDecal = FaceDecal()
+    ear_body: EarPart = EarPart(enabled=True, tone='split')
+    ear_part_1: EarPart = EarPart(kind='line', width=1., height=8., offset_y=2.)
+    ear_part_2: EarPart = EarPart(kind='line', width=1., height=3., rotation=90., offset_y=6.)
+    ear_part_3: EarPart = EarPart(kind='ellipse', width=2., height=2., offset_y=7.)
+
+    def __post_init__(self):
+        for name in ('inner_robe_enabled', 'inner_collar_enabled', 'neckline_trim_enabled'):
+            if type(getattr(self, name)) is not bool:
+                raise ValueError(Message('自定义外观 {name} 必须为布尔值', name=name))
+        if not isinstance(self.forehead, FaceDecal) or not isinstance(self.face, FaceDecal):
+            raise ValueError('面部贴图必须为贴图配置')
+        if any(not isinstance(getattr(self, name), EarPart) for name in EAR_PART_FIELDS):
+            raise ValueError('耳机部件必须为部件配置')
+        if any(not isinstance(getattr(self, name), EyeAppearance) for name in EYE_FIELDS):
+            raise ValueError('眼睛必须为眼睛外观配置')
+        if self.neckline_shape not in ('arc', 'v'):
+            raise ValueError('领口形状必须为 arc / v')
+        for name, low, high in (('head_length', .7, 1.5), ('sleeve_root_width', 2., 12.),
+                                ('sleeve_cuff_width', 2., 16.), ('robe_length', .7, 1.5),
+                                ('sleeve_cuff_radius', 0., 4.), ('neck_width', 1., 8.),
+                                ('chest_width', 8., 18.), ('chest_height', 4., 10.),
+                                ('shoulder_width', 4., 18.),
+                                ('inner_collar_height', 0., 8.), ('inner_collar_top_width', 1., 12.),
+                                ('inner_collar_bottom_width', 1., 12.),
+                                ('neckline_width', 2., 18.), ('neckline_depth', 0., 16.),
+                                ('neckline_height', -6., 8.), ('neckline_roundness', 0., 1.),
+                                ('neckline_tip_radius', 0., 4.), ('neckline_trim_width', 0., 6.),
+                                ('neckline_trim_gap', 0., 6.)):
+            value = getattr(self, name)
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not isfinite(value) or not low <= value <= high):
+                raise ValueError(Message('自定义外观 {name} 必须在 {low}～{high} 之间',
+                                         name=name, low=low, high=high))
+
+    @classmethod
+    def from_mapping(cls, data, *, eye_color='#050000'):
+        data = dict(migrate_shoulder_width(data))
+        for name in EYE_FIELDS:
+            data[name] = EyeAppearance(**{'color': eye_color, **data.get(name, {})})
+        for name, y in (('forehead', -3.), ('face', 0.)):
+            data[name] = FaceDecal(**{'offset_y': y, **data.get(name, {})})
+        from dataclasses import asdict
+        defaults = cls()
+        for name in EAR_PART_FIELDS:
+            data[name] = EarPart(**{**asdict(getattr(defaults, name)), **data.get(name, {})})
+        return cls(**data)
+
+    def resolve_image_paths(self, base):
+        decals = {}
+        for name in ('forehead', 'face', *EAR_PART_FIELDS):
+            decal = getattr(self, name)
+            if decal.image_path:
+                path = Path(decal.image_path).expanduser()
+                path = (path if path.is_absolute() else base/path).resolve()
+                decals[name] = replace(decal, image_path=str(path))
+        return replace(self, **decals) if decals else self
+
+
 @dataclass(frozen=True, slots=True)
 class OracleConfig:
     world_width: float = 960.0
@@ -117,6 +240,9 @@ class OracleConfig:
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
     coarse_pixels_4x: bool = False  # 4× 改用 1× 像素画布；默认使用 2×，3× 始终使用 1×
     outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
+    body_appearance: str = 'bell'  # Bell 与自定义模板使用独立配色和绘制入口
+    custom_appearance: CustomAppearance = CustomAppearance()
+    custom_colors: OracleColors = OracleColors()
     hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
     glow_color: str = '#ffffff'
@@ -130,6 +256,12 @@ class OracleConfig:
             raise ValueError('oracle.coarse_pixels_4x 必须为布尔值')
         if self.outfit not in ('normal', 'maid'):
             raise ValueError('oracle.outfit 必须为 normal / maid')
+        if self.body_appearance not in ('bell', 'custom'):
+            raise ValueError('主体外观必须为 bell / custom')
+        if not isinstance(self.custom_appearance, CustomAppearance):
+            raise ValueError('自定义外观必须为尺寸配置')
+        if not isinstance(self.colors, OracleColors) or not isinstance(self.custom_colors, OracleColors):
+            raise ValueError('外观配色必须为颜色配置')
         if type(self.hide_cords) is not bool:
             raise ValueError('oracle.hide_cords 必须为布尔值')
         if type(self.glow_enabled) is not bool:
@@ -215,11 +347,23 @@ class OracleConfig:
         if self.pearl_follow_width < 160 or self.pearl_follow_height < 160:
             raise ValueError('珍珠跟随矩形的宽和高至少为 160 逻辑单位')
 
+    @property
+    def active_custom_appearance(self):
+        return self.custom_appearance if self.body_appearance == 'custom' else None
+
+    @property
+    def active_colors(self):
+        return self.custom_colors if self.body_appearance == 'custom' else self.colors
+
     @classmethod
     def from_mapping(cls, data):
         if not isinstance(data, dict):
             raise ValueError('oracle 必须为配置表')
         data = dict(data)
+        # 旧 TOML 仅有共用配色时，将它作为两套配色的初始值
+        data['custom_colors'] = OracleColors(**data.get('custom_colors', data.get('colors', {})))
         data['colors'] = OracleColors(**data.get('colors', {}))
+        data['custom_appearance'] = CustomAppearance.from_mapping(data.get('custom_appearance', {}),
+                                                                 eye_color=data['custom_colors'].eyes)
         data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))
         return cls(**data)

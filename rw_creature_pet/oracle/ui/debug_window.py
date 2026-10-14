@@ -18,23 +18,14 @@ from ...overseer.events import OverseerEvents
 from ...overseer.group import OverseerGroup, OverseerEntry
 from .overseer import overseer_bounds, puppet_position, spawn_context
 from ..scene import OracleScene, RailSide
-from ..config import DISPLAY_SCALES, OracleColors
+from ..config import COLOR_LABELS, CUSTOM_COLOR_NAMES, DISPLAY_SCALES, OracleColors
+from ..eye_config import EYE_FIELDS, EyeAppearance
+from .eye_editor import EYE_LABELS
 from ..pearls.glyphs import load_pearl_glyphs
 from ..graphics.render import OracleRenderer, point
 from ..interaction.input import PuppetHitMap
 from ...shared.timing import FixedStepper
 from ..audio.assets import make_bell_voice_player
-
-
-COLOR_LABELS = {
-    'skin': '皮肤 / 头 / 手脚', 'eyes': '眼睛', 'head_shell': '头部附件底色',
-    'head_highlight': '头部附件高光', 'robe_top': '衣袍上部 / 袖子',
-    'robe_bottom': '衣袍下部', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
-    'joints': '关节颜色', 'third_eye': '额头标记',
-    'inner_robe': '高领内搭', 'collar_trim': 'V 形领边', 'beads': '念珠主体',
-    'pearl': '珍珠共有色', 'pearl_primary': '珍珠主色', 'pearl_secondary': '珍珠辅色',
-    'pearl_glyph': '投影（珍珠/光环）',
-}
 
 
 class OracleCanvas(QWidget):
@@ -421,7 +412,7 @@ class OracleDebugWindow(QMainWindow):
         if load_atlas:
             try:
                 atlas = Atlas(extract_atlas(config.game_dir))
-                self.renderer = OracleRenderer(atlas, config.oracle.colors)
+                self.renderer = OracleRenderer(atlas, config.oracle.active_colors)
                 self.asset_message = '已加载本机原版主图集'
                 try:
                     self.renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)
@@ -430,9 +421,9 @@ class OracleDebugWindow(QMainWindow):
                     self.asset_message += f' / 珍珠字形不可用：{exc}'
             except (AtlasError, OSError, ValueError) as exc:
                 self.asset_message = f'图集不可用，使用几何预览：{exc}'
-                self.renderer = OracleRenderer(colors=config.oracle.colors)
+                self.renderer = OracleRenderer(colors=config.oracle.active_colors)
         else:
-            self.renderer = OracleRenderer(colors=config.oracle.colors)
+            self.renderer = OracleRenderer(colors=config.oracle.active_colors)
         if load_atlas:
             from ..pearls.playback_assets import prepare_pearl_playback
             self.asset_message = ' / '.join(filter(None, (self.asset_message,
@@ -662,18 +653,28 @@ class OracleDebugWindow(QMainWindow):
         palette_layout = QVBoxLayout(panel)
         grid = QGridLayout()
         self.color_buttons = {}
-        for row, field in enumerate(fields(OracleColors)):
+        palette = [field for field in fields(OracleColors)
+                   if config.oracle.body_appearance == 'bell' or field.name in CUSTOM_COLOR_NAMES]
+        for row, field in enumerate(palette):
             grid.addWidget(QLabel(COLOR_LABELS[field.name]), row, 0)
             button = QPushButton()
             button.setFixedWidth(92)
             button.clicked.connect(lambda checked=False, key=field.name: self.choose_color(key))
             grid.addWidget(button, row, 1)
             self.color_buttons[field.name] = button
+        if config.oracle.body_appearance == 'custom':
+            for row, name in enumerate(EYE_FIELDS, len(palette)):
+                grid.addWidget(QLabel(EYE_LABELS[name]), row, 0)
+                button = QPushButton()
+                button.setFixedWidth(92)
+                button.clicked.connect(lambda checked=False, key=name: self.choose_color(key))
+                grid.addWidget(button, row, 1)
+                self.color_buttons[name] = button
         palette_layout.addLayout(grid)
         self.reload_button = QPushButton('重新读取配置颜色')
         self.reload_button.clicked.connect(self.reload_colors)
         self.default_button = QPushButton('恢复默认配色')
-        self.default_button.clicked.connect(lambda: self.set_colors(OracleColors()))
+        self.default_button.clicked.connect(self.reset_colors)
         palette_layout.addWidget(self.reload_button)
         palette_layout.addWidget(self.default_button)
         # note = QLabel('色块修改仅影响当前预览')
@@ -703,26 +704,47 @@ class OracleDebugWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.on_timer)
         self.timer.start(16)
-        self.set_colors(config.oracle.colors)
+        self.set_colors(config.oracle.active_colors)
         self.refresh()
 
     def set_colors(self, colors):
         self.renderer.colors = colors
         for name, button in self.color_buttons.items():
-            value = getattr(colors, name)
+            value = (getattr(self.scene.config.custom_appearance, name).color if name in EYE_FIELDS
+                     else getattr(colors, name))
             button.setText(value)
             foreground = '#111111' if QColor(value).lightnessF() > .53 else '#ffffff'
             button.setStyleSheet(f'background-color: {value}; color: {foreground}; padding: 5px;')
         self.canvas.update()
 
     def choose_color(self, name):
-        color = QColorDialog.getColor(QColor(getattr(self.renderer.colors, name)), self, COLOR_LABELS[name])
+        eye = getattr(self.scene.config.custom_appearance, name) if name in EYE_FIELDS else None
+        value = eye.color if eye is not None else getattr(self.renderer.colors, name)
+        label = EYE_LABELS[name] if eye is not None else COLOR_LABELS[name]
+        color = QColorDialog.getColor(QColor(value), self, label)
         if color.isValid():
-            self.set_colors(replace(self.renderer.colors, **{name: color.name()}))
+            if eye is not None:
+                self.set_eye_colors({name: color.name()})
+            else:
+                self.set_colors(replace(self.renderer.colors, **{name: color.name()}))
+
+    def set_eye_colors(self, colors):
+        shape = self.scene.config.custom_appearance
+        shape = replace(shape, **{name: replace(getattr(shape, name), color=color) for name, color in colors.items()})
+        self.scene.config = replace(self.scene.config, custom_appearance=shape)
+        self.set_colors(self.renderer.colors)
+
+    def reset_colors(self):
+        if self.scene.config.body_appearance == 'custom':
+            self.set_eye_colors({name: EyeAppearance().color for name in EYE_FIELDS})
+        self.set_colors(OracleColors())
 
     def reload_colors(self):
         try:
-            colors = AppConfig.load(self.config_path).oracle.colors if self.config_path else self.config.oracle.colors
+            oracle = AppConfig.load(self.config_path).oracle if self.config_path else self.config.oracle
+            colors = replace(oracle, body_appearance=self.scene.config.body_appearance).active_colors
+            if self.scene.config.body_appearance == 'custom':
+                self.set_eye_colors({name: getattr(oracle.custom_appearance, name).color for name in EYE_FIELDS})
             self.set_colors(colors)
             self.assets.setText(self.asset_message + ' / 已重新读取颜色')
         except (OSError, ValueError, TypeError) as exc:

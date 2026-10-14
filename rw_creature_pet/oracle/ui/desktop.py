@@ -6,6 +6,7 @@ from time import perf_counter
 from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QActionGroup, QCursor, QIcon, QPainter, QScreen
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
+from shiboken6 import isValid
 
 from ...shared.atlas import Atlas, AtlasError, extract_atlas
 from ...shared.desktop import configure_desktop_overlay
@@ -197,7 +198,7 @@ class OracleDesktopWindow(QWidget):
         self.asset_message = assets.message if assets is not None else ''
         if renderer is None:
             atlas = Atlas(extract_atlas(config.game_dir))
-            renderer = OracleRenderer(atlas, config.oracle.colors)
+            renderer = OracleRenderer(atlas, config.oracle.active_colors)
             try:
                 renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)
             except (AtlasError, OSError, ValueError) as exc:
@@ -307,8 +308,9 @@ class OracleDesktopWindow(QWidget):
         self.tray.setToolTip(tr('当前缩放 {scale:g}×', scale=actual))
         if self.action_toolbar is not None:
             self.action_toolbar.retranslate()
-            if self.screen is not None and self._screen_valid:
-                self.action_toolbar.fit_workarea(self.screen.availableGeometry())
+            screen = self.ensure_screen()
+            if screen is not None and self._screen_valid:
+                self.action_toolbar.fit_workarea(screen.availableGeometry())
 
     def change_language(self, language):
         if language == self.config.ui.language:
@@ -332,20 +334,34 @@ class OracleDesktopWindow(QWidget):
         self.config, self.config_path = config, store.path
 
     def disconnect_screen(self):
-        for signal in self._screen_connections:
+        for signal, slot in self._screen_connections:
             try:
-                signal.disconnect(self.schedule_rebuild)
+                signal.disconnect(slot)
             except (RuntimeError, TypeError):
                 pass
         self._screen_connections.clear()
+
+    def ensure_screen(self):
+        """QScreen 的 Qt 生命周期独立于 Python 引用，使用前重新获取失效对象"""
+        if self.screen is None or not isValid(self.screen):
+            self.select_screen()
+        return self.screen if self.screen is not None and isValid(self.screen) else None
+
+    def screen_destroyed(self, *args):
+        self.screen = None
+        self._screen_connections.clear()
+        self._screen_valid = False
+        # 等 Qt 完成设备列表更新后再绑定，不在 destroyed 回调内读取旧对象
+        if not self._closing:
+            QTimer.singleShot(0, self, self.select_screen)
 
     def select_screen(self, *args, excluded=None):
         if self._closing:
             return
         app = QApplication.instance()
-        screens = [s for s in app.screens() if s is not excluded]
+        screens = [s for s in app.screens() if s is not excluded and isValid(s)]
         screen = preferred_screen(screens, app.primaryScreen(), self.config.desktop.screen)
-        if screen is not self.screen or self.motion is None:
+        if screen is not self.screen or self.motion is None or not self._screen_valid:
             self.bind_screen(screen)
 
     def screen_removed(self, screen):
@@ -363,7 +379,9 @@ class OracleDesktopWindow(QWidget):
                          'logicalDotsPerInchChanged', 'physicalDotsPerInchChanged'):
                 signal = getattr(screen, name)
                 signal.connect(self.schedule_rebuild)
-                self._screen_connections.append(signal)
+                self._screen_connections.append((signal, self.schedule_rebuild))
+            screen.destroyed.connect(self.screen_destroyed)
+            self._screen_connections.append((screen.destroyed, self.screen_destroyed))
             handle = self.windowHandle()
             if handle is not None and isinstance(screen, QScreen):
                 handle.setScreen(screen)
@@ -515,6 +533,8 @@ class OracleDesktopWindow(QWidget):
             audio=AudioConfig(self.voice_player.enabled, self.voice_player.volume))
 
     def open_settings(self):
+        screen = self.ensure_screen()
+        workarea = screen.availableGeometry() if screen is not None else None
         if self.settings_dialog is None:
             from ..assets import OracleAssets
             from .settings import OracleSettingsDialog
@@ -526,8 +546,8 @@ class OracleDesktopWindow(QWidget):
             dialog = OracleSettingsDialog(config, self.config_store, assets=assets, commit=self.apply_settings)
             self.settings_dialog = dialog
             dialog.finished.connect(self.settings_closed)
-            if self.screen is not None:
-                dialog.fit_workarea(self.screen.availableGeometry())
+            if workarea is not None and not workarea.isEmpty():
+                dialog.fit_workarea(workarea)
         self.settings_dialog.showNormal()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
@@ -565,7 +585,7 @@ class OracleDesktopWindow(QWidget):
             return
         motion = None
         screen_changed = config.desktop.screen != current.desktop.screen
-        target_screen = self.screen
+        target_screen = self.ensure_screen()
         viewport = None
         if screen_changed:
             app = QApplication.instance()
@@ -580,7 +600,8 @@ class OracleDesktopWindow(QWidget):
             if not viewport.assessment.valid:
                 raise ValueError('场景空间不足，请扩大活动带、缩小机械臂或降低显示倍率')
         visual = {name: getattr(config.oracle, name)
-                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit', 'colors', 'coarse_pixels_4x')}
+                  for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit',
+                               'body_appearance', 'custom_appearance', 'colors', 'custom_colors', 'coarse_pixels_4x')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
         if viewport is not None and (screen_changed or config.oracle != previous_with_visual
@@ -593,7 +614,7 @@ class OracleDesktopWindow(QWidget):
         self.drag_input.suspend()
         self.config, self.config_path = config, self.config_store.path
         self.renderer, self.asset_message = assets.renderer, assets.message
-        self.renderer.colors = config.oracle.colors
+        self.renderer.colors = config.oracle.active_colors
         self.voice_player.clips = dict(assets.voice_paths)
         self.voice_player.asset_error = self.voice_player.error = assets.voice_error
         self.voice_player.configure(enabled=config.audio.enabled, volume=config.audio.volume)
@@ -610,6 +631,7 @@ class OracleDesktopWindow(QWidget):
                 self.overseers.group.cancel()
         if self.motion is not None:
             self.motion.scene.config = replace(self.motion.scene.config, **visual)
+            self.motion.scene.appearance.sync_shape(self.motion.scene)
             self.motion.scene.appearance.sync_cords(self.motion.scene)
             self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
             self.motion.scene.projection.available = bool(self.renderer.projection_images)
@@ -680,8 +702,9 @@ class OracleDesktopWindow(QWidget):
                 self.action_toolbar.closed.connect(lambda: self.toolbar_action.setChecked(False))
             self.action_toolbar.show()
             self.sync_toolbar()
-            if self.screen is not None and self._screen_valid:
-                self.action_toolbar.fit_workarea(self.screen.availableGeometry(), initial=initial)
+            screen = self.ensure_screen()
+            if screen is not None and self._screen_valid:
+                self.action_toolbar.fit_workarea(screen.availableGeometry(), initial=initial)
             self.action_toolbar.raise_()
         elif self.action_toolbar is not None:
             self.action_toolbar.hide()

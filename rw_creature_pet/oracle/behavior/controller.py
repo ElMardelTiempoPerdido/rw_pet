@@ -252,9 +252,11 @@ class OracleBehavior:
             return Activity.ROAM if self.movement_enabled else Activity.IDLE
         return Activity.NOTICE
 
-    def matrix_clear(self, scene, point):
-        """只筛选自主目的地；矩阵当前中心和跟随后的悬浮点都要留出间距。"""
-        matrix, radius = scene.pearl_matrix, scene.config.pearl_matrix_avoid_radius
+    def matrix_clear(self, scene, point, *, radius=None):
+        """筛选目的地；交互可传入独立间距，常规自主移动使用配置值"""
+        matrix = scene.pearl_matrix
+        if radius is None:
+            radius = scene.config.pearl_matrix_avoid_radius
         if matrix is None or radius == 0:
             return True
         return ((point-matrix.anchor.position).length() >= radius
@@ -340,6 +342,7 @@ class OracleBehavior:
 
     def start_drift(self, scene):
         """先减速并逐渐失重；通常同边漂浮，偶尔经共用角移到邻边。"""
+        scene.mouse_reaction.avoidance.cancel(scene, immediate=True)
         scene._move_to(scene.body.chunks[0].position)
         scene.look_target = None
         scene.eyes.end_observation()
@@ -482,6 +485,8 @@ class OracleBehavior:
                 self.end_drift(scene)
                 self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
             return
+        if scene.mouse_reaction.avoidance.moving:
+            return  # 躲避本段完成前不接续漫游、跨边或自动召珠，总漫游计时继续
         self.continue_drift(scene)
         # 旋转期间质点仍有小幅运动，不能用完全静止作为下一段的前提。
         route_done = scene.navigator is None or scene.navigator.done
@@ -642,7 +647,8 @@ class OracleBehavior:
         self.drift_cooldown = max(0, self.drift_cooldown-1)
         if self.drift_active:
             self.drift_ticks += 1
-        if self.state == Activity.IDLE and scene.mouse_reaction.avoidance.busy:
+        avoidance = scene.mouse_reaction.avoidance
+        if self.state == Activity.IDLE and avoidance.busy and (avoidance.moving or not scene.pose.settled):
             self.state_ticks = 0  # 让当前短暂躲避收敛，再选择下一次自主行动
             return
         if not self.active:
@@ -653,6 +659,13 @@ class OracleBehavior:
                 self.state_ticks = 0  # 停留时间从身体真正停稳、姿态收敛后开始。
                 return
             if not scene.observation_pearls_settled or self.state_ticks < self.duration:
+                return
+            if avoidance.busy:
+                # 稳定侧倾可以休息或召珠阅读，不被迫永久冻结整个行为循环
+                if self.random.random() < .35:
+                    self.notice(scene, mode='recall')
+                else:
+                    self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
                 return
             # 矩阵迁移或手动拖动可能留下重合；下次常规决策时尝试同边让开。
             # 无可达空位则继续停留，不逐帧重抽，也不改变低概率跨边规则。

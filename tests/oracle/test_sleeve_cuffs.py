@@ -9,7 +9,7 @@ from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.graphics.appearance import perpendicular, rotate
-from rw_creature_pet.oracle.config import OracleColors, OracleConfig
+from rw_creature_pet.oracle.config import CustomAppearance, OracleColors, OracleConfig
 from rw_creature_pet.oracle.graphics.render import OracleRenderer, mixed, point, unit
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
@@ -18,7 +18,7 @@ from rw_creature_pet.shared.geometry import Vec2
 class SquareCuffRenderer(OracleRenderer):
     SLEEVE_CUFF_RADIUS = 0.
 
-    def draw_sleeve(self, painter, edges):
+    def draw_sleeve(self, painter, edges, shape=None):
         c = self.colors
         self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
 
@@ -134,7 +134,14 @@ class SleeveCuffTests(unittest.TestCase):
 
     def test_front_hand_redraw_does_not_cover_the_rounded_sleeve(self):
         renderer = OracleRenderer(colors=OracleColors(skin='#00ff00', robe_top='#ff0000', robe_bottom='#ff0000'))
-        scene = OracleScene(OracleConfig(halo_enabled=False))
+        for shape in (None, CustomAppearance(sleeve_cuff_radius=0.),
+                      CustomAppearance(sleeve_cuff_width=2., sleeve_cuff_radius=4.)):
+            with self.subTest(shape=shape):
+                config = OracleConfig(halo_enabled=False) if shape is None else OracleConfig(
+                    halo_enabled=False, body_appearance='custom', custom_appearance=shape)
+                self.check_front_hand_redraw(renderer, OracleScene(config))
+
+    def check_front_hand_redraw(self, renderer, scene):
         app = scene.appearance
         for raised, scale in ((raised, scale) for raised in (False, True) for scale in (1., 1.5, 2., 4.)):
             if raised:

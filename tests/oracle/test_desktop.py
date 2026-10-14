@@ -294,6 +294,17 @@ class OracleDesktopWindowTests(unittest.TestCase):
         self.assertFalse(w.clock.paused)
         self.assertEqual(w.geometry(), self.screen.rect)
 
+    def test_destroyed_screen_rebinds_after_qt_updates_its_device_list(self):
+        from shiboken6 import delete, isValid
+        w = self.window
+        delete(self.screen)
+        self.assertIsNone(w.screen)
+        self.assertFalse(w._screen_valid)
+        self.app.processEvents()
+        self.assertTrue(isValid(w.screen))
+        self.assertIn(w.screen, self.app.screens())
+        self.assertTrue(w._screen_valid)
+
     def test_pause_debug_return_and_cleanup(self):
         w = self.window
         w.pause_action.trigger()

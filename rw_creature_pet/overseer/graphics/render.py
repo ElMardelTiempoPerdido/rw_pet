@@ -1,4 +1,5 @@
 """局部像素画布：曲线网格、眼部与触须；绘制不推进仿真。"""
+from functools import lru_cache
 from math import atan2, ceil, degrees, floor, hypot, pi, sin
 
 from PySide6.QtCore import QPointF, QRectF, Qt
@@ -21,6 +22,17 @@ def point(value):
 def mixed(a, b, amount):
     a, b = QColor(a), QColor(b)
     return QColor.fromRgbF(*(a.getRgbF()[i]*(1-amount)+b.getRgbF()[i]*amount for i in range(4)))
+
+
+@lru_cache(maxsize=32)
+def friend_filament_colors(color):
+    """触须仅借用主色的色相，保留短浅长深的明度和饱和度；无色相时沿用紫色"""
+    hue = QColor(color).hslHueF()
+    originals = tuple(QColor(value) for value in friend_filaments.COLORS)
+    if hue < 0:
+        return originals
+    return tuple(QColor.fromHslF(hue, value.hslSaturationF(), value.lightnessF(), value.alphaF())
+                 for value in originals)
 
 
 class OverseerRenderer:
@@ -111,7 +123,7 @@ class OverseerRenderer:
             return
 
         # 后排触须在身体后面，前排绕在身体前面，眼球覆盖连接处。
-        self._filaments(painter, model, alpha, (0, 2), color)
+        self._filaments(painter, model, alpha, range(0, len(model.filaments), 2), color)
         centers = [model.stem(i/10, alpha) for i in range(11)]
         length = sum((b-a).length() for a, b in zip(centers, centers[1:]))
         exponent = 1.75-1.4*clamp((length-20*model.config.size)/(70*model.config.size), 0., 1.)
@@ -132,7 +144,7 @@ class OverseerRenderer:
         for i, ((a, b), (c, d)) in enumerate(zip(sections, sections[1:])):
             painter.setBrush(mixed('#546969', color, .25+.65*i/9))
             painter.drawPolygon(QPolygonF([point(a), point(b), point(d), point(c)]))
-        self._filaments(painter, model, alpha, (1, 3), color)
+        self._filaments(painter, model, alpha, range(1, len(model.filaments), 2), color)
         rotation = degrees(atan2(gaze.y, gaze.x))-90 if gaze.length() > 1e-6 else 0.
         diameter = 2*(1+4*model.segment_extension(1., alpha))
         eye_width, eye_height = diameter*.7*extension, diameter*(.35+.35*depth)*extension
@@ -156,13 +168,14 @@ class OverseerRenderer:
     def _filaments(self, painter, model, alpha, indices, color):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         is_friend = model.appearance == 'friend'
+        friend_colors = friend_filament_colors(color) if is_friend else None
         # OverseerGraphics.colorMyceliaFrom：体型 0.5～1 对应从长度 50%～30% 开始渐变。
         gradient_start = friend_filaments.GRADIENT_START if is_friend else .5-.4*(model.config.size-.5)
         root_color = mixed('#416c68', color, .45)
         end_color = QColor(friend_filaments.TIP_COLOR) if is_friend else QColor.fromHslF(22/45, .5, .2)
         for index in indices:
             if is_friend:
-                root_color = QColor(friend_filaments.COLORS[index])
+                root_color = friend_colors[index]
             strand = model.filaments[index]
             colors = [mixed(root_color, end_color, clamp((i/(len(strand)-1)-gradient_start)/(1-gradient_start), 0., 1.))
                       for i in range(len(strand))]

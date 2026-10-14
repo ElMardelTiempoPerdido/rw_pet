@@ -5,6 +5,7 @@ from ...interaction.hitmap import PixelHitMap
 from ...shared.geometry import Vec2
 from ..graphics.damage import point_bounds
 from ..graphics.raster import local_canvas, pixel_density
+from ..ear_config import ear_radius
 
 
 class PuppetHitMap:
@@ -16,10 +17,13 @@ class PuppetHitMap:
         if app.sleeping:
             alpha = 1.
         density = pixel_density(scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
-        key = (app, app.revision, alpha, renderer.colors, renderer.atlas, density, scene.config.outfit)
+        key = (app, app.revision, alpha, renderer.colors, renderer.atlas, density, scene.config.outfit,
+               scene.config.active_custom_appearance)
         if key != self.key:
             parts = (app.head, *app.hands, *app.feet, *app.cloth)
-            image, rect = local_canvas(point_bounds((p.sample(alpha) for p in parts), 20), density)
+            bounds = point_bounds((p.sample(alpha) for p in parts), 20)
+            bounds = bounds.united(point_bounds((app.head.sample(alpha),), ear_radius(scene.config.active_custom_appearance)))
+            image, rect = local_canvas(bounds, density)
             painter = QPainter(image)
             try:
                 painter.scale(density, density)

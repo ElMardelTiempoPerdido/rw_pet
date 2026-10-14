@@ -60,6 +60,8 @@ class HangingHand(SoftPoint):
     """原版 GenericBodyPart 手部；积分速度与约束后的实际位移分开保存。"""
     drive_velocity: Vec2 = Vec2()
     reach_weight: float = 0.
+    shoulder_rise: float = 2.
+    shoulder_half: float = 4.
     MAX_REACH = 15.
     SWING_REACH = 16.
     SWING_TARGET_REACH = 15.5
@@ -68,9 +70,8 @@ class HangingHand(SoftPoint):
     SWING_MIN = -40*pi/180
     SWING_MAX = 50*pi/180
 
-    @classmethod
-    def shoulder(cls, origin, direction, index):
-        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*cls.SHOULDER_HALF)+direction*cls.SHOULDER_RISE
+    def shoulder(self, origin, direction, index):
+        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*self.shoulder_half)+direction*self.shoulder_rise
 
     def reach_limit(self, origin, shoulder):
         # 常态保留原版胸部中心限长；主动手势改用实际袖根，避免外展时扣掉肩宽。
@@ -212,17 +213,14 @@ class OracleAppearance:
         # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
         self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
                       for f in self.hand_forces()]
+        shape = scene.config.active_custom_appearance
+        for hand in self.hands:
+            hand.shoulder_rise = 0. if shape is not None else hand.SHOULDER_RISE
+            hand.shoulder_half = shape.shoulder_width/2 if shape is not None else hand.SHOULDER_HALF
         self.feet = [SoftPoint.at(p) for p in self.foot_goals()]
         n = self.CLOTH_DIVS
-        self._cloth_local = [((2*x/(n-1)-1)*(5+6*y/(n-1)),
-                              (5-23*y/(n-1))*(1+sin(pi*x/(n-1))*.35*(2*y/(n-1)-1)))
-                             for y in range(n) for x in range(n)]
-        self._cloth_forces = []
-        for i, (x, y) in enumerate(self._cloth_local):
-            angle = pi if y+9 > 0 and abs(x) < 1e-8 else atan2(-x, -(y+9))
-            angle *= (i//n)/(n-1)
-            self._cloth_forces.append((-.02*cos(angle), -.02*sin(angle)))
-        goals = self.cloth_goals()
+        shape = scene.config.active_custom_appearance
+        goals = self.configure_cloth(shape.robe_length if shape else 1., shape)
         # 从接近垂坠平衡的形态创建，避免重置时整片衣袍突然落下。
         # 这只是初始位置，运行时没有指向该姿态的恢复弹簧。
         self.cloth = [ClothPoint.at(p+Vec2(0, self.CLOTH_SLACK*(i//n)/(n-1)))
@@ -231,11 +229,6 @@ class OracleAppearance:
         self.cloth_links += [(y*n+x, (y+1)*n+x) for y in range(n-1) for x in range(n)]
         # 原版按列更新，每点依次访问左、上、右、下；邻边会从两端各计算一次。
         self._cloth_order = [y*n+x for x in range(n) for y in range(n)]
-        self._cloth_neighbors = [
-            [(b*n+a, (goals[b*n+a]-goals[y*n+x]).length())
-             for a, b in ((x-1, y), (x, y-1), (x+1, y), (x, y+1))
-             if 0 <= a < n and 0 <= b < n]
-            for y in range(n) for x in range(n)]
         self._cloth_buffers = [[0.]*len(self.cloth) for _ in range(4)]
         side = perpendicular(self.direction)
         self.necklace = [SoftPoint.at(self.upper
@@ -336,6 +329,64 @@ class OracleAppearance:
         self.waist_velocity = self.waist_angle-self.previous_waist_angle
         self.lower = self.upper-self.waist_direction(self.direction)*9
 
+    def configure_cloth(self, length, shape=None):
+        """胸肩只影响衣袍上部两侧；下摆长度和中央领口参考点保持独立"""
+        self.robe_length = length
+        self._cloth_shape = (length, shape.chest_width, shape.chest_height) if shape else (length, 12., 8.)
+        n = self.CLOTH_DIVS
+        self._cloth_local = []
+        for y in range(n):
+            for x in range(n):
+                across = (2*x/(n-1)-1)*(5+6*y/(n-1))
+                curve = sin(pi*x/(n-1))*.35
+                depth = (5-23*y/(n-1))*(1+curve*(2*y/(n-1)-1))
+                if shape is not None:
+                    t = min(1., y/(n-1)/.45)
+                    shoulder_weight = 1-t*t*(3-2*t)
+                    across *= 1+(shape.chest_width/12-1)*shoulder_weight
+                    depth += (shape.chest_height-8)*5/8*(2*x/(n-1)-1)**2*shoulder_weight
+                if y/(n-1) > .45 and length != 1.:
+                    anchor = (5-23*.45)*(1+curve*(2*.45-1))
+                    depth = anchor+(depth-anchor)*length
+                self._cloth_local.append((across, depth))
+        self._cloth_forces = []
+        for i, (x, y) in enumerate(self._cloth_local):
+            angle = pi if y+9 > 0 and abs(x) < 1e-8 else atan2(-x, -(y+9))
+            angle *= (i//n)/(n-1)
+            self._cloth_forces.append((-.02*cos(angle), -.02*sin(angle)))
+        goals = self.cloth_goals()
+        self._cloth_neighbors = [
+            [(b*n+a, (goals[b*n+a]-goals[y*n+x]).length())
+             for a, b in ((x-1, y), (x, y-1), (x+1, y), (x, y+1))
+             if 0 <= a < n and 0 <= b < n]
+            for y in range(n) for x in range(n)]
+        return goals
+
+    def sync_shape(self, scene):
+        shape = scene.config.active_custom_appearance
+        rise = 0. if shape is not None else HangingHand.SHOULDER_RISE
+        half = shape.shoulder_width/2 if shape is not None else HangingHand.SHOULDER_HALF
+        if any(hand.shoulder_rise != rise or hand.shoulder_half != half for hand in self.hands):
+            for hand in self.hands:
+                hand.shoulder_rise = rise
+                hand.shoulder_half = half
+            self.sleeping = False
+            self._quiet_ticks = 0
+            self.revision += 1
+        length = shape.robe_length if shape else 1.
+        cloth_shape = (length, shape.chest_width, shape.chest_height) if shape else (length, 12., 8.)
+        if cloth_shape == self._cloth_shape:
+            return
+        old_goals = self.cloth_goals()
+        goals = self.configure_cloth(length, shape)
+        for p, old, new in zip(self.cloth, old_goals, goals):
+            p.position += new-old
+            p.previous_position = p.position
+            p.velocity = p.drive_velocity = Vec2()
+        self.sleeping = False
+        self._quiet_ticks = 0
+        self.revision += 1
+
     def cloth_goals(self):
         side = perpendicular(self.direction)
         # 原版 IdealPosForPoint：领半宽 5、下摆半宽 11、中央下摆长 18*1.35。
@@ -424,6 +475,7 @@ class OracleAppearance:
             p.drive_velocity = Vec2(vx[i], vy[i])
 
     def step(self, scene):
+        self.sync_shape(scene)
         self.sync_cords(scene)
         # 转动量只来自主跨度变化；固定 40 Hz 更新，静止不空转，绘制只插值。
         spans = self.arm_spans(scene)

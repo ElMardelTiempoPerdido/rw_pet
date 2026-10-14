@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QColor, QImage
 
 from rw_creature_pet.overseer.graphics.friend import head as friend_head
 from rw_creature_pet.overseer.graphics.friend import body as friend
@@ -22,6 +22,45 @@ def pixels(image):
 
 
 class FriendHeadTests(unittest.TestCase):
+    def test_petal_color_preserves_disc_alpha_and_projection_at_all_scales(self):
+        for density in (1., 1.5, 2., 4.):
+            for angle in (0., pi/3):
+                args = (Vec2(sin(angle), 0), cos(angle), Vec2(0, -1), density)
+                original, half = friend_head.head_image(*args)
+                before = pixels(original)
+                petals = (before[:, :, 3] > 0) & np.all(before[:, :, :3] == 0, axis=-1)
+                self.assertTrue(np.any(petals))
+                for color in ('#d34a70', '#32af79', '#ffffff'):
+                    image, tinted_half = friend_head.head_image(*args, color)
+                    after = pixels(image)
+                    expected = before.copy()
+                    expected[petals, :3] = QColor(color).getRgb()[:3]
+                    np.testing.assert_array_equal(after, expected)
+                    self.assertEqual(tinted_half, half)
+
+    def test_partial_source_alpha_is_kept_without_modifying_shared_surface(self):
+        triangles, original_colors, extent = friend_head._surface()
+        colors = original_colors.copy()
+        colors[:, :3] = (10, 40, 90)
+        colors[:, 3] = 128
+        before = colors.copy()
+        matrix = friend_head.view_matrix(Vec2(), 1., Vec2(0, -1))
+        with patch.object(friend_head, '_surface', return_value=(triangles, colors, extent)):
+            image, _ = friend_head._project.__wrapped__(matrix, 2., '#aa3355')
+        rgba = pixels(image)
+        translucent = rgba[:, :, 3] == 128
+        self.assertTrue(np.any(translucent))
+        self.assertTrue(np.all(rgba[translucent, :3] == (170, 51, 85)))
+        np.testing.assert_array_equal(colors, before)
+
+    def test_color_changes_reuse_separate_images_without_cross_slot_contamination(self):
+        args = (Vec2(.4, .2), .8, Vec2(0, -1), 2.)
+        red = friend_head.head_image(*args, '#AA3344')[0]
+        green = friend_head.head_image(*args, '#44aa33')[0]
+        self.assertIs(red, friend_head.head_image(*args, '#aa3344')[0])
+        self.assertIs(green, friend_head.head_image(*args, '#44aa33')[0])
+        self.assertNotEqual(red, green)
+
     def test_front_at_2x_preserves_authored_opaque_pixels_exactly(self):
         source = pixels(QImage(str(friend_head.TEXTURE_PATH)))
         image, _ = friend_head.head_image(Vec2(), 1., Vec2(0, -1), 2.)

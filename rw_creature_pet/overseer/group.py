@@ -39,7 +39,7 @@ class OverseerGroup:
         for key in set(self.entries)-wanted:
             self.entries.pop(key).model.clear()
         for slot in config.slots:
-            individual = replace(config, color=slot.color)
+            individual = replace(config, color=slot.color, size=slot.size, filament_count=slot.filament_count)
             entry = self.entries.get(slot.id)
             if entry is None:
                 model = Overseer(self.bounds, individual, seed=self.random.getrandbits(64))
@@ -47,8 +47,6 @@ class OverseerGroup:
                 self.entries[slot.id] = OverseerEntry(slot.id, model,
                     OverseerEvents(model, seed=self.random.getrandbits(64)))
             elif entry.model.config != individual:
-                if entry.model.config.size != individual.size:
-                    entry.events.cancel()
                 entry.events.configure(individual)
             if entry is not None:
                 entry.model.set_appearance(slot.appearance)

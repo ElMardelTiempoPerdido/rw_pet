@@ -75,7 +75,6 @@ class Point:
 
 class Overseer:
     TICK_RATE = 40
-    FILAMENT_COUNT = 4
     FILAMENT_POINTS = 5
     HEAD_RADIUS = 5.
 
@@ -118,7 +117,7 @@ class Overseer:
     def filament_lengths(self):
         if self.appearance == 'friend':
             return friend_filaments.projected_lengths(self)
-        return (self.filament_length,)*self.FILAMENT_COUNT
+        return (self.filament_length,)*self.config.filament_count
 
     def place(self, bounds, anchor):
         if not all(isfinite(v) for v in (bounds.left, bounds.top, bounds.right, bounds.bottom)) or min(bounds.right-bounds.left, bounds.bottom-bounds.top) < 140:
@@ -189,6 +188,16 @@ class Overseer:
 
     def set_color(self, color):
         self.config = replace(self.config, color=color)
+        self.revision += 1
+
+    def configure(self, config):
+        old = self.config
+        self.config = config
+        if old.size != config.size:
+            # 重新计算附着边距和悬停高度；保留当前槽位和事件，活动个体原位重新探出
+            self.place(self.bounds, self.anchor)
+        elif old.filament_count != config.filament_count and self.appearance == 'standard':
+            self._reset_filaments()
         self.revision += 1
 
     def set_appearance(self, appearance):
@@ -304,9 +313,10 @@ class Overseer:
         spread = (20+5*sin(self.time*.7))*self.config.size
         phase = .32*sin(self.time*.43)
         base = self.filament_base()
-        return [base.lerp(self.head.position+self.tangent*(cos(i*pi/2+phase)*spread)
-                +self.normal*(sin(i*pi/2+phase)*spread*depth+3*self.config.size)
-                -gaze*(8*self.config.size), self.extended) for i in range(self.FILAMENT_COUNT)]
+        count = self.config.filament_count
+        return [base.lerp(self.head.position+self.tangent*(cos(i*2*pi/count+phase)*spread)
+                +self.normal*(sin(i*2*pi/count+phase)*spread*depth+3*self.config.size)
+                -gaze*(8*self.config.size), self.extended) for i in range(count)]
 
     def step(self, target=None, *, threat=None, puppet=None):
         if not self.active:
@@ -377,7 +387,8 @@ class Overseer:
         for index, (strand, tip) in enumerate(zip(self.filaments, self._filament_tips())):
             segment_length = lengths[index]*self.extended/(len(strand)-1)
             # 仅在重合点初次展开时使用局部方向，避免归一化零向量后无法撑开。
-            radial = self.tangent*cos(index*pi/2)+self.normal*sin(index*pi/2)
+            angle = index*pi/2 if self.appearance == 'friend' else index*2*pi/len(self.filaments)
+            radial = self.tangent*cos(angle)+self.normal*sin(angle)
             unfurl = unit(tip-base, radial)
             bends = (friend_filaments.bend_forces(self, index, strand, base, unfurl)
                      if self.appearance == 'friend' else None)

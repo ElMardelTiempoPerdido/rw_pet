@@ -11,6 +11,7 @@ from ...shared.paths import PACKAGE_ROOT
 PAPER = QColor('#e9e9e9')
 INK = QColor('#707070')
 MUTED = QColor('#aaaaaa')
+DESTRUCTIVE = QColor('#ad7770')
 OUTLINE_WIDTH_PX = 2
 RULE_DOT_WIDTH_PX = 2
 RULE_DOT_GAP_PX = 4
@@ -107,6 +108,10 @@ class SettingsStyle(QProxyStyle):
                             | QStyle.StateFlag.State_On | QStyle.StateFlag.State_Selected)
             or (widget is not None and widget.property('primary'))))
 
+    @staticmethod
+    def button_color(widget):
+        return DESTRUCTIVE if widget is not None and widget.property('destructive') else INK
+
     def drawPrimitive(self, element, option, painter, widget=None):
         pe = QStyle.PrimitiveElement
         if (element in (pe.PE_PanelLineEdit, pe.PE_FrameLineEdit) and widget is not None
@@ -115,8 +120,9 @@ class SettingsStyle(QProxyStyle):
         if element in (pe.PE_PanelButtonCommand, pe.PE_PanelLineEdit, pe.PE_FrameLineEdit,
                        pe.PE_FrameTabWidget):
             inverse = element == pe.PE_PanelButtonCommand and self.inverted(option, widget)
-            border = INK if option.state & QStyle.StateFlag.State_Enabled else MUTED
-            pixel_box(painter, option.rect, fill=INK if inverse else PAPER, border=border)
+            color = self.button_color(widget) if element == pe.PE_PanelButtonCommand else INK
+            border = color if option.state & QStyle.StateFlag.State_Enabled else MUTED
+            pixel_box(painter, option.rect, fill=color if inverse else PAPER, border=border)
         elif element == pe.PE_IndicatorCheckBox:
             checked = bool(option.state & QStyle.StateFlag.State_On)
             color = INK if option.state & QStyle.StateFlag.State_Enabled else MUTED
@@ -158,7 +164,8 @@ class SettingsStyle(QProxyStyle):
                       fill=INK if self.inverted(option) else PAPER)
         elif element in (ce.CE_PushButtonLabel, ce.CE_TabBarTabLabel):
             option = type(option)(option)
-            color = PAPER if self.inverted(option, widget) else INK
+            foreground = self.button_color(widget) if element == ce.CE_PushButtonLabel else INK
+            color = PAPER if self.inverted(option, widget) else foreground
             for role in (QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
                 option.palette.setColor(QPalette.ColorGroup.Active, role, color)
                 option.palette.setColor(QPalette.ColorGroup.Inactive, role, color)

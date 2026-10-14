@@ -12,6 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT/'rw_creature_pet'
 CATALOG = PACKAGE/'translations/en.ts'
 FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py', 'oracle/ui/space.py',
+         'oracle/ui/appearance_presets.py', 'presets/appearance.py', 'presets/library.py',
+         'oracle/ui/face_editor.py', 'oracle/ui/face_preview.py', 'oracle/face_config.py',
+         'oracle/ui/ear_editor.py', 'oracle/ear_config.py',
+         'oracle/ui/eye_editor.py', 'oracle/eye_config.py',
+         'oracle/graphics/face_assets.py',
          'config.py', 'oracle/config.py', 'overseer/config.py', 'interaction/config.py',
          'settings_store.py', 'shared/atlas.py', 'ui_config.py', 'overseer/events.py')
 UNTRANSLATED = {'中文', '语言/language', ' - 独立调试；关闭窗口返回桌宠'}
