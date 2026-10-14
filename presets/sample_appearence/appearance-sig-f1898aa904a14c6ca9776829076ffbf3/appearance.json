@@ -1,0 +1,130 @@
+{
+  "type": "rw-creature-pet.appearance",
+  "version": 1,
+  "id": "35e16871-63e7-483e-abad-2eccc27ae608",
+  "name": "sig",
+  "updated_at": "2026-10-14T15:02:43.259308+00:00",
+  "config": {
+    "oracle": {
+      "body_appearance": "custom",
+      "custom_appearance": {
+        "chest_height": 7.5,
+        "chest_width": 11.0,
+        "ear_body": {
+          "enabled": true,
+          "height": 5.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.0,
+          "offset_y": 1.0,
+          "rotation": 10.0,
+          "tone": "shell",
+          "width": 2.0
+        },
+        "ear_part_1": {
+          "enabled": false,
+          "height": 12.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "line",
+          "offset_x": 0.0,
+          "offset_y": -3.5,
+          "rotation": -10.0,
+          "tone": "highlight",
+          "width": 1.5
+        },
+        "ear_part_2": {
+          "enabled": true,
+          "height": 3.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.5,
+          "offset_y": 1.0,
+          "rotation": 0.0,
+          "tone": "highlight",
+          "width": 2.0
+        },
+        "ear_part_3": {
+          "enabled": false,
+          "height": 2.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.0,
+          "offset_y": 7.0,
+          "rotation": 0.0,
+          "tone": "shell",
+          "width": 2.0
+        },
+        "eye_1": {
+          "color": "#55557f",
+          "default_open": false,
+          "visible": true
+        },
+        "eye_2": {
+          "color": "#55557f",
+          "default_open": true,
+          "visible": true
+        },
+        "face": {
+          "enabled": false,
+          "image_name": "",
+          "image_path": "",
+          "offset_x": 0.0,
+          "offset_y": 0.0
+        },
+        "forehead": {
+          "enabled": true,
+          "image_name": "sig_sigil.png",
+          "image_path": "images/469281299eb1fcc7b08bb81d707c357f115a5b98b328fe3463ba6037635ad555.png",
+          "offset_x": 0.5,
+          "offset_y": -1.0
+        },
+        "head_length": 0.8918918918918918,
+        "inner_collar_bottom_width": 12.0,
+        "inner_collar_enabled": true,
+        "inner_collar_height": 5.5,
+        "inner_collar_top_width": 10.0,
+        "inner_robe_enabled": true,
+        "neck_width": 2.5,
+        "neckline_depth": 4.0,
+        "neckline_height": 5.5,
+        "neckline_roundness": 0.6,
+        "neckline_shape": "arc",
+        "neckline_tip_radius": 3.0,
+        "neckline_trim_enabled": false,
+        "neckline_trim_gap": 0.0,
+        "neckline_trim_width": 1.5,
+        "neckline_width": 12.0,
+        "robe_length": 1.1227971626017321,
+        "shoulder_width": 9.0,
+        "sleeve_cuff_radius": 1.0,
+        "sleeve_cuff_width": 8.5,
+        "sleeve_root_width": 10.0
+      },
+      "custom_colors": {
+        "arm": "#b4b8bd",
+        "arm_highlight": "#dfd6d2",
+        "beads": "#9cddd8",
+        "collar_trim": "#a48fd4",
+        "eyes": "#ffb7a1",
+        "head_highlight": "#c2c7ca",
+        "head_shell": "#b7bfc3",
+        "inner_robe": "#9f8ddc",
+        "joints": "#2a322a",
+        "pearl": "#d8cdc5",
+        "pearl_glyph": "#c5eb87",
+        "pearl_primary": "#8894d0",
+        "pearl_secondary": "#bbd800",
+        "robe_bottom": "#2c2b3a",
+        "robe_top": "#5e5e5e",
+        "skin": "#91aa00",
+        "third_eye": "#17629c"
+      },
+      "outfit": "normal",
+      "pearl_bubble_color": "#0eead8"
+    }
+  }
+}
