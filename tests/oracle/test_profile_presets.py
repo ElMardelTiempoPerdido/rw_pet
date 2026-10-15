@@ -1,0 +1,178 @@
+"""完整预设在设置面板中的草稿、外观引用和统一保存"""
+from dataclasses import replace
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtWidgets import QApplication
+
+from rw_creature_pet.config import AppConfig
+from rw_creature_pet.i18n import language_manager
+from rw_creature_pet.oracle.config import DragReactionConfig, OracleColors
+from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from rw_creature_pet.presets.library import AppearanceLibrary
+from rw_creature_pet.presets.profile import profile_mapping
+from rw_creature_pet.presets.profile_library import ProfileLibrary
+from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.ui_config import UiConfig
+
+
+class ProfilePresetUiTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+        cls.app.setQuitOnLastWindowClosed(False)
+
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.game = self.root/'game'
+        (self.game/'RainWorld_Data').mkdir(parents=True)
+        (self.game/'RainWorld_Data/resources.assets').touch()
+        self.library = ProfileLibrary(self.root/'profiles')
+        self.appearances = AppearanceLibrary(self.root/'appearances')
+        self.enterContext(patch('rw_creature_pet.presets.profile_library.default_profile_directory',
+                                return_value=self.library.directory))
+        self.enterContext(patch('rw_creature_pet.presets.library.default_appearance_directory',
+                                return_value=self.appearances.directory))
+        self.store = SettingsStore(self.root/'user/settings.json')
+        self.config = AppConfig(game_dir=self.game, ui=UiConfig('zh'))
+        self.profile = replace(self.config, oracle=replace(self.config.oracle,
+            body_appearance='custom', outfit='maid', custom_colors=OracleColors(skin='#abc123'),
+            float_speed=1.234567, base_speed=3.123456, pearl_follow_width=412.3456,
+            pearl_matrix_count=0, projection_opacity=.123456,
+            drag_reactions=DragReactionConfig(voice_probability=0., gesture_probability=.876543)))
+        self.dialogs = []
+
+    def tearDown(self):
+        for dialog in self.dialogs:
+            dialog.close()
+            dialog.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        language_manager().set_language('zh')
+
+    def dialog(self, config=None):
+        dialog = OracleSettingsDialog(config or self.config, self.store, assets=object())
+        self.dialogs.append(dialog)
+        self.enterContext(patch.object(dialog, 'space_assessment', return_value=None))
+        return dialog
+
+    def select(self, dialog, preset):
+        panel = dialog.profile_presets
+        panel.refresh(preset.id)
+        panel.choose(panel.selector.currentIndex())
+
+    def test_profile_load_preserves_unsaved_local_preferences_and_waits_for_save(self):
+        preset = self.library.export(self.profile, '新角色')
+        d = self.dialog()
+        d.controls['audio.volume'].setValue(19)
+        d.controls['oracle.arm_scale'].setValue(55)
+        d.controls['oracle.halo_enabled'].setChecked(False)
+        d.controls['oracle.colors.skin'].setValue('#abcdef')
+        d.controls['oracle.float_speed'].setValue(.9)
+        self.select(d, preset)
+        value = d.candidate()
+        self.assertEqual(value.audio.volume, .19)
+        self.assertEqual(value.oracle.arm_scale, .55)
+        self.assertFalse(value.oracle.halo_enabled)
+        self.assertEqual(value.oracle.colors.skin, '#abcdef')
+        self.assertEqual(profile_mapping(value), profile_mapping(self.profile))
+        self.assertEqual(value.oracle.custom_colors.skin, '#abc123')
+        self.assertIsNone(d.appearance_presets.loaded)
+        self.assertEqual(d._appearance_source.path, preset.appearance.path)
+        self.assertFalse(self.store.path.exists())
+        d.reject()
+        self.assertFalse(self.store.path.exists())
+
+    def test_hidden_behavior_and_precision_survive_apply_save_and_reopen(self):
+        preset = self.library.export(self.profile, '精确参数')
+        d = self.dialog()
+        self.select(d, preset)
+        d.save(close=False)
+        saved = self.store.load()
+        self.assertEqual(profile_mapping(saved), profile_mapping(self.profile))
+        self.assertEqual(saved.oracle.drag_reactions.voice_probability, 0.)
+        self.assertEqual(profile_mapping(self.dialog(saved).profile_draft()), profile_mapping(self.profile))
+
+    def test_export_uses_behavior_and_appearance_drafts_without_validating_local_pages(self):
+        d = self.dialog()
+        d.game_dir.setText('')
+        d.controls['oracle.float_speed'].setValue(1.1)
+        d.controls['oracle.colors.skin'].setValue('#123456')
+        preset = d.profile_presets.export_current('当前草稿')
+        self.assertIsNotNone(preset)
+        self.assertEqual(preset.config.oracle.float_speed, 1.1)
+        self.assertEqual(preset.appearance.oracle.colors.skin, '#123456')
+        self.assertEqual(d._appearance_source.id, preset.appearance.id)
+        second = d.profile_presets.export_current('当前草稿')
+        self.assertEqual(preset.id, second.id)
+        self.assertEqual(preset.appearance.id, second.appearance.id)
+        self.assertFalse(self.store.path.exists())
+
+    def test_broken_reference_keeps_all_current_draft_values(self):
+        preset = self.library.export(self.profile, '缺失外观')
+        d = self.dialog()
+        panel = d.profile_presets
+        panel.refresh(preset.id)
+        before = d.candidate()
+        preset.appearance.path.unlink()
+        panel.choose(panel.selector.currentIndex())
+        self.assertEqual(d.candidate(), before)
+        self.assertIsNone(panel.loaded)
+        self.assertIn('无法载入完整预设', panel.status.text())
+
+    def test_changing_appearance_after_profile_preserves_behavior_and_updates_export_reference(self):
+        preset = self.library.export(self.profile, '角色')
+        d = self.dialog()
+        self.select(d, preset)
+        bell = self.appearances.export(self.config, 'Bell 配色')
+        panel = d.appearance_presets
+        panel.refresh(bell.id)
+        panel.choose(panel.selector.currentIndex())
+        self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
+        self.assertEqual(d.candidate().oracle.body_appearance, 'bell')
+        result = d.profile_presets.export_current('角色新版')
+        self.assertEqual(result.appearance.id, bell.id)
+        self.assertEqual(result.appearance.oracle.body_appearance, 'bell')
+
+    def test_newer_external_appearance_is_not_selected_when_loading_profile(self):
+        old = self.appearances.export(self.config, '外观旧版')
+        preset = self.library.export(self.config, '角色旧版', appearance_source=old)
+        changed = replace(self.config, oracle=replace(self.config.oracle, colors=OracleColors(skin='#ff0000')))
+        self.appearances.export(changed, '外观新版', preset_id=old.id)
+        d = self.dialog()
+        self.select(d, preset)
+        self.assertEqual(d.candidate().oracle.colors.skin, self.config.oracle.colors.skin)
+        self.assertEqual(d._appearance_source.path, preset.appearance.path)
+        self.assertEqual(d.appearance_presets.selector.currentIndex(), 0)
+
+    def test_import_copies_bundle_and_updates_reference_without_committing(self):
+        external = ProfileLibrary(self.root/'external')
+        preset = external.export(self.profile, '朋友的角色')
+        d = self.dialog()
+        d.profile_presets.import_file(preset.path)
+        self.assertTrue(d.profile_presets.loaded.path.is_relative_to(self.library.directory))
+        self.assertEqual(d._appearance_source.id, preset.appearance.id)
+        self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
+        self.assertFalse(self.store.path.exists())
+
+    def test_language_and_navigation_keep_loaded_values_and_reference(self):
+        preset = self.library.export(self.profile, '用户命名')
+        d = self.dialog()
+        self.select(d, preset)
+        d.tabs.setCurrentIndex(6)
+        language_manager().set_language('en')
+        self.app.processEvents()
+        self.assertEqual(d.tabs.tabText(6), 'Presets')
+        self.assertEqual(d.profile_presets.import_button.text(), 'Import full preset…')
+        self.assertEqual(d.profile_presets.selector.currentText(), '用户命名')
+        self.assertIn('用户命名', d.profile_presets.reference_label.text())
+        self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
+        d.profile_presets.appearance_button.click()
+        self.assertEqual(d.tabs.currentIndex(), 1)
+
+
+if __name__ == '__main__':
+    unittest.main()

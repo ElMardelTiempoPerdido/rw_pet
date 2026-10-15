@@ -72,7 +72,7 @@ presets/
 
 | 字段 | 含义 |
 | --- | --- |
-| `type` | 固定为 `rw-creature-pet.appearance`，区别于本机设置和未来的完整预设 |
+| `type` | 固定为 `rw-creature-pet.appearance`，区别于本机设置和完整预设 |
 | `version` | 当前格式版本 `1` |
 | `id` | 规范形式的 UUID，表示预设身份 |
 | `name` | 1～80 字符的显示名称 |
@@ -85,7 +85,8 @@ PNG 引用只允许包内相对路径，不允许绝对路径、父目录跳转�
 
 - `presets/appearance.py`：格式校验、字段过滤、缺省值与外观应用
 - `presets/library.py`：目录、导入导出、扫描和重复版本选择
-- `oracle/ui/appearance_presets.py`：选择与文件操作入口
+- `presets/common.py`：外观和完整预设共用的元数据、路径、扫描与目录写入
+- `oracle/ui/appearance_presets.py`、`oracle/ui/preset_panel.py`：选择与文件操作入口
 - `oracle/ui/settings.py`：接入现有草稿、预览、保存和精度保留流程
 
-完整预设的行为参数分享仍待下一阶段接入
+需要一并分享行为参数时，使用 [完整预设](profile-presets.md)；其中携带一份独立的外观副本，不自动跟随此库更新

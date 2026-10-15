@@ -29,7 +29,12 @@ from .face_preview import FacePreviewDialog
 from .ear_editor import EAR_LABELS, EarPartEditor
 from .eye_editor import EYE_LABELS, EyeEditor
 from .appearance_presets import AppearancePresetPanel
-from ...presets.appearance import apply_appearance, appearance_paths, get_value
+from .profile_presets import ProfilePresetPanel
+from ...presets.appearance import apply_appearance, appearance_paths
+from ...presets.common import get_value, replace_fields
+from ...presets.profile import apply_profile
+from ...presets.fields import paths_for
+from ...presets.registry import FieldScope
 from .settings_style import PixelRule, apply_settings_style, pixel_box, settings_font, PixelRuleThin, NOTE_STYLE
 
 PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity',
@@ -56,14 +61,6 @@ def stored_value(key, value):
         return value
     scale, offset = DISPLAY_UNITS[key]
     return (value-offset)/scale
-
-
-def _replace_fields(config, changes):
-    """一次替换每组字段，保留未展示的设置和嵌套配色。"""
-    return replace(config, **{
-        name: _replace_fields(getattr(config, name), value) if isinstance(value, dict) else value
-        for name, value in changes.items()
-    })
 
 
 class ScreenComboBox(WheelSafeComboBox):
@@ -377,6 +374,7 @@ class OracleSettingsDialog(QDialog):
         self.color_editors = {}
         self.reset_tab_buttons = []
         self._reset_values = {}
+        self._appearance_source = None
         self._shutdown = False
         self._drag_offset = None
         self._workarea = None
@@ -782,6 +780,15 @@ class OracleSettingsDialog(QDialog):
         self.controls['overseer.enabled'].toggled.connect(self.sync_dependencies)
         mode.currentIndexChanged.connect(self.sync_dependencies)
 
+        presets = self.tab('预设', reset=False)
+        self.profile_presets = ProfilePresetPanel(self.profile_draft, self.load_profile_preset,
+                                                  lambda: self._appearance_source)
+        presets.addRow(self.profile_presets)
+        self.profile_presets.editAppearance.connect(lambda: self.tabs.setCurrentIndex(1))
+        self.appearance_presets.loadedChanged.connect(self.set_appearance_source)
+        self.profile_presets.loadedChanged.connect(
+            lambda preset: self.set_appearance_source(preset.appearance) if preset is not None else None)
+
         self.controls['oracle.pearl_matrix_enabled'].toggled.connect(self.sync_dependencies)
         self.controls['oracle.pearl_matrix_count'].valueChanged.connect(self.sync_dependencies)
         self.controls['oracle.pearl_playback_probability'].valueChanged.connect(self.sync_dependencies)
@@ -856,7 +863,8 @@ class OracleSettingsDialog(QDialog):
         dynamic = tuple(widget for editor in (*self.face_editors.values(), *self.ear_editors.values())
                         for widget in editor.dynamic_text_widgets)
         self._texts = WidgetTexts(self, exclude=(self.status, self.space_hint, *dynamic,
-                                                *self.appearance_presets.dynamic_text_widgets))
+                                                *self.appearance_presets.dynamic_text_widgets,
+                                                *self.profile_presets.dynamic_text_widgets))
         # Qt 会在 LanguageChange 中恢复标准按钮文字，在它处理完后重设自定义标题
         self.buttons.installEventFilter(self)
         language_manager().changed.connect(self.retranslate)
@@ -873,6 +881,14 @@ class OracleSettingsDialog(QDialog):
     def appearance_draft(self):
         """导出不依赖游戏路径或其他页签是否填写完整，只读取当前主体的外观草稿"""
         paths = appearance_paths(self.controls['oracle.body_appearance'].value())
+        return self.scoped_draft(paths)
+
+    def profile_draft(self):
+        paths = (*paths_for(FieldScope.PROFILE),
+                 *appearance_paths(self.controls['oracle.body_appearance'].value()))
+        return self.scoped_draft(paths)
+
+    def scoped_draft(self, paths):
         changes = {}
         for key in self.controls:
             if key in paths or any(path.startswith(key+'.') for path in paths):
@@ -881,12 +897,27 @@ class OracleSettingsDialog(QDialog):
                 for part in parts:
                     target = target.setdefault(part, {})
                 target[name] = self.draft_value(key)
-        return _replace_fields(self.original, changes)
+        return replace_fields(self.original, changes)
 
     def load_appearance_preset(self, preset):
         config = apply_appearance(self.original, preset, self.store.path.parent/'appearance/images')
         paths = appearance_paths(config.oracle.body_appearance)
-        # 未展示字段同样进入草稿基准；保留另一外观分支及所有本机、行为字段
+        self.fill_preset(config, paths)
+
+    def load_profile_preset(self, preset):
+        config = apply_profile(self.original, preset, self.store.path.parent/'appearance/images')
+        paths = (*paths_for(FieldScope.PROFILE), *appearance_paths(config.oracle.body_appearance))
+        self.fill_preset(config, paths)
+        # 包内副本不是独立库中同 ID 的最新版本，不在外观下拉框冒充另一份文件
+        self.appearance_presets.clear_selection()
+        self.set_appearance_source(preset.appearance)
+
+    def set_appearance_source(self, source):
+        self._appearance_source = source
+        self.profile_presets.refresh_reference()
+
+    def fill_preset(self, config, paths):
+        # 未展示字段同样进入草稿基准；仅填入本次范围，保留其他控件中的未保存修改
         self.original = config
         for key, control in self.controls.items():
             if key not in paths and not any(path.startswith(key+'.') for path in paths):
@@ -894,10 +925,11 @@ class OracleSettingsDialog(QDialog):
             value = get_value(config, key)
             self.fill_control(key, control, value)
         self.sync_dependencies()
+        self.refresh_space()
         self.queue_face_preview()
 
     def fill_control(self, key, control, value):
-        """外观载入和恢复默认值共用精确草稿值，避免显示位数造成参数损失"""
+        """预设载入和恢复默认值共用精确草稿值，避免显示位数造成参数损失"""
         shown = display_value(key, value)
         if isinstance(control, QCheckBox):
             control.setChecked(shown)
@@ -1021,6 +1053,7 @@ class OracleSettingsDialog(QDialog):
     def retranslate(self):
         self._texts.retranslate()
         self.appearance_presets.retranslate()
+        self.profile_presets.retranslate()
         for editor in (*self.face_editors.values(), *self.ear_editors.values(), *self.eye_editors.values()):
             editor.refresh()
         self.refresh_space()
@@ -1057,7 +1090,7 @@ class OracleSettingsDialog(QDialog):
             self.move(max(rect.left(), min(self.x(), rect.right() - self.width() + 1)),
                       max(rect.top(), min(self.y(), rect.bottom() - self.height() + 1)))
 
-    def tab(self, title):
+    def tab(self, title, *, reset=True):
         area = QScrollArea()
         area.setWidgetResizable(True)
         area.setFrameShape(QScrollArea.Shape.NoFrame)
@@ -1071,6 +1104,8 @@ class OracleSettingsDialog(QDialog):
         form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         area.setWidget(panel)
         index = self.tabs.addTab(area, title)
+        if not reset:
+            return form
         reset = QPushButton('恢复本页默认设置')
         reset.setAutoDefault(False)
         reset.clicked.connect(lambda checked=False, i=index: self.restore_defaults(i))
@@ -1333,7 +1368,7 @@ class OracleSettingsDialog(QDialog):
             for part in path:
                 target = target.setdefault(part, {})
             target[field] = value
-        config = _replace_fields(self.original, {'game_dir': directory, **groups})
+        config = replace_fields(self.original, {'game_dir': directory, **groups})
         if config.oracle.body_appearance == 'custom':
             for editor in (*self.face_editors.values(), *self.ear_editors.values()):
                 editor.validate()

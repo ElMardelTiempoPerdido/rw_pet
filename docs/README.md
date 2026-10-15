@@ -10,6 +10,7 @@
 | 默认 TOML、用户配置升级与设置面板初始值 | [设置升级说明](settings-upgrades.md) |
 | 外观、完整预设与本机字段的归属登记和覆盖检查 | [预设字段归属](preset-field-scopes.md) |
 | 外观预设的保存、分享、导入和重复版本处理 | [外观预设](appearance-presets.md) |
+| 完整预设的行为参数、随包外观与本机偏好保留 | [完整预设](profile-presets.md) |
 | 中英文切换、译文维护与翻译资源 | [界面语言](localization.md) |
 | 目录分工、依赖关系、测试与回放入口 | [开发指南](development.md) |
 
