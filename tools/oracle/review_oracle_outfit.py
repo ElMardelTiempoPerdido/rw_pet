@@ -92,9 +92,9 @@ def main():
                     local.translate(36-origin.x, 36-origin.y)
                     renderer.draw_geometry(local, scene, arm=False, cords=False, pearl=False, halo=False,
                                            cache_body=True, include_head=False, raster_scale=density,
-                                           include_chest_ribbon=False)
+                                           include_front_outfit=False)
                     renderer.draw_scene_head(local, scene, 1., pixelated=True, raster_scale=density)
-                    renderer.draw_chest_ribbon(local, scene, 1., raster_scale=density)
+                    renderer.draw_front_outfit(local, scene, 1., raster_scale=density)
                 finally:
                     local.end()
                 w = size*2
@@ -104,7 +104,7 @@ def main():
     assert sheet.save(str(out/'oracle-maid-ribbons.png'))
     with tempfile.TemporaryDirectory() as temp:
         dialog = OracleSettingsDialog(config, SettingsStore(Path(temp)/'settings.json'), first_run=True)
-        dialog.tabs.setCurrentIndex(1)
+        dialog.tabs.setCurrentWidget(dialog.pages['appearance'])
         dialog.show()
         app.processEvents()
         assert dialog.grab().save(str(out/'oracle-outfit-settings.png'))

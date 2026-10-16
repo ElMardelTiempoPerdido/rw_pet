@@ -18,6 +18,7 @@ from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.shared.screens import find_screen, preferred_screen, screen_key
 from tests.oracle.test_desktop import FakeScreen
 
@@ -48,6 +49,7 @@ class ScreenSelectionTests(unittest.TestCase):
 
     def setUp(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        isolate_characters(self, root)
         game = root/'游戏'
         (game/'RainWorld_Data').mkdir(parents=True)
         (game/'RainWorld_Data/resources.assets').touch()
@@ -185,18 +187,20 @@ class ScreenSelectionTests(unittest.TestCase):
         self.assertEqual(window.geometry(), self.b.rect)
         self.assertEqual(window.config.desktop.screen, '')
 
-    def test_combo_shares_row_preserves_draft_translation_and_resets_with_page(self):
+    def test_screen_page_groups_space_controls_preserves_draft_translation_and_resets(self):
         language = language_manager().language
         self.addCleanup(language_manager().set_language, language)
         dialog = self.dialog()
         dialog.show()
-        index = next(i for i in range(dialog.tabs.count()) if dialog.tabs.tabText(i) == tr('移动'))
+        index = dialog.tabs.indexOf(dialog.pages['screen'])
         dialog.tabs.setCurrentIndex(index)
         self.app.processEvents()
         combo = dialog.controls['desktop.screen']
         band = dialog.controls['oracle.edge_fraction']
-        self.assertLess(abs(combo.mapTo(dialog, combo.rect().center()).y()-band.mapTo(dialog, band.rect().center()).y()), 3)
-        self.assertGreater(combo.mapTo(dialog, QPoint()).x(), band.mapTo(dialog, QPoint()).x())
+        arm = dialog.controls['oracle.arm_scale']
+        self.assertLess(combo.mapTo(dialog, combo.rect().center()).y(), band.mapTo(dialog, band.rect().center()).y())
+        self.assertLess(abs(arm.mapTo(dialog, arm.rect().center()).y()-band.mapTo(dialog, band.rect().center()).y()), 3)
+        self.assertGreater(arm.mapTo(dialog, QPoint()).x(), band.mapTo(dialog, QPoint()).x())
         key = screen_key(self.b)
         combo.setCurrentIndex(combo.findData(key))
         language_manager().set_language('en')

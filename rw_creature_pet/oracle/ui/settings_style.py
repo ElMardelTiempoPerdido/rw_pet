@@ -18,6 +18,15 @@ RULE_DOT_GAP_PX = 4
 SETTINGS_FONT_PATH = PACKAGE_ROOT/'fonts/WenQuanYi Bitmap Song 14px.ttf'
 NOTE_STYLE = "font-size: 16px;color:#A1A1A1;"
 
+
+def parameter_group_background(widget):
+    """相关部件的轻微深底色分组，供监视者与附加外观共用"""
+    palette = widget.palette()
+    palette.setColor(QPalette.ColorRole.Window, QColor('#d5d5d5'))
+    widget.setPalette(palette)
+    widget.setAutoFillBackground(True)
+
+
 @lru_cache(maxsize=1)
 def settings_font_family():
     # 使用程序资源，不依赖工作目录，也不要求用户把字体安装到系统

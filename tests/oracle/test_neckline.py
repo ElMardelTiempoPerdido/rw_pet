@@ -51,7 +51,7 @@ class NecklineTests(unittest.TestCase):
                         with patch('rw_creature_pet.oracle.graphics.render.sleeve_neckline_path',
                                    return_value=opening if original else sleeve_opening):
                             renderer.draw_geometry(painter, scene, include_head=False, arm=False, cords=False,
-                                                   pearl=False, halo=False, include_chest_ribbon=False,
+                                                   pearl=False, halo=False, include_front_outfit=False,
                                                    cache_body=False, raster_scale=2.)
                     finally:
                         painter.end()
@@ -86,7 +86,7 @@ class NecklineTests(unittest.TestCase):
                 painter.scale(density, density)
                 painter.translate(-origin.x, -origin.y)
                 renderer.draw_geometry(painter, scene, include_head=False, arm=False, cords=False,
-                                       pearl=False, halo=False, include_chest_ribbon=False,
+                                       pearl=False, halo=False, include_front_outfit=False,
                                        cache_body=cached, raster_scale=density)
             finally:
                 painter.end()

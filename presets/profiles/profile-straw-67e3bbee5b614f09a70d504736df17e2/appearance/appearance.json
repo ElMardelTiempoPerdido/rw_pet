@@ -1,0 +1,130 @@
+{
+  "type": "rw-creature-pet.appearance",
+  "version": 1,
+  "id": "6312b790-3c6e-423c-a91b-7621a6d99f51",
+  "name": "straw",
+  "updated_at": "2026-10-15T10:47:04.028556+00:00",
+  "config": {
+    "oracle": {
+      "body_appearance": "custom",
+      "custom_appearance": {
+        "chest_height": 7.5,
+        "chest_width": 11.0,
+        "ear_body": {
+          "enabled": true,
+          "height": 5.5,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.0,
+          "offset_y": 1.0,
+          "rotation": 10.0,
+          "tone": "shell",
+          "width": 2.0
+        },
+        "ear_part_1": {
+          "enabled": true,
+          "height": 5.5,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.5,
+          "offset_y": 0.5,
+          "rotation": 0.0,
+          "tone": "highlight",
+          "width": 1.5
+        },
+        "ear_part_2": {
+          "enabled": false,
+          "height": 11.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "triangle",
+          "offset_x": -0.5,
+          "offset_y": -7.5,
+          "rotation": 8.0,
+          "tone": "split",
+          "width": 3.0
+        },
+        "ear_part_3": {
+          "enabled": false,
+          "height": 2.0,
+          "image_name": "",
+          "image_path": "",
+          "kind": "ellipse",
+          "offset_x": 0.0,
+          "offset_y": 7.0,
+          "rotation": 0.0,
+          "tone": "shell",
+          "width": 2.0
+        },
+        "eye_1": {
+          "color": "#9d816e",
+          "default_open": true,
+          "visible": true
+        },
+        "eye_2": {
+          "color": "#9d816e",
+          "default_open": true,
+          "visible": true
+        },
+        "face": {
+          "enabled": false,
+          "image_name": "",
+          "image_path": "",
+          "offset_x": 0.0,
+          "offset_y": 2.0
+        },
+        "forehead": {
+          "enabled": true,
+          "image_name": "straw_sigil.png",
+          "image_path": "images/3036db67b78dabefe4b6c772ea5ab839f59ff60dc23c51e2754ea3920f82467d.png",
+          "offset_x": 0.0,
+          "offset_y": -2.5
+        },
+        "head_length": 0.9414414414414414,
+        "inner_collar_bottom_width": 12.0,
+        "inner_collar_enabled": false,
+        "inner_collar_height": 5.5,
+        "inner_collar_top_width": 10.0,
+        "inner_robe_enabled": false,
+        "neck_width": 2.5,
+        "neckline_depth": 3.5,
+        "neckline_height": 6.5,
+        "neckline_roundness": 0.6,
+        "neckline_shape": "arc",
+        "neckline_tip_radius": 3.0,
+        "neckline_trim_enabled": false,
+        "neckline_trim_gap": 0.0,
+        "neckline_trim_width": 1.5,
+        "neckline_width": 12.0,
+        "robe_length": 1.0182889391108962,
+        "shoulder_width": 9.0,
+        "sleeve_cuff_radius": 1.0,
+        "sleeve_cuff_width": 5.5,
+        "sleeve_root_width": 9.0
+      },
+      "custom_colors": {
+        "arm": "#b4b8bd",
+        "arm_highlight": "#dfd6d2",
+        "beads": "#9cddd8",
+        "collar_trim": "#a48fd4",
+        "eyes": "#ffb7a1",
+        "head_highlight": "#cbbcb3",
+        "head_shell": "#a1a198",
+        "inner_robe": "#9f8ddc",
+        "joints": "#2a322a",
+        "pearl": "#d8cdc5",
+        "pearl_glyph": "#ddc195",
+        "pearl_primary": "#ad9e9b",
+        "pearl_secondary": "#ffcc33",
+        "robe_bottom": "#fff8cf",
+        "robe_top": "#eeaa7d",
+        "skin": "#fff7e6",
+        "third_eye": "#17629c"
+      },
+      "outfit": "normal",
+      "pearl_bubble_color": "#ffaa00"
+    }
+  }
+}

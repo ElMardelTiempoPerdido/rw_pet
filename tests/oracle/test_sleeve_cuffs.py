@@ -10,17 +10,13 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.graphics.appearance import perpendicular, rotate
 from rw_creature_pet.oracle.config import CustomAppearance, OracleColors, OracleConfig
-from rw_creature_pet.oracle.graphics.render import OracleRenderer, mixed, point, unit
+from rw_creature_pet.oracle.graphics.render import OracleRenderer, point, unit
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
 
 
 class SquareCuffRenderer(OracleRenderer):
     SLEEVE_CUFF_RADIUS = 0.
-
-    def draw_sleeve(self, painter, edges, shape=None):
-        c = self.colors
-        self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
 
 
 class CenteredCuffRenderer(OracleRenderer):
@@ -89,11 +85,16 @@ class SleeveCuffTests(unittest.TestCase):
                                  (index // round(64*scale)+.5)/scale-32)
                         distance = min((p-c).length() for c in edges[-1])
                         if distance >= rounded.SLEEVE_CUFF_RADIUS*1.5+1/scale:
-                            # 路径布尔运算可能改变恰落在开口直线上的像素
-                            # 归属（浮点误差）；离开该直线不能有额外削切。
-                            center = edges[-1][0].lerp(edges[-1][1], .5)
-                            forward = unit(center-edges[-2][0].lerp(edges[-2][1], .5))
-                            self.assertLess(abs((p-center).x*forward.x+(p-center).y*forward.y), 1e-8)
+                            # Qt 路径布尔运算在外轮廓约 0.001 逻辑像素内
+                            # 可能改变边界像素归属，离开此数值误差范围不能额外削切
+                            outline = [a for a, _ in edges]+[b for _, b in reversed(edges)]
+                            distances = []
+                            for a, b in zip(outline, outline[1:]+outline[:1]):
+                                delta = b-a
+                                t = max(0., min(1., ((p-a).x*delta.x+(p-a).y*delta.y)
+                                                /max(delta.x**2+delta.y**2, 1e-12)))
+                                distances.append((p-a.lerp(b, t)).length())
+                            self.assertLess(min(distances), .001)
                 for dpr in (1.25, 1.5, 2.):
                     self.assertEqual(actual, self.paint(rounded, edges, scale, dpr), (scale, tilt, dpr))
             self.assertGreater(removed, 0, (scale, '至少部分朝向应出现圆角像素变化'))
@@ -108,7 +109,7 @@ class SleeveCuffTests(unittest.TestCase):
             for end in (Vec2(sign*15, 0), Vec2(sign*13, -7)):
                 before = centered.sleeve_edges(Vec2(), end, up, sign)
                 after = renderer.sleeve_edges(Vec2(), end, up, sign)
-                self.assertEqual(before[:6], after[:6], '领边覆盖使用的袖根不动')
+                self.assertEqual(before[:2], after[:2], '躯干内的袖根与肩线起点不动，肩线其余部分可随衣料弯曲')
                 cuff = after[-1][0].lerp(after[-1][1], .5)
                 self.assertGreater(cuff.y-end.y, 1., '手掌应位于袖口偏上方')
                 self.assertLessEqual((cuff-end).length(), renderer.SLEEVE_CUFF_DROP+1e-9)

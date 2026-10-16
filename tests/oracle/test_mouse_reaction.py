@@ -19,6 +19,7 @@ from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow, OracleDesktop
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 from tests.oracle.test_desktop import FakeScreen
@@ -200,6 +201,7 @@ class OracleMouseWindowTests(unittest.TestCase):
                 s.step()
             self.assertTrue(s.mouse_reaction.active)
             assets = OracleAssets(w.renderer, '', {}, '')
+            isolate_characters(self, store.path.parent)
             d = OracleSettingsDialog(config, store, assets=assets, commit=w.apply_settings)
             self.addCleanup(d.close)
             d.controls['interaction.hover_radius'].setValue(240.)
@@ -220,6 +222,7 @@ class OracleMouseWindowTests(unittest.TestCase):
             self.addCleanup(d2.close)
             self.assertEqual(d2.controls['interaction.hover_open_probability'].value(), 35.)
             self.assertTrue(d2.controls['interaction.hover_avoidance_enabled'].isChecked())
+            d2.tabs.setCurrentWidget(d2.pages['behavior'])
             d2.show()
             self.app.processEvents()
             checkbox = d2.controls['interaction.hover_avoidance_enabled']

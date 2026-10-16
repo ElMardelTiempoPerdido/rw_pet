@@ -62,7 +62,7 @@ class InnerRobeTests(unittest.TestCase):
                                          custom_appearance=shape))
         for upper, lower, direction, waist, head in self.rotating_poses():
             scene.appearance.waist_angle = scene.appearance.previous_waist_angle = .23682676942042083
-            mask, _, _ = renderer.apron_geometry(scene, 1., upper, lower, direction, head,
+            mask, _, _ = renderer.clothing_geometry(scene, 1., upper, lower, direction, head,
                                                  QPainterPath(), QPainterPath(), Vec2())
             neck = (head-upper)*(1/(head-upper).length())
             for p in (upper, lower, upper+direction*COLLAR_BASE_RISE+neck*4.):
@@ -118,10 +118,10 @@ class InnerRobeTests(unittest.TestCase):
         scene = OracleScene(OracleConfig(hide_cords=True, physics_backend='python', body_appearance='custom'))
         upper, lower, up, head = Vec2(), Vec2(0, 9), Vec2(0, -1), Vec2(0, -13)
         args = (scene, 1., upper, lower, up, head, QPainterPath(), QPainterPath(), Vec2())
-        enabled, _, _ = renderer.apron_geometry(*args)
+        enabled, _, _ = renderer.clothing_geometry(*args)
         self.assertTrue(enabled.contains(QPointF(0, 0)))
         self.assertTrue(enabled.contains(QPointF(0, -5)))
         self.assertFalse(enabled.contains(QPointF(0, -8)))
         scene.config = replace(scene.config, custom_appearance=CustomAppearance(inner_robe_enabled=False))
-        disabled, _, _ = renderer.apron_geometry(*args)
+        disabled, _, _ = renderer.clothing_geometry(*args)
         self.assertTrue(disabled.isEmpty())

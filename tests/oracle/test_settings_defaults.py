@@ -15,6 +15,8 @@ from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, OracleColors
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.presets.common import replace_fields, set_value
+from tests.oracle.character_fixture import isolate_characters
 
 
 PERCENTAGES = {
@@ -24,6 +26,9 @@ PERCENTAGES = {
     'oracle.cross_edge_probability', 'oracle.antigravity_probability', 'oracle.pearl_playback_probability',
     'overseer.appearance_probability', 'overseer.relocation_probability', 'overseer.observation_probability',
     'interaction.hover_probability', 'interaction.hover_open_probability',
+    'oracle.drag_reactions.gesture_probability', 'oracle.drag_reactions.flutter_probability',
+    'oracle.drag_reactions.alternating_probability', 'oracle.drag_reactions.eye_open_probability',
+    'oracle.drag_reactions.voice_probability',
 }
 
 
@@ -56,6 +61,7 @@ class SettingsDefaultsTests(unittest.TestCase):
 
     def setUp(self):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        isolate_characters(self, self.root)
         self.game = self.root/'游戏'
         (self.game/'RainWorld_Data').mkdir(parents=True)
         (self.game/'RainWorld_Data/resources.assets').touch()
@@ -163,6 +169,14 @@ class SettingsDefaultsTests(unittest.TestCase):
             'oracle.halo_arcs_enabled': False, 'oracle.halo_arc_max_count': 4,
             'oracle.base_fraction': .713, 'oracle.edge_fraction': .287,
             'oracle.float_speed': 1.23, 'oracle.cross_edge_probability': .123,
+            'oracle.base_speed': 3.123456,
+            'oracle.pearl_follow_width': 512.3456, 'oracle.pearl_follow_height': 384.5678,
+            'oracle.drag_reactions.enabled': False,
+            'oracle.drag_reactions.gesture_probability': .123456,
+            'oracle.drag_reactions.flutter_probability': .234567,
+            'oracle.drag_reactions.alternating_probability': .345678,
+            'oracle.drag_reactions.eye_open_probability': .456789,
+            'oracle.drag_reactions.voice_probability': .567891,
             'oracle.antigravity_probability': .234, 'oracle.drift_speed': .87,
             'oracle.antigravity_duration_seconds': 523.4,
             'overseer.enabled': True, 'overseer.appearance_mode': 'resident',
@@ -177,11 +191,22 @@ class SettingsDefaultsTests(unittest.TestCase):
         }
         values.update({'oracle.colors.' + field.name: f'#{index + 1:06x}'
                        for index, field in enumerate(fields(OracleColors))})
+        for part in ('head', 'lace', 'apron', 'ribbon_up', 'ribbon_down'):
+            values.update({'oracle.outfit_settings.maid.'+part+'.'+name: value for name, value in {
+                'enabled': False, 'mirror': part != 'lace', 'offset_x': 2.12345, 'offset_y': -3.6789,
+                'hue': 45.1234, 'saturation': -35.1234, 'brightness': 20.1234,
+            }.items()})
         for index, name in enumerate(('ear_body', 'ear_part_1', 'ear_part_2', 'ear_part_3')):
             values['oracle.custom_appearance.'+name] = {
                 'enabled': True, 'kind': 'triangle', 'width': 2.12345+index, 'height': 5.6789,
                 'offset_x': -1.23456, 'offset_y': index+1.5, 'rotation': 35.12345,
                 'tone': 'highlight', 'image_path': '', 'image_name': ''}
+        for index, name in enumerate(('soft_part_1', 'soft_part_2')):
+            values['oracle.custom_appearance.'+name] = {
+                'enabled': True, 'kind': 'trapezoid', 'layer': 'back', 'anchor': 'waist',
+                'width': 6.12345+index, 'length': 40.6789, 'offset_x': -2.23456, 'offset_y': 1.34567,
+                'angle': 34.56789, 'tip_width_ratio': .423456, 'softness': .812345,
+                'damping': .612345, 'color': '#abcdef', 'image_path': '', 'image_name': ''}
         values.update({'oracle.custom_colors.'+name: f'#{index+256:06x}'
                        for index, name in enumerate(CUSTOM_COLOR_NAMES)})
         for key, value in values.items():
@@ -240,7 +265,7 @@ class SettingsDefaultsTests(unittest.TestCase):
             dialog.controls['oracle.custom_appearance.'+name].setValue(edited)
             self.data['oracle']['custom_appearance'][name] = default
         write_toml(self.source, self.data)
-        dialog.restore_defaults(1)
+        dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['appearance']))
         self.assertEqual(dialog.candidate().oracle.custom_appearance,
                          replace(config.oracle.custom_appearance, sleeve_cuff_radius=1.2, neck_width=4.5,
                                  chest_width=11., chest_height=6., shoulder_width=9.))
@@ -286,12 +311,12 @@ class SettingsDefaultsTests(unittest.TestCase):
         dialog.controls['oracle.colors.pearl_glyph'].setValue('#abcdef')
         self.data['oracle']['colors']['pearl_glyph'] = '#654321'
         write_toml(self.source, self.data)
-        dialog.restore_defaults(3)
+        dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['projection']))
         candidate = dialog.candidate()
         self.assertEqual(candidate.oracle.colors, replace(colors, pearl_glyph='#654321'))
         self.assertEqual(candidate.audio.volume, .19)
         self.assertFalse(self.store.path.exists())
-        dialog.restore_defaults(1)
+        dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['appearance']))
         self.assertEqual(dialog.candidate().oracle.colors, OracleColors(**self.data['oracle']['colors']))
         self.assertTrue(all(editor.value() == '#654321'
                             for editor in dialog.color_editors['oracle.colors.pearl_glyph']))
@@ -299,6 +324,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertFalse(self.store.path.exists())
 
     def test_valid_advanced_toml_values_are_not_clamped_to_ui_convenience_limits(self):
+        self.data['oracle'].update(pearl_follow_width=8000.1234, pearl_follow_height=6000.2345)
         self.data['overseer'].update(check_interval=90000., duration_min=.01, duration_max=90001.,
                                      cooldown_max=100000., withdraw_distance=.5, reemerge_distance=10001.)
         write_toml(self.source, self.data)
@@ -310,60 +336,73 @@ class SettingsDefaultsTests(unittest.TestCase):
         config, _, _ = self.store.startup()
         self.store.save(config)
         saved = self.store.path.read_bytes()
-        per_tab = (
-            {'desktop.scale': 1.5, 'audio.enabled': False, 'audio.volume': .33333,
+        per_tab = {
+            'general': {'desktop.scale': 1.5, 'audio.enabled': False, 'audio.volume': .33333,
              'oracle.coarse_pixels_4x': True,
              'oracle.glow_enabled': True, 'oracle.glow_color': '#123456', 'oracle.glow_opacity': .654321},
-            {'oracle.outfit': 'maid', 'oracle.arm_scale': .623456, 'oracle.body_appearance': 'custom'},
-            {'oracle.pearl_matrix_count': 13, 'oracle.pearl_playback_probability': .123456,
+            'screen': {'oracle.arm_scale': .623456, 'oracle.edge_fraction': .234567,
+                       'oracle.base_side': 'left', 'oracle.allowed_edges': ('top', 'left'),
+                       'oracle.base_fraction': .713456},
+            'behavior': {'oracle.float_speed': 1.23456, 'oracle.base_speed': 3.123456,
+                         'interaction.hover_probability': .234567,
+                         'oracle.drag_reactions.gesture_probability': .345678,
+                         'oracle.drag_reactions.voice_probability': .456789,
+                         'oracle.drag_projection_probability': .567891,
+                         'oracle.pearl_playback_probability': .123456,
+                         'oracle.pearl_matrix_avoid_radius': 111.,
+                         'oracle.pearl_follow_width': 512.3456, 'oracle.pearl_follow_height': 384.5678},
+            'pearls': {'oracle.pearl_matrix_count': 13,
              'oracle.pearl_bubble_color': '#654321'},
-            {'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15, 'oracle.projection_opacity': .334455},
-            {'oracle.base_side': 'left', 'oracle.allowed_edges': ('top', 'left'),
-             'oracle.base_fraction': .713456, 'oracle.float_speed': 1.23456},
-            {'overseer.enabled': True, 'overseer.check_interval': 90000.,
+            'projection': {'oracle.halo_enabled': False, 'oracle.halo_scale': 1.15, 'oracle.projection_opacity': .334455},
+            'overseer': {'overseer.enabled': True, 'overseer.check_interval': 90000.,
              'overseer.slots': (OverseerSlot(color='#abcdef'),), 'overseer.appearance_probability': .54321},
-        )
-        for values in per_tab:
+            'appearance': {'oracle.outfit': 'maid', 'oracle.body_appearance': 'custom',
+                           'oracle.pearl_bubble_color': '#654321'},
+        }
+        for values in per_tab.values():
             for key, value in values.items():
-                group, field = key.split('.')
-                self.data[group][field] = value
+                set_value(self.data, key, value)
         # 打开窗口后再修改模板，按钮必须读取当前 TOML，而非用户文件或代码默认值。
-        for index, defaults in enumerate(per_tab):
-            with self.subTest(tab=index):
+        for page_key, defaults in per_tab.items():
+            with self.subTest(tab=page_key):
                 dialog = self.audit(config)
                 dialog.controls['audio.volume'].setValue(19)
                 dialog.controls['oracle.arm_scale'].setValue(70)
                 dialog.controls['oracle.pearl_matrix_count'].setValue(23)
                 dialog.controls['oracle.halo_scale'].setValue(.9)
                 dialog.controls['oracle.float_speed'].setValue(1.4)
+                dialog.controls['oracle.drag_reactions.voice_probability'].setValue(12)
                 dialog.controls['overseer.check_interval'].setValue(99)
                 before = dialog.candidate()
                 write_toml(self.source, self.data)
-                dialog.tabs.setCurrentIndex(index)
+                page = dialog.pages[page_key]
+                dialog.tabs.setCurrentWidget(page)
                 self.app.processEvents()
                 bar = dialog.tabs.currentWidget().verticalScrollBar()
                 bar.setValue(15)
                 scroll = bar.value()
-                dialog.reset_tab_buttons[index].click()
-                expected = before
+                next(button for button in dialog.reset_tab_buttons if page.isAncestorOf(button)).click()
+                changes = {}
                 for key, value in defaults.items():
-                    group, field = key.split('.')
-                    expected = replace(expected, **{group: replace(getattr(expected, group), **{field: value})})
+                    if key == 'oracle.body_appearance':
+                        continue  # 程序默认值不切换当前角色的类型
+                    set_value(changes, key, value)
+                expected = replace_fields(before, changes)
                 self.assertEqual(dialog.candidate(), expected)
-                self.assertEqual(dialog.tabs.currentIndex(), index)
+                self.assertIs(dialog.tabs.currentWidget(), page)
                 self.assertEqual(bar.value(), scroll)
                 self.assertEqual(self.store.path.read_bytes(), saved)
-                if index == 0:
+                if page_key == 'general':
                     self.assertFalse(dialog.controls['audio.volume'].isEnabled())
                     self.assertTrue(dialog.controls['oracle.glow_opacity'].isEnabled())
-                elif index == 3:
+                elif page_key == 'projection':
                     self.assertFalse(dialog.controls['oracle.halo_arc_max_count'].isEnabled())
                 dialog.close()
 
     def test_reset_all_is_a_draft_and_preserves_hidden_settings_then_saves_exact_defaults(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
-        config = replace(config, oracle=replace(config.oracle, base_speed=3.1, colors=replace(
+        config = replace(config, oracle=replace(config.oracle, world_width=1234., base_speed=3.1, colors=replace(
             config.oracle.colors, skin='#123456', pearl_glyph='#fedcba',
             arm='#234567', arm_highlight='#abcdef', joints='#102030')))
         self.store.save(config)
@@ -380,7 +419,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         template_bytes = self.source.read_bytes()
         from rw_creature_pet.settings_store import load_defaults
         defaults = load_defaults()
-        expected = replace(defaults, oracle=replace(defaults.oracle, base_speed=3.1), ui=config.ui)
+        expected = replace(defaults, oracle=replace(defaults.oracle, world_width=1234.), ui=config.ui)
         dialog.reset_all_button.click()
         self.assertEqual(dialog.candidate(), expected)
         self.assertEqual(self.store.path.read_bytes(), saved)

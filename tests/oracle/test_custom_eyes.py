@@ -19,6 +19,7 @@ from rw_creature_pet.oracle.config import CustomAppearance, OracleColors, Oracle
 from rw_creature_pet.oracle.eye_config import EyeAppearance
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
@@ -151,6 +152,7 @@ class CustomEyesTests(unittest.TestCase):
             store = SettingsStore(root/'settings.json')
             store.save(config)
             before = store.path.read_bytes()
+            isolate_characters(self, store.path.parent)
             d = OracleSettingsDialog(config, store, assets=OracleAssets(OracleRenderer(), '', {}, ''))
             try:
                 d.open_face_preview()
@@ -181,7 +183,7 @@ class CustomEyesTests(unittest.TestCase):
                 self.assertIsNone(store.load().oracle.active_custom_appearance)
                 self.assertEqual(store.load().oracle.custom_appearance.eye_1, self.shape().eye_1)
                 with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=config):
-                    d.restore_defaults(1)
+                    d.restore_defaults(d.tabs.indexOf(d.pages['appearance']))
                 self.assertEqual(first.value(), config.oracle.custom_appearance.eye_1)
                 self.assertEqual(second.value(), config.oracle.custom_appearance.eye_2)
             finally:

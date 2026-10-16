@@ -1,5 +1,6 @@
 """用户设置存储：独立于安装目录，完整保留未在 GUI 中展示的配置。"""
 from dataclasses import asdict, replace
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -77,6 +78,27 @@ def _fill_missing(data, defaults):
 class SettingsStore:
     def __init__(self, path=None):
         self.path = Path(path) if path is not None else default_settings_path()
+        self._preset_state = None
+
+    def load_preset_state(self):
+        state = self.read_document().get('preset_state', {})
+        return state if isinstance(state, dict) else {}
+
+    def read_document(self):
+        try:
+            data = json.loads(self.path.read_text(encoding='utf-8'))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    @contextmanager
+    def preset_state(self, state):
+        """与本次设置提交一同写入；失败或取消不改变已保存的预设关联"""
+        previous, self._preset_state = self._preset_state, state
+        try:
+            yield
+        finally:
+            self._preset_state = previous
 
     def load(self):
         defaults = load_defaults()
@@ -88,6 +110,8 @@ class SettingsStore:
             raise ValueError('不支持的用户设置文件版本')
         if not isinstance(data.get('config'), dict):
             raise ValueError('配置必须为对象')
+        from .presets.startup import stage_character_upgrade
+        data, character_staged = stage_character_upgrade(data)
         user_config = dict(data['config'])
         oracle = user_config.get('oracle')
         palette_migrated = isinstance(oracle, dict) and 'custom_colors' not in oracle
@@ -124,7 +148,7 @@ class SettingsStore:
             user_config['overseer'] = {**watcher, 'slots': [
                 {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
         merged, changed = _fill_missing(user_config, defaults)
-        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated
+        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
         if merged['ui']['language'] != config.ui.language:
@@ -135,7 +159,8 @@ class SettingsStore:
     def save(self, config):
         data = _mapping(config)
         AppConfig.from_mapping(data)
-        self._write({'version': 1, 'config': data})
+        state = self.load_preset_state() if self._preset_state is None else self._preset_state
+        self._write({'version': 1, 'config': data, 'preset_state': state})
 
     def _write(self, data):
         payload = json.dumps(data, ensure_ascii=False, indent=2)+'\n'

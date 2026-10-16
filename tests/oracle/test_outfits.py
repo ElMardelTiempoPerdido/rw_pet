@@ -20,16 +20,25 @@ from rw_creature_pet.oracle.config import OracleColors, OracleConfig
 from rw_creature_pet.oracle.graphics.appearance import OracleAppearance, perpendicular
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.interaction.input import PuppetHitMap
-from rw_creature_pet.oracle.graphics.outfits import (MAID_LACE_OFFSETS, MAID_RIBBON_UP_OFFSETS, MAID_RIBBON_DOWN_OFFSETS,
-                                           load_maid_head, load_maid_lace, maid_apron_layer,
-                                           maid_head_layer, maid_lace_layers, maid_ribbon_up_layer,
-                                           maid_ribbon_down_layer)
+from rw_creature_pet.oracle.graphics.outfit_definition import BUILTIN_OUTFITS, MAID, Slot
+from rw_creature_pet.oracle.graphics.outfits import component_layers
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.ui_config import UiConfig
+
+
+# Authored positions are visual acceptance values, independent of the definition table
+MAID_LACE_OFFSETS = {1.: (1., 0.), 1.5: (2., 1.), 2.: (2., 1.)}
+MAID_RIBBON_UP_OFFSETS = {1.: (0., 1.), 1.5: (1., 2.), 2.: (2., 2.)}
+MAID_RIBBON_DOWN_OFFSETS = {1.: 7., 1.5: 12., 2.: 14.}
+
+
+def maid_layer(part, density, crown=0.):
+    return component_layers(MAID.component(part), density, anchor_y=crown)[0]
 
 
 class OutfitTests(unittest.TestCase):
@@ -55,17 +64,15 @@ class OutfitTests(unittest.TestCase):
         renderer = OracleRenderer()
         crown = -50/11-renderer.HEAD_CROWN_RISE
         for scale, dimensions, gap in ((1., (11, 5), 3), (1.5, (18, 8), 4), (2., (24, 10), 5)):
-            cap, rect = maid_head_layer(scale, crown)
+            cap, rect = maid_layer('head', scale, crown)
             self.assertEqual((cap.width(), cap.height()), dimensions)
             self.assertAlmostEqual(rect.center().x(), 0.)
             self.assertAlmostEqual((crown-rect.top())*scale, gap)
             self.assertAlmostEqual(rect.width()*scale, cap.width())
             normal = self.paint_head(renderer, scale, 'normal')
-            ribbon, rect = maid_ribbon_up_layer(scale, crown)
-            transparent = ribbon.copy()
-            transparent.fill(0)
             # 单独检查后方头巾；新增蝴蝶结按要求覆盖头部，另行验证其前景层。
-            with patch('rw_creature_pet.oracle.graphics.render.maid_ribbon_up_layer', return_value=(transparent, rect)):
+            without_ribbon = replace(MAID, components=tuple(p for p in MAID.components if p.id != 'ribbon_up'))
+            with patch.dict(BUILTIN_OUTFITS, maid=without_ribbon):
                 maid = self.paint_head(renderer, scale, 'maid')
             points = lambda img: [(x, y) for x in range(img.width()) for y in range(img.height())
                                   if img.pixelColor(x, y).alpha()]
@@ -80,7 +87,7 @@ class OutfitTests(unittest.TestCase):
             normal = self.paint_head(renderer, scale, 'normal')
             cap = self.paint_head(renderer, scale, 'maid')
             self.assertIs(self.paint_head(renderer, scale, 'maid', dpr=1.5, offset=Vec2(5, 8)), cap)
-            self.assertIs(load_maid_head(scale), load_maid_head(scale))
+            self.assertIs(maid_layer('head', scale)[0], maid_layer('head', scale)[0])
             for angle in range(-180, 181, 30):
                 image = self.paint_head(renderer, scale, 'maid', tilt=angle, gaze=Vec2(.7, -.5))
                 for i in range(image.width()):
@@ -96,13 +103,13 @@ class OutfitTests(unittest.TestCase):
         crown = -50/11-renderer.HEAD_CROWN_RISE
         total_overlap = 0
         for scale in (1., 1.5, 2.):
-            ribbon, rect = maid_ribbon_up_layer(scale, crown)
+            ribbon, rect = maid_layer('ribbon_up', scale, crown)
             right, rise = MAID_RIBBON_UP_OFFSETS[scale]
             self.assertAlmostEqual(rect.left()*scale, right)
             self.assertAlmostEqual((crown-rect.top())*scale, rise)
             self.assertAlmostEqual(rect.width()*scale, ribbon.width())
-            self.assertIs(maid_ribbon_up_layer(scale, crown)[0], ribbon)
-            down, chest_rect = maid_ribbon_down_layer(scale)
+            self.assertIs(maid_layer('ribbon_up', scale, crown)[0], ribbon)
+            down, chest_rect = maid_layer('ribbon_down', scale)
             self.assertEqual(chest_rect.center().x(), 0.)
             self.assertAlmostEqual(chest_rect.top()*scale, MAID_RIBBON_DOWN_OFFSETS[scale])
             self.assertAlmostEqual(chest_rect.width()*scale, down.width())
@@ -145,16 +152,16 @@ class OutfitTests(unittest.TestCase):
                             renderer.draw_geometry(painter, scene, halo=False, arm=False, cords=False, pearl=False)
                         else:
                             renderer.draw(painter, scene)
-                    overlay = renderer._chest_ribbon_image
-                    target = renderer._chest_ribbon_target
+                    overlay = renderer._outfit_sprites[('ribbon_down', 0)].image
+                    target = renderer._outfit_sprites[('ribbon_down', 0)].target
                     for y in range(overlay.height()):
                         for x in range(overlay.width()):
                             color = overlay.pixelColor(x, y)
                             if color.alpha() == 255:
                                 self.assertEqual(image.pixelColor(round(target.x()*scale)+x,
                                                                   round(target.y()*scale)+y), color)
-                    renderer.draw_chest_ribbon(painter, scene)
-                    self.assertIs(renderer._chest_ribbon_image, overlay)
+                    renderer.draw_front_outfit(painter, scene)
+                    self.assertIs(renderer._outfit_sprites[('ribbon_down', 0)].image, overlay)
                 finally:
                     painter.end()
 
@@ -167,7 +174,7 @@ class OutfitTests(unittest.TestCase):
         try:
             painter.scale(scale/dpr, scale/dpr)
             with patch.object(renderer, 'gown_axis', return_value=(origin, axis)):
-                renderer.draw_chest_ribbon(painter, scene)
+                renderer.draw_front_outfit(painter, scene)
         finally:
             painter.end()
         return image
@@ -183,20 +190,20 @@ class OutfitTests(unittest.TestCase):
                 with self.subTest(scale=scale, angle=angle):
                     actual = self.paint_chest_ribbon(renderer, scene, scale, angle)
                     self.assertEqual(bytes(actual.constBits()), reference)
-            image = renderer._chest_ribbon_image
+            image = renderer._outfit_sprites[('ribbon_down', 0)].image
             actual = self.paint_chest_ribbon(renderer, scene, scale, 0, dpr=1.5)
             self.assertEqual(bytes(actual.constBits()), reference)
-            self.assertIs(renderer._chest_ribbon_image, image)
+            self.assertIs(renderer._outfit_sprites[('ribbon_down', 0)].image, image)
 
     def test_chest_ribbon_full_rotation_and_translation_preserve_anchor_and_cache(self):
         scene = OracleScene(OracleConfig(outfit='maid', hide_cords=True))
         renderer = OracleRenderer()
         for scale in (1., 1.5, 2.):
             self.paint_chest_ribbon(renderer, scene, scale, 0)
-            canvas_size = renderer._chest_ribbon_image.size()
-            anchor_target = QRectF(renderer._chest_ribbon_target)
-            source, rect = maid_ribbon_down_layer(scale)
-            front = renderer._chest_ribbon_image
+            canvas_size = renderer._outfit_sprites[('ribbon_down', 0)].image.size()
+            anchor_target = QRectF(renderer._outfit_sprites[('ribbon_down', 0)].target)
+            source, rect = maid_layer('ribbon_down', scale)
+            front = renderer._outfit_sprites[('ribbon_down', 0)].image
             # 正面时保留原图完整像素与领口下移量。
             left = (front.width()-source.width()+1)//2
             top = front.height()//2+round(rect.top()*scale)
@@ -204,9 +211,9 @@ class OutfitTests(unittest.TestCase):
             for angle in range(-180, 181, 15):
                 with self.subTest(scale=scale, angle=angle):
                     self.paint_chest_ribbon(renderer, scene, scale, angle)
-                    rotated = renderer._chest_ribbon_image
+                    rotated = renderer._outfit_sprites[('ribbon_down', 0)].image
                     self.assertEqual(rotated.size(), canvas_size)
-                    self.assertEqual(renderer._chest_ribbon_target, anchor_target)
+                    self.assertEqual(renderer._outfit_sprites[('ribbon_down', 0)].target, anchor_target)
                     if angle % 90 == 0:
                         self.assertEqual(rotated, front.transformed(QTransform().rotate(angle)))
                     self.assertIn(255, bytes(rotated.constBits())[3::4])
@@ -217,9 +224,9 @@ class OutfitTests(unittest.TestCase):
                         self.assertEqual(rotated.pixelColor(rotated.width()-1, i).alpha(), 0)
                     offset = Vec2(5/scale, 3/scale)
                     self.paint_chest_ribbon(renderer, scene, scale, angle, Vec2(32, 32)+offset)
-                    self.assertIs(renderer._chest_ribbon_image, rotated)
-                    self.assertAlmostEqual((renderer._chest_ribbon_target.x()-anchor_target.x())*scale, 5.)
-                    self.assertAlmostEqual((renderer._chest_ribbon_target.y()-anchor_target.y())*scale, 3.)
+                    self.assertIs(renderer._outfit_sprites[('ribbon_down', 0)].image, rotated)
+                    self.assertAlmostEqual((renderer._outfit_sprites[('ribbon_down', 0)].target.x()-anchor_target.x())*scale, 5.)
+                    self.assertAlmostEqual((renderer._outfit_sprites[('ribbon_down', 0)].target.y()-anchor_target.y())*scale, 3.)
 
     def test_skin_changes_invalidate_head_and_hit_map_without_body_rebuild(self):
         scene, renderer = OracleScene(), OracleRenderer()
@@ -240,22 +247,23 @@ class OutfitTests(unittest.TestCase):
         upper, direction, head = Vec2(32, 40), Vec2(0, -1), Vec2(32, 30.5)
         for scale, (gap, down) in MAID_LACE_OFFSETS.items():
             gap, down = int(gap), int(down)
-            source, _ = load_maid_lace(scale)
+            source, _ = tuple(image for image, _ in component_layers(MAID.component('lace'), scale))
             width, height = source.width(), source.height()
             image = QImage(round(64*scale), round(64*scale), QImage.Format.Format_ARGB32_Premultiplied)
             image.fill(0)
             painter = QPainter(image)
             try:
                 painter.scale(scale, scale)
-                renderer.draw_shoulder_lace(painter, upper, direction, head, scale)
+                renderer.draw_body_outfit(painter, OracleScene(OracleConfig(outfit='maid')), 1.,
+                                          upper, upper, direction, head, None, None, scale, Slot.AFTER_SLEEVES)
             finally:
                 painter.end()
-            (left, rect), (right, mirrored) = maid_lace_layers(scale)
+            (left, rect), (right, mirrored) = component_layers(MAID.component('lace'), scale)
             self.assertEqual((left.width(), left.height()), (width, height))
             self.assertAlmostEqual(rect.right()*scale, -gap)
             self.assertAlmostEqual(mirrored.left()*scale, gap)
             self.assertAlmostEqual(rect.top()*scale, down)
-            self.assertIs(load_maid_lace(scale)[1], right, '水平翻转只在首次加载时计算')
+            self.assertIs(tuple(image for image, _ in component_layers(MAID.component('lace'), scale))[1], right, '水平翻转只在首次加载时计算')
             mid, top = round(32*scale), round(37*scale)+down
             for y in range(height):
                 for x in range(width):
@@ -287,8 +295,8 @@ class OutfitTests(unittest.TestCase):
             self.assertIsNot(raster, previous)
             self.assertIs(renderer._body_frame, body_frame)
             if geometry is not None:
-                self.assertIs(renderer._apron_geometry, geometry, '缩放复用围裙裁剪几何')
-            geometry = renderer._apron_geometry
+                self.assertIs(renderer._clothing_geometry, geometry, '缩放复用围裙裁剪几何')
+            geometry = renderer._clothing_geometry
             self.assertIsNotNone(renderer._body_glow.image)
             paint(scale, dpr=1.5)
             self.assertIs(renderer._raster_image, raster)
@@ -299,13 +307,13 @@ class OutfitTests(unittest.TestCase):
 
     def test_apron_native_size_center_and_collar_offsets(self):
         for scale, dimensions, down in ((1., (17, 33), 1), (1.5, (27, 50), 3), (2., (34, 66), 4)):
-            image, rect = maid_apron_layer(scale)
+            image, rect = maid_layer('apron', scale)
             self.assertEqual((image.width(), image.height()), dimensions)
             self.assertEqual(rect.center().x(), 0.)
             self.assertAlmostEqual(rect.top()*scale, down)
             self.assertAlmostEqual(rect.width()*scale, image.width())
             self.assertAlmostEqual(rect.height()*scale, image.height())
-            self.assertIs(maid_apron_layer(scale)[0], image)
+            self.assertIs(maid_layer('apron', scale)[0], image)
 
     def test_maid_apron_cannot_cover_sleeves_and_direct_matches_cached_layers(self):
         scene = OracleScene(OracleConfig(outfit='maid', hide_cords=True))
@@ -330,9 +338,11 @@ class OutfitTests(unittest.TestCase):
                 self.assertEqual(complete, paint(scale, cached=False))
                 # 隔离最上方的项链/花边，检查袖子和手掌的全部不透明像素。
                 # 打开围裙不能覆盖这些像素，即使围裙与它们在衣袍范围内重叠。
-                with patch.object(renderer, 'draw_shoulder_lace'), patch.object(renderer, 'draw_necklace'):
+                without_lace = replace(MAID, components=tuple(p for p in MAID.components if p.id != 'lace'))
+                without_apron = replace(without_lace, components=tuple(p for p in without_lace.components if p.id != 'apron'))
+                with patch.dict(BUILTIN_OUTFITS, maid=without_lace), patch.object(renderer, 'draw_necklace'):
                     covered = paint(scale)
-                    with patch.object(renderer, 'draw_apron'):
+                    with patch.dict(BUILTIN_OUTFITS, maid=without_apron):
                         bare = paint(scale)
                     sleeves = paint(scale, sleeves_only=True)
                     self.assertNotEqual(covered, bare, '围裙确实显示')
@@ -371,8 +381,8 @@ class OutfitTests(unittest.TestCase):
                     painter = QPainter(apron)
                     try:
                         painter.scale(scale, scale)
-                        renderer.draw_apron(painter, scene, 1., upper, lower, direction, head,
-                                            opening, gown, scale)
+                        renderer.draw_body_outfit(painter, scene, 1., upper, lower, direction, head,
+                                            opening, gown, scale, Slot.BEFORE_SLEEVES)
                     finally:
                         painter.end()
                     visible = [(x, y) for y in range(apron.height()) for x in range(apron.width())
@@ -382,7 +392,7 @@ class OutfitTests(unittest.TestCase):
                         self.assertEqual(clothes.pixelColor(x, y), QColor('#ffffff'), (x, y))
                     self.assertEqual(set(bytes(apron.constBits())[3::4]), {0, 255})
                     # 整张贴图的轴线必须通过衣袍中央列的两端，不能跟随固定的屏幕竖轴。
-                    _, origin, drawn_angle = renderer._apron_geometry
+                    _, origin, drawn_angle = renderer._clothing_geometry
                     axis = Vec2(sin(radians(drawn_angle)), -cos(radians(drawn_angle)))
                     top, bottom = app.cloth[n//2].position, app.cloth[-n+n//2].position
                     for p in (top, bottom):
@@ -405,10 +415,10 @@ class OutfitTests(unittest.TestCase):
                     painter.scale(scale, scale)
                     painter.translate(offset.x, offset.y)
                     # 固定世界领口；缓存身体的局部平移不能改变最终贴图的采样网格。
-                    with patch.object(renderer, 'apron_geometry',
+                    with patch.object(renderer, 'clothing_geometry',
                                       return_value=(mask, Vec2(48, 30)-offset, angle)):
-                        renderer.draw_apron(painter, scene, 1., Vec2(), Vec2(), Vec2(0, -1),
-                                            Vec2(), mask, mask, scale, offset=offset)
+                        renderer.draw_body_outfit(painter, scene, 1., Vec2(), Vec2(), Vec2(0, -1),
+                                            Vec2(), mask, mask, scale, Slot.BEFORE_SLEEVES, offset=offset)
                 finally:
                     painter.end()
                 self.assertTrue(any(bytes(image.constBits())))
@@ -427,17 +437,18 @@ class OutfitTests(unittest.TestCase):
             self.assertEqual(config.oracle.outfit, 'normal')
             self.assertEqual(json.loads(store.path.read_text())['config']['oracle']['outfit'], 'normal')
             config = replace(config, ui=UiConfig('zh'))
+            isolate_characters(self, store.path.parent)
             dialog = OracleSettingsDialog(config, store, first_run=True, assets=OracleAssets(OracleRenderer(), '', {}, ''))
             try:
                 selector = dialog.controls['oracle.outfit']
-                self.assertEqual(dialog.tabs.tabText(1), '外观')
+                self.assertEqual(dialog.tabs.tabText(dialog.tabs.indexOf(dialog.pages['appearance'])), '外观细节')
                 self.assertTrue(selector.buttons['normal'].isChecked())
                 selector.buttons['maid'].click()
                 self.assertFalse(selector.buttons['normal'].isChecked())
                 self.assertEqual(dialog.candidate().oracle.outfit, 'maid')
                 self.assertEqual(store.load().oracle.outfit, 'normal', '点击单选项不应提前保存')
                 language_manager().set_language('en')
-                self.assertEqual(dialog.tabs.tabText(1), tr('外观'))
+                self.assertEqual(dialog.tabs.tabText(dialog.tabs.indexOf(dialog.pages['appearance'])), tr('外观细节'))
                 self.assertEqual(selector.buttons['maid'].text(), tr('女仆套装'))
                 self.assertEqual(selector.value(), 'maid')
                 dialog.save()

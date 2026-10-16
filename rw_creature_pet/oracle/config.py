@@ -4,6 +4,8 @@ from .space import ALL_EDGES, EDGE_FRACTION_MIN, EDGE_FRACTION_MAX, SpaceAssessm
 from .face_config import FaceDecal
 from .ear_config import EAR_PART_FIELDS, EarPart
 from .eye_config import EYE_FIELDS, EyeAppearance
+from .outfit_config import OutfitSettings
+from .soft_part_config import SOFT_PART_FIELDS, SoftPart
 from dataclasses import dataclass, fields, replace
 from math import isfinite
 from pathlib import Path
@@ -12,6 +14,7 @@ import re
 
 DISPLAY_SCALES = (1., 1.5, 2., 3., 4.)
 EDGE_NAMES = ALL_EDGES
+INNER_COLLAR_WIDTH_MAX = 24.  # 完整宽度，允许用宽高领表现围巾轮廓
 
 # 显示长度 = 存储比例 × 可变段长度 + 固定段长度；与头部椭圆、衣袍中央理想轮廓一致
 # 衣袍中央顶端为 5×0.65，下摆为 -18×1.35，前 45% 的领口区域不伸缩
@@ -144,6 +147,8 @@ class CustomAppearance:
     ear_part_1: EarPart = EarPart(kind='line', width=1., height=8., offset_y=2.)
     ear_part_2: EarPart = EarPart(kind='line', width=1., height=3., rotation=90., offset_y=6.)
     ear_part_3: EarPart = EarPart(kind='ellipse', width=2., height=2., offset_y=7.)
+    soft_part_1: SoftPart = SoftPart(offset_x=-3.)
+    soft_part_2: SoftPart = SoftPart(offset_x=3., length=22.)
 
     def __post_init__(self):
         for name in ('inner_robe_enabled', 'inner_collar_enabled', 'neckline_trim_enabled'):
@@ -155,6 +160,8 @@ class CustomAppearance:
             raise ValueError('耳机部件必须为部件配置')
         if any(not isinstance(getattr(self, name), EyeAppearance) for name in EYE_FIELDS):
             raise ValueError('眼睛必须为眼睛外观配置')
+        if any(not isinstance(getattr(self, name), SoftPart) for name in SOFT_PART_FIELDS):
+            raise ValueError('柔性部件必须为部件配置')
         if self.neckline_shape not in ('arc', 'v'):
             raise ValueError('领口形状必须为 arc / v')
         for name, low, high in (('head_length', .7, 1.5), ('sleeve_root_width', 2., 12.),
@@ -162,8 +169,9 @@ class CustomAppearance:
                                 ('sleeve_cuff_radius', 0., 4.), ('neck_width', 1., 8.),
                                 ('chest_width', 8., 18.), ('chest_height', 4., 10.),
                                 ('shoulder_width', 4., 18.),
-                                ('inner_collar_height', 0., 8.), ('inner_collar_top_width', 1., 12.),
-                                ('inner_collar_bottom_width', 1., 12.),
+                                ('inner_collar_height', 0., 8.),
+                                ('inner_collar_top_width', 1., INNER_COLLAR_WIDTH_MAX),
+                                ('inner_collar_bottom_width', 1., INNER_COLLAR_WIDTH_MAX),
                                 ('neckline_width', 2., 18.), ('neckline_depth', 0., 16.),
                                 ('neckline_height', -6., 8.), ('neckline_roundness', 0., 1.),
                                 ('neckline_tip_radius', 0., 4.), ('neckline_trim_width', 0., 6.),
@@ -183,13 +191,15 @@ class CustomAppearance:
             data[name] = FaceDecal(**{'offset_y': y, **data.get(name, {})})
         from dataclasses import asdict
         defaults = cls()
+        for name in SOFT_PART_FIELDS:
+            data[name] = SoftPart(**{**asdict(getattr(defaults, name)), **data.get(name, {})})
         for name in EAR_PART_FIELDS:
             data[name] = EarPart(**{**asdict(getattr(defaults, name)), **data.get(name, {})})
         return cls(**data)
 
     def resolve_image_paths(self, base):
         decals = {}
-        for name in ('forehead', 'face', *EAR_PART_FIELDS):
+        for name in ('forehead', 'face', *EAR_PART_FIELDS, *SOFT_PART_FIELDS):
             decal = getattr(self, name)
             if decal.image_path:
                 path = Path(decal.image_path).expanduser()
@@ -240,6 +250,7 @@ class OracleConfig:
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
     coarse_pixels_4x: bool = False  # 4× 改用 1× 像素画布；默认使用 2×，3× 始终使用 1×
     outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
+    outfit_settings: OutfitSettings = OutfitSettings()
     body_appearance: str = 'bell'  # Bell 与自定义模板使用独立配色和绘制入口
     custom_appearance: CustomAppearance = CustomAppearance()
     custom_colors: OracleColors = OracleColors()
@@ -256,6 +267,8 @@ class OracleConfig:
             raise ValueError('oracle.coarse_pixels_4x 必须为布尔值')
         if self.outfit not in ('normal', 'maid'):
             raise ValueError('oracle.outfit 必须为 normal / maid')
+        if not isinstance(self.outfit_settings, OutfitSettings):
+            raise ValueError('附加外观配置无效')
         if self.body_appearance not in ('bell', 'custom'):
             raise ValueError('主体外观必须为 bell / custom')
         if not isinstance(self.custom_appearance, CustomAppearance):
@@ -366,4 +379,5 @@ class OracleConfig:
         data['custom_appearance'] = CustomAppearance.from_mapping(data.get('custom_appearance', {}),
                                                                  eye_color=data['custom_colors'].eyes)
         data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))
+        data['outfit_settings'] = OutfitSettings.from_mapping(data.get('outfit_settings', {}))
         return cls(**data)

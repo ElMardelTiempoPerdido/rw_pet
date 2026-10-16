@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QCheckBox, QFormLayout, QLabel, QWidget
 
 from ...i18n import tr
 from ..eye_config import EyeAppearance
+from .settings_style import parameter_group_background
 from .inputs import ColorButton, WheelSafeComboBox
 
 EYE_LABELS = {'eye_1': '眼睛1', 'eye_2': '眼睛2'}
@@ -17,9 +18,10 @@ class EyeEditor(QWidget):
 
     def __init__(self, title, value):
         super().__init__()
+        parameter_group_background(self)
         self._value = None
         form = QFormLayout(self)
-        form.setContentsMargins(0, 8, 0, 8)
+        form.setContentsMargins(12, 12, 12, 12)
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(12)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)

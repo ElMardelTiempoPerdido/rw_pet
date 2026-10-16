@@ -83,7 +83,7 @@ def main():
     with tempfile.TemporaryDirectory() as temp:
         dialog = OracleSettingsDialog(config, SettingsStore(Path(temp)/'settings.json'),
                                       assets=OracleAssets(renderer, '', {}, ''))
-        dialog.tabs.setCurrentIndex(3)
+        dialog.tabs.setCurrentWidget(dialog.pages['projection'])
         dialog.show()
         for language in ('zh', 'en'):
             language_manager().set_language(language)

@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton, QScrol
 from ...i18n import WidgetTexts, language_manager, tr
 from ...shared.geometry import Vec2
 from ..graphics.render import OracleRenderer
+from ..graphics.outfit_definition import outfit_definition
+from ..graphics.outfits import head_outfit_radius
 from ..ear_config import ear_radius
 from .ear_editor import EAR_LABELS, EarPartEditor
 from .face_editor import FaceDecalEditor
@@ -50,12 +52,13 @@ class FacePreviewCanvas(QWidget):
 class FacePreviewDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle('面部预览')
+        self.setWindowTitle('在预览视图中调整面部！')
         self.setModal(False)
         self.renderer = OracleRenderer()
         self.settings = parent
         self._status_message = ''
         self.shape, self.outfit = None, 'normal'
+        self.outfit_settings = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -100,15 +103,15 @@ class FacePreviewDialog(QDialog):
         self.eye_editors = {}
         eye_page = QWidget()
         eye_layout = QVBoxLayout(eye_page)
-        eye_hint = QLabel('正面排列：眼睛1 / 眼睛2；编号随头部固定，转头或旋转时不交换')
-        eye_hint.setWordWrap(True)
-        eye_layout.addWidget(eye_hint)
+        # eye_hint = QLabel('正面排列：眼睛1 / 眼睛2；编号随头部固定，转头或旋转时不交换')
+        # eye_hint.setWordWrap(True)
+        # eye_layout.addWidget(eye_hint)
         for name, source in parent.eye_editors.items():
             editor = EyeEditor(EYE_LABELS[name], source.value())
             self.bind_editor(source, editor)
             self.eye_editors[name] = editor
             eye_layout.addWidget(editor)
-        state_hint = QLabel('默认睁眼保持睁开；默认闭眼仍可在观察或互动时短暂睁开；隐藏的眼睛不显示')
+        state_hint = QLabel('*默认闭眼仍可在观察或互动时睁开')
         state_hint.setWordWrap(True)
         eye_layout.addWidget(state_hint)
         eye_layout.addStretch(1)
@@ -142,9 +145,9 @@ class FacePreviewDialog(QDialog):
         ear_layout.addWidget(self.ear_selector)
         ear_layout.addWidget(self.ear_stack, 1)
         self.add_editor_page('耳机部件', ear_page)
-        hint = QLabel('两处编辑同步；点击“保存并应用”后写入配置并更新桌宠，关闭预览保留未保存的编辑')
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        # hint = QLabel('两处编辑同步；点击“保存并应用”后写入配置并更新桌宠，关闭预览保留未保存的编辑')
+        # hint.setWordWrap(True)
+        # layout.addWidget(hint)
         footer = QHBoxLayout()
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -220,14 +223,18 @@ class FacePreviewDialog(QDialog):
         self.status.setText(tr(self._status_message))
         self.setFont(settings_font())
 
-    def set_appearance(self, colors, shape, outfit):
+    def set_appearance(self, colors, shape, outfit, outfit_settings=None):
         self.renderer.colors, self.shape, self.outfit = colors, shape, outfit
+        self.outfit_settings = outfit_settings
         self.sync_editing()
         self.render_preview()
 
     def render_preview(self, *args):
         scale = self.scale.currentData()
-        size = round(max(FacePreviewCanvas.LOGICAL_SIZE, ceil(ear_radius(self.shape)*2+4))*scale)
+        crown = self.renderer.head_rect(self.shape.head_length if self.shape else 1.).top()
+        radius = max(ear_radius(self.shape), head_outfit_radius(
+            outfit_definition(self.outfit, self.outfit_settings), scale, crown))
+        size = round(max(FacePreviewCanvas.LOGICAL_SIZE, ceil(radius*2+4))*scale)
         image = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(0)
         painter = QPainter(image)
@@ -240,7 +247,7 @@ class FacePreviewDialog(QDialog):
                                          for name in EYE_LABELS})
             self.renderer.draw_head(painter, Vec2(), Vec2(0, 10), Vec2(0, -1), Vec2(*self.view.currentData()),
                                     float(mode == 'open'), pixelated=True, raster_scale=scale,
-                                    shape=shape, outfit=self.outfit)
+                                    shape=shape, outfit=self.outfit, outfit_settings=self.outfit_settings)
         finally:
             painter.end()
         self.actual.image = image

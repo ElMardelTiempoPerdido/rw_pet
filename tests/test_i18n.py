@@ -19,6 +19,7 @@ from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.shared.messages import Message
 from rw_creature_pet.ui_config import UiConfig, system_language
 from tests.oracle.test_desktop import FakeScreen
@@ -79,6 +80,7 @@ class TranslationUiTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        isolate_characters(self, self.root)
         (self.root/'RainWorld_Data').mkdir()
         (self.root/'RainWorld_Data/resources.assets').write_bytes(b'fixture')
         self.config = AppConfig(game_dir=self.root, ui=UiConfig('zh'))
@@ -140,7 +142,7 @@ class TranslationUiTests(unittest.TestCase):
     def test_form_switch_keeps_dirty_values_tab_scroll_and_pending_save_language(self):
         d = self.dialog()
         d.fit_workarea(QRect(0, 0, 800, 480))
-        d.tabs.setCurrentIndex(2)
+        d.tabs.setCurrentWidget(d.pages['pearls'])
         d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
         d.controls['oracle.pearl_matrix_count'].setValue(23)
         d.controls['oracle.pearl_bubble_color'].setValue('#123456')
@@ -153,7 +155,7 @@ class TranslationUiTests(unittest.TestCase):
         d.pending = d.candidate()
         language_manager().set_language('en')
         self.flush()
-        self.assertEqual(d.tabs.currentIndex(), 2)
+        self.assertIs(d.tabs.currentWidget(), d.pages['pearls'])
         self.assertEqual(bar.value(), scroll)
         self.assertEqual(d.controls, controls)
         self.assertEqual(d.controls['oracle.pearl_matrix_count'].value(), 23)
@@ -163,7 +165,7 @@ class TranslationUiTests(unittest.TestCase):
         self.assertEqual(d.candidate().ui.language, 'en')
         self.assertEqual(d.save_button.text(), tr('保存并关闭'))
         self.assertEqual(d.apply_button.text(), tr('保存并应用'))
-        self.assertEqual(d.buttons.button(QDialogButtonBox.StandardButton.Cancel).text(), 'Cancel')
+        self.assertEqual(d.buttons.button(QDialogButtonBox.StandardButton.Cancel).text(), 'Close')
         for _, source in d._texts.bindings:
             self.assertNotEqual(tr(source), source, source)
         d.save()
@@ -173,7 +175,7 @@ class TranslationUiTests(unittest.TestCase):
     def test_initial_english_and_validation_and_failed_save_messages(self):
         d = self.dialog('en', first_run=True)
         self.assertEqual(d.windowTitle(), tr('桌宠初始化设置'))
-        self.assertEqual(d.tabs.tabText(2), 'Pearls')
+        self.assertEqual(d.tabs.tabText(d.tabs.indexOf(d.pages['pearls'])), 'Pearls')
         for edge, button in d.edge_checks.items():
             button.setChecked(edge in ('top', 'bottom'))
         d.save()

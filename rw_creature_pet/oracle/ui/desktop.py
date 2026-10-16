@@ -601,7 +601,8 @@ class OracleDesktopWindow(QWidget):
                 raise ValueError('场景空间不足，请扩大活动带、缩小机械臂或降低显示倍率')
         visual = {name: getattr(config.oracle, name)
                   for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit',
-                               'body_appearance', 'custom_appearance', 'colors', 'custom_colors', 'coarse_pixels_4x')}
+                               'body_appearance', 'custom_appearance', 'colors', 'custom_colors', 'coarse_pixels_4x',
+                               'outfit_settings')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
         if viewport is not None and (screen_changed or config.oracle != previous_with_visual
@@ -633,6 +634,8 @@ class OracleDesktopWindow(QWidget):
             self.motion.scene.config = replace(self.motion.scene.config, **visual)
             self.motion.scene.appearance.sync_shape(self.motion.scene)
             self.motion.scene.appearance.sync_cords(self.motion.scene)
+            # 暂停时也立即移除已关闭/切换角色后的附件，下一次重绘负责清理旧范围
+            self.motion.scene.soft_parts.sync(self.motion.scene)
             self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
             self.motion.scene.projection.available = bool(self.renderer.projection_images)
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
@@ -813,9 +816,9 @@ class OracleDesktopWindow(QWidget):
             return
         s = self.motion.scene
         revision = (s.appearance, s.appearance.revision, s.pearl_visual_revision, s.eyes.revision,
-                    s.halo_visual_revision, s.projection.revision)
+                    s.halo_visual_revision, s.projection.revision, s.soft_parts, s.soft_parts.revision)
         changed = (revision != self._last_revision or not s.appearance.sleeping or not s.arrived
-                   or not s.pearls_settled or s.eyes.moving)
+                   or not s.pearls_settled or s.eyes.moving or not s.soft_parts.sleeping)
         if now >= self._next_render_time:
             # 显示层分离：监视者刷新不进入人偶损伤矩形、命中图或渲染缓存。
             overseer_changed = self.overseers.refresh(self.clock.alpha)

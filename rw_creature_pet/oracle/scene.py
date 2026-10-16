@@ -12,6 +12,7 @@ from .config import OracleConfig
 from .space import body_margin
 from .motion.navigation import EdgeRegion, FloatNavigator, RoundedRail
 from .graphics.appearance import OracleAppearance
+from .motion.soft_parts import SoftParts
 from .behavior.controller import Activity, OracleBehavior
 from .behavior.eyes import OracleEyes
 from .effects.halo import OracleHalo
@@ -398,6 +399,7 @@ class OracleScene:
         self.set_pearl_orbits(self.pearl_orbits_enabled)
         self.ticks = 0
         self.appearance = OracleAppearance(self)
+        self.soft_parts = SoftParts(self)
         self.halo = OracleHalo(self.world, self.orbit_center, self.config.halo_scale)
         self.halo_arcs = HaloArcs(self.world, self.config.halo_arc_max_count)
         self.drag = OracleDrag(self, drag_enabled)
@@ -776,6 +778,7 @@ class OracleScene:
                       guide_region=self.drag.saved_corridor if self.drag.recovering else None)
         self.projection.avoid_arm(self)
         self.appearance.step(self)
+        self.soft_parts.step(self)
         if self.halo_visible:
             self.halo.step(self.orbit_center)
         self.halo_arcs.step(self.halo, self.halo_visible and self.config.halo_arcs_enabled)

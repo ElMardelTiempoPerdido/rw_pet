@@ -49,6 +49,11 @@ class AppearancePresetUiTests(unittest.TestCase):
 
     def dialog(self):
         dialog = OracleSettingsDialog(self.config, self.store, assets=object())
+        # 此组验证手动保存边界；默认开启的自动保存由 test_preset_workflow 覆盖
+        dialog.preset_workflow.state.autosave = False
+        dialog.personal_controls.autosave.blockSignals(True)
+        dialog.personal_controls.autosave.setChecked(False)
+        dialog.personal_controls.autosave.blockSignals(False)
         self.dialogs.append(dialog)
         self.enterContext(patch.object(dialog, 'space_assessment', return_value=None))
         return dialog
@@ -114,20 +119,20 @@ class AppearancePresetUiTests(unittest.TestCase):
         preset.path.unlink()
         dialog.appearance_presets.choose(dialog.appearance_presets.selector.currentIndex())
         self.assertEqual(dialog.appearance_draft(), before)
-        self.assertEqual(dialog.appearance_presets.selector.currentIndex(), 0)
+        self.assertEqual(dialog.appearance_presets.selector.currentIndex(), -1)
         self.assertIn('无法载入', dialog.appearance_presets.status.text())
 
-    def test_export_revisions_keep_id_and_duplicate_warning_is_visible(self):
+    def test_update_keeps_id_and_path_without_creating_duplicates(self):
         dialog = self.dialog()
         panel = dialog.appearance_presets
         first = panel.export_current('版本')
         dialog.controls['oracle.colors.skin'].setValue('#123456')
-        second = panel.export_current('版本')
+        second = panel.export_current('版本', target=first)
         self.assertEqual(first.id, second.id)
-        self.assertFalse(panel.warning.isHidden())
-        self.assertIn(str(first.path), panel.warning.text())
-        self.assertIn(str(second.path), panel.warning.text())
-        self.assertEqual(panel.selector.currentData().path, second.path)
+        self.assertEqual(first.path, second.path)
+        self.assertTrue(panel.warning.isHidden())
+        self.assertIsNone(panel.loaded)
+        self.assertIsNotNone(dialog.profile_presets.loaded)
         panel.selector.setCurrentIndex(0)
         panel.choose(0)
         fork = panel.export_current('独立外观')
@@ -138,20 +143,21 @@ class AppearancePresetUiTests(unittest.TestCase):
         preset = external.export(self.custom, '来自朋友')
         dialog = self.dialog()
         dialog.appearance_presets.import_file(preset.path)
-        self.assertEqual(dialog.appearance_presets.loaded.id, preset.id)
-        self.assertTrue(dialog.appearance_presets.loaded.path.is_relative_to(self.library.directory))
+        self.assertEqual(dialog._appearance_source.id, preset.id)
+        self.assertTrue(dialog._appearance_source.path.is_relative_to(self.library.directory))
         self.assertEqual(dialog.appearance_draft().oracle.custom_colors.skin, '#abc123')
         self.assertFalse(self.store.path.exists())
 
-    def test_refresh_removes_deleted_association_without_changing_draft(self):
+    def test_refresh_keeps_deleted_source_identity_without_changing_draft(self):
         dialog = self.dialog()
         panel = dialog.appearance_presets
         preset = panel.export_current('旧关联')
+        panel.import_file(preset.path)
         before = dialog.appearance_draft()
         preset.path.unlink()
         panel.refresh()
-        self.assertEqual(panel.selector.currentIndex(), 0)
-        self.assertIsNone(panel.loaded)
+        self.assertTrue(panel.selection_panel.isHidden())
+        self.assertEqual(dialog._appearance_source.id, preset.id)
         self.assertEqual(dialog.appearance_draft(), before)
 
     def test_language_change_keeps_selection_user_name_and_loaded_values(self):
@@ -162,9 +168,10 @@ class AppearancePresetUiTests(unittest.TestCase):
         language_manager().set_language('en')
         self.app.processEvents()
         panel = dialog.appearance_presets
-        self.assertEqual(panel.selector.currentText(), '不会翻译的名字')
-        self.assertEqual(panel.import_button.text(), 'Import appearance…')
-        self.assertEqual(panel.status.text(), 'Appearance loaded; save to apply')
+        self.assertEqual(dialog._appearance_source.name, '不会翻译的名字')
+        self.assertIsNotNone(dialog.profile_presets.loaded)
+        self.assertEqual(panel.import_button.text(), 'Import appearance into current character…')
+        self.assertEqual(panel.status.text(), 'Appearance loaded')
         self.assertEqual(dialog.appearance_draft().oracle, before.oracle)
 
 

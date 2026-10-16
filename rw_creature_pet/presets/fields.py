@@ -16,6 +16,10 @@ _COLOR_FIELDS = (
 _DECAL_FIELDS = ('enabled', 'image_path', 'image_name', 'offset_x', 'offset_y')
 _EAR_FIELDS = (*_DECAL_FIELDS, 'kind', 'width', 'height', 'rotation', 'tone')
 _EYE_FIELDS = ('color', 'visible', 'default_open')
+_OUTFIT_PART_FIELDS = ('enabled', 'offset_x', 'offset_y', 'mirror', 'hue', 'saturation', 'brightness')
+_SOFT_PART_FIELDS = ('enabled', 'anchor', 'offset_x', 'offset_y', 'angle', 'length', 'width',
+                     'color', 'softness', 'damping', 'kind', 'layer', 'image_path', 'image_name',
+                     'tip_width_ratio')
 
 FIELD_SCOPES = build_registry((
     ('', _LOCAL, ('game_dir',)),
@@ -47,13 +51,18 @@ FIELD_SCOPES = build_registry((
         'projection_opacity', 'drag_projection_probability',
         'drag_projection_cooldown_seconds', 'halo_scale', 'halo_arc_max_count',
     )),
-    # 当前尚未进入 GUI 的拖动反应同样登记；音量与语音总开关仍为本机
+    # 拖动反应归角色行为；音量与语音总开关仍为本机
     ('oracle.drag_reactions', _PROFILE, (
         'enabled', 'gesture_probability', 'flutter_probability',
         'alternating_probability', 'eye_open_probability', 'voice_probability',
     )),
     # 播放光晕颜色暂保留当前存储路径，未来迁移配色时须同步更新清单
     ('oracle', _APPEARANCE, ('body_appearance', 'outfit', 'pearl_bubble_color')),
+    ('oracle.outfit_settings.maid.head', _APPEARANCE, _OUTFIT_PART_FIELDS),
+    ('oracle.outfit_settings.maid.lace', _APPEARANCE, _OUTFIT_PART_FIELDS),
+    ('oracle.outfit_settings.maid.apron', _APPEARANCE, _OUTFIT_PART_FIELDS),
+    ('oracle.outfit_settings.maid.ribbon_up', _APPEARANCE, _OUTFIT_PART_FIELDS),
+    ('oracle.outfit_settings.maid.ribbon_down', _APPEARANCE, _OUTFIT_PART_FIELDS),
     ('oracle.colors', _APPEARANCE, _COLOR_FIELDS),
     ('oracle.custom_colors', _APPEARANCE, _COLOR_FIELDS),
     ('oracle.custom_appearance', _APPEARANCE, (
@@ -73,6 +82,8 @@ FIELD_SCOPES = build_registry((
     ('oracle.custom_appearance.ear_part_1', _APPEARANCE, _EAR_FIELDS),
     ('oracle.custom_appearance.ear_part_2', _APPEARANCE, _EAR_FIELDS),
     ('oracle.custom_appearance.ear_part_3', _APPEARANCE, _EAR_FIELDS),
+    ('oracle.custom_appearance.soft_part_1', _APPEARANCE, _SOFT_PART_FIELDS),
+    ('oracle.custom_appearance.soft_part_2', _APPEARANCE, _SOFT_PART_FIELDS),
     # 监视者是独立附加模块，本轮全部保留在本机，包括单个槽位的外观
     ('overseer', _LOCAL, (
         'enabled', 'appearance_mode', 'check_interval', 'appearance_probability',

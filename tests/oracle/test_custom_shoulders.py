@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor, QImage, QPainter
 from rw_creature_pet.oracle.config import CustomAppearance, OracleConfig
 from rw_creature_pet.oracle.graphics.appearance import perpendicular, rotate
 from rw_creature_pet.oracle.graphics import shoulders
+from rw_creature_pet.oracle.graphics.upper_body import BELL_UPPER_BODY
 from rw_creature_pet.oracle.graphics.render import OracleRenderer, point
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
@@ -90,18 +91,43 @@ class CustomShoulderTests(unittest.TestCase):
             widths.append(renderer.sleeve_path(edges, shape).boundingRect().right())
         self.assertEqual(widths, sorted(set(widths)), '增加肩宽必须实际展开袖子外轮廓')
 
-    def test_custom_removes_bell_offsets_and_keeps_the_original_torso_lower_edge(self):
+    def test_bell_uses_shared_chest_and_shoulder_geometry_with_its_fixed_dimensions(self):
         renderer = OracleRenderer()
         up, origin = Vec2(0, -1), Vec2()
         shape = CustomAppearance()
         bell = renderer.torso_path(origin, Vec2(0, 9), up)
         custom = renderer.torso_path(origin, Vec2(0, 9), up, shape=shape)
-        self.assertEqual(bell.boundingRect().top(), -7.)
+        self.assertEqual(bell, custom)
+        self.assertEqual(bell.boundingRect().top(), -8.)
         self.assertEqual(custom.boundingRect().top(), -8.)
         self.assertEqual(bell.boundingRect().bottom(), custom.boundingRect().bottom())
         for sign in (-1, 1):
-            self.assertEqual(renderer.sleeve_shoulder(origin, up, sign), Vec2(sign*4., -2.))
+            self.assertEqual(renderer.sleeve_shoulder(origin, up, sign),
+                             Vec2(sign*BELL_UPPER_BODY.shoulder_width/2, 0.))
             self.assertEqual(renderer.sleeve_shoulder(origin, up, sign, shape), Vec2(sign*4., 0.))
+
+    def test_bell_sleeves_keep_overlap_and_cuff_width_when_rotating_or_raising_arms(self):
+        renderer = OracleRenderer()
+        origin = Vec2(901.13, 237.96)
+        for degrees in (0, 35, 90, 180, 270):
+            direction = rotate(Vec2(0, -1), radians(degrees))
+            waist = rotate(direction, .3)
+            torso = renderer.torso_path(origin, origin-waist*9, direction, waist)
+            for sign in (-1, 1):
+                outward = perpendicular(direction)*sign
+                root = renderer.sleeve_shoulder(origin, direction, sign)
+                for across, rise in ((5., -14.), (15., 3.), (1., 15.), (-1., -6.)):
+                    hand = origin+outward*across+direction*rise
+                    edges = renderer.sleeve_edges(root, hand, direction, sign, torso=torso)
+                    self.assertAlmostEqual((edges[0][1]-edges[0][0]).length(), BELL_UPPER_BODY.sleeve_root_width)
+                    self.assertAlmostEqual((edges[-1][1]-edges[-1][0]).length(), BELL_UPPER_BODY.sleeve_cuff_width)
+                    for t in (0., .25, .5, .75, 1.):
+                        p = edges[0][0].lerp(edges[0][1], t)+outward*.99
+                        self.assertTrue(torso.contains(point(p)), (degrees, sign, across, rise, t))
+                    with patch('rw_creature_pet.oracle.graphics.render.attach_sleeve_root',
+                               side_effect=lambda edges, *args: edges):
+                        original = renderer.sleeve_edges(root, hand, direction, sign, torso=torso)
+                    self.assertEqual(edges[-4:], original[-4:], '胸肩调整不改变袖口和手腕遮挡')
 
     def test_root_keeps_overlap_across_widths_poses_and_bent_torsos_without_moving_cuff(self):
         renderer = OracleRenderer()
@@ -275,13 +301,14 @@ class CustomShoulderTests(unittest.TestCase):
     def test_simulation_shoulders_follow_style_and_switch_without_teleporting_hands(self):
         renderer = OracleRenderer()
         for initial in ('bell', 'custom'):
-            scene = OracleScene(OracleConfig(body_appearance=initial, hide_cords=True, physics_backend='python'))
+            scene = OracleScene(OracleConfig(body_appearance=initial, hide_cords=True, physics_backend='python',
+                                            custom_appearance=CustomAppearance(shoulder_width=12.)))
             app = scene.appearance
             for style in (initial, 'custom', 'bell'):
                 before = tuple(hand.position for hand in app.hands)
                 scene.config = replace(scene.config, body_appearance=style)
                 app.sleeping = True
-                changed = app.hands[0].shoulder_rise != (0. if style == 'custom' else 2.)
+                changed = app.hands[0].shoulder_half != (6. if style == 'custom' else BELL_UPPER_BODY.shoulder_width/2)
                 app.sync_shape(scene)
                 self.assertEqual(tuple(hand.position for hand in app.hands), before)
                 if changed:

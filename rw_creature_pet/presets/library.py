@@ -1,12 +1,12 @@
 """程序旁的外观库，以及供完整预设携带的外观副本"""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
 
 from .appearance import (FORMAT, MANIFEST, VERSION, appearance_mapping, checked_image,
                          get_value, image_paths, load_appearance, set_value, validate_metadata)
-from .common import default_library_directory, publish_package, scan_library, write_document
+from .common import default_library_directory, publish_package, scan_library, update_package, write_document
 
 
 def default_appearance_directory():
@@ -23,7 +23,8 @@ def write_appearance(directory, oracle, name, identifier, updated_at, resolve_im
         reference = get_value(data, key)
         if not reference:
             continue
-        payload = resolve_image(reference).read_bytes()
+        decal = get_value({'oracle': oracle}, key.removesuffix('.image_path'))
+        payload = checked_image(resolve_image(reference), decal).read_bytes()
         target = directory/'images'/(sha256(payload).hexdigest()+'.png')
         target.parent.mkdir(exist_ok=True)
         target.write_bytes(payload)
@@ -42,13 +43,20 @@ class AppearanceLibrary:
     def export(self, config, name, *, preset_id=None):
         return self._write(config.oracle, name.strip(), preset_id or str(uuid4()),
                            datetime.now(timezone.utc).isoformat(timespec='microseconds'),
-                           lambda reference: checked_image(Path(reference).expanduser().resolve()))
+                           lambda reference: Path(reference).expanduser().resolve())
 
     def import_file(self, source):
         preset = load_appearance(source)
-        if preset.path.is_relative_to(self.directory.resolve()):
+        if preset.path.is_relative_to(self.directory.resolve()) and preset.path.name == MANIFEST:
             return preset
         return self._write(preset.oracle, preset.name, preset.id, preset.updated_at, preset.image)
+
+    def update(self, config, target, *, name=None):
+        name = target.name if name is None else name.strip()
+        stamp = max(datetime.now(timezone.utc), target.timestamp+timedelta(microseconds=1)).isoformat()
+        return update_package(self.directory, target, MANIFEST,
+            lambda staging: write_appearance(staging, config.oracle, name, target.id, stamp,
+                lambda reference: Path(reference).expanduser().resolve()), load_appearance)
 
     def _write(self, oracle, name, identifier, updated_at, resolve_image):
         validate_metadata(identifier, name, updated_at)

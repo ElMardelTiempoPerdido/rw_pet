@@ -82,8 +82,9 @@ class CustomAppearanceTests(unittest.TestCase):
                 edges = renderer.sleeve_edges(Vec2(), up*(-14), up, sign, shape)
                 self.assertAlmostEqual((edges[0][1]-edges[0][0]).length(), 4.)
                 self.assertAlmostEqual((edges[-1][1]-edges[-1][0]).length(), 14.)
-        self.assertEqual(renderer.SLEEVE_ROOT_HALF_WIDTH, 3.)
-        self.assertEqual(renderer.SLEEVE_CUFF_HALF_WIDTH, 5.)
+        bell = renderer.sleeve_edges(Vec2(), Vec2(0, 14), Vec2(0, -1), 1)
+        self.assertAlmostEqual((bell[0][1]-bell[0][0]).length(), 6.)
+        self.assertAlmostEqual((bell[-1][1]-bell[-1][0]).length(), 10.)
 
     def test_custom_cuff_zero_is_square_and_large_radius_preserves_narrow_opening(self):
         renderer = OracleRenderer()

@@ -6,7 +6,8 @@ from ..oracle.config import OracleConfig
 from ..shared.messages import Message
 from .fields import paths_for
 from .registry import FieldScope
-from .common import (get_value, set_value, scoped_leaves, validate_metadata, package_path, read_document)
+from .common import (get_value, set_value, scoped_leaves, validate_metadata, package_path, read_document,
+                     revision_for)
 
 FORMAT = 'rw-creature-pet.appearance'
 VERSION = 1
@@ -43,10 +44,10 @@ def image_paths(oracle):
     return tuple(path for path in appearance_paths(oracle.body_appearance) if path.endswith('.image_path'))
 
 
-def checked_image(path):
+def checked_image(path, decal=None):
     # 与设置面板共用 PNG 格式、尺寸、动画及文件大小校验
-    from ..oracle.graphics.face_assets import read_face_png
-    read_face_png(path)
+    from ..oracle.graphics.face_assets import image_size_limit, read_face_png
+    read_face_png(path, image_size_limit(decal))
     return Path(path)
 
 
@@ -57,13 +58,21 @@ class AppearancePreset:
     updated_at: str
     oracle: OracleConfig
     path: Path
+    revision: str = ''
 
     @property
     def timestamp(self):
         return validate_metadata(self.id, self.name, self.updated_at)
 
     def image(self, reference):
-        return checked_image(package_path(self.path.parent, reference))
+        path = package_path(self.path.parent, reference)
+        # 同一 PNG 可被多个部件引用，各部件仍按自己的尺寸限制校验
+        source = {'oracle': self.oracle}
+        decals = [get_value(source, key.removesuffix('.image_path')) for key in image_paths(self.oracle)
+                  if get_value(source, key) == reference]
+        for decal in decals or [None]:
+            checked_image(path, decal)
+        return path
 
 
 def load_appearance(path):
@@ -80,7 +89,8 @@ def load_appearance(path):
             decal = get_value(source, key.removesuffix('.image_path'))
             if decal.enabled and getattr(decal, 'kind', 'png') == 'png':
                 raise ValueError(Message('已启用的部件缺少贴图：{path}', path=key))
-    return preset
+    resources = [preset.image(get_value(source, key)) for key in image_paths(oracle) if get_value(source, key)]
+    return replace(preset, revision=revision_for([path, *resources]))
 
 
 def apply_appearance(config, preset, asset_directory):

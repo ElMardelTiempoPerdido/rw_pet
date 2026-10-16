@@ -49,9 +49,9 @@ class EarPartEditor(FaceDecalEditor):
         layout.addWidget(self.height_input, 5, 4)
         layout.addWidget(QLabel('旋转'), 6, 0, 1, 2)
         layout.addWidget(self.rotation_input, 6, 2)
-        note = QLabel('以耳侧中心为原点，X 向外、Y 向下；左右镜像。直线的宽度为线宽，高度为长度')
-        note.setWordWrap(True)
-        layout.addWidget(note, 7, 0, 1, 5)
+        # note = QLabel('以耳侧中心为原点，X 向外、Y 向下；左右镜像。直线的宽度为线宽，高度为长度')
+        # note.setWordWrap(True)
+        # layout.addWidget(note, 7, 0, 1, 5)
         self.kind.currentIndexChanged.connect(lambda: self.change(kind=self.kind.currentData()))
         self.tone.currentIndexChanged.connect(lambda: self.change(tone=self.tone.currentData()))
         for name, control in (('width', self.width_input), ('height', self.height_input), ('rotation', self.rotation_input)):

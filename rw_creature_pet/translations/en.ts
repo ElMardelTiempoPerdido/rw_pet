@@ -3,22 +3,22 @@
   <context>
     <name>BellPet</name>
     <message>
-      <location filename="../oracle/ui/settings.py" line="471" />
-      <location filename="../oracle/ui/settings.py" line="694" />
-      <location filename="../oracle/ui/settings.py" line="724" />
-      <location filename="../oracle/ui/settings.py" line="741" />
-      <location filename="../oracle/ui/settings.py" line="775" />
-      <location filename="../oracle/ui/settings.py" line="753" />
+      <location filename="../oracle/ui/settings.py" line="728" />
+      <location filename="../oracle/ui/settings.py" line="762" />
+      <location filename="../oracle/ui/settings.py" line="740" />
+      <location filename="../oracle/ui/behavior_settings.py" line="30" />
+      <location filename="../oracle/ui/behavior_settings.py" line="44" />
+      <location filename="../oracle/ui/behavior_settings.py" line="68" />
       <source> 秒</source>
       <translation> s</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="640" />
+      <location filename="../oracle/ui/behavior_settings.py" line="81" />
       <source>*人偶会尽量与矩阵珍珠保持此距离，以避免重叠</source>
       <translation>*Iterator tries to keep this distance from the pearl matrix to avoid overlap.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="653" />
+      <location filename="../oracle/ui/behavior_settings.py" line="85" />
       <source>*人偶将珍珠拉进阅读时，触发播放音乐动画的概率（只有特效，并不会播放音乐</source>
       <translation>*Chance of a playback animation when Iterator reads a pearl. Visual effects only; no music is played.</translation>
     </message>
@@ -28,47 +28,52 @@
       <translation>*Changing the scale, pearls or movement settings may reset Iterator's position.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="447" />
+      <location filename="../oracle/ui/settings.py" line="484" />
       <source>*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化</source>
       <translation>*When enabled, Iterator moves on its own. When disabled, Iterator can still read pearls and watch window changes in place.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="767" />
+      <location filename="../oracle/ui/settings.py" line="754" />
       <source>*安全距离应当大于缩回距离</source>
       <translation>*Safe distances must exceed the matching retreat distances. After retreating, the Overseer may relocate or wait in place.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="776" />
+      <location filename="../oracle/ui/settings.py" line="763" />
       <source>*完全探出并能跟随鼠标时，每隔此时间可能会进行观察</source>
       <translation>*Rolls at this interval while fully emerged and tracking the cursor; 0% disables observation. The interval restarts after observation ends.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="675" />
+      <location filename="../oracle/ui/appearance_presets.py" line="9" />
+      <source>*导入的外观数据将复制保存到当前角色设置中，即后续调整外观细节不会修改外观源文件</source>
+      <translation>Imported appearances become part of this character. Use the buttons below to restore earlier appearances.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="681" />
       <source>*此透明度应用于珍珠文字、光环、电弧等全息投影类特效</source>
       <translation>*Applies to pearl glyphs, the halo, electric arcs and other projections.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="744" />
+      <location filename="../oracle/ui/settings.py" line="731" />
       <source>*每个槽位独立检查；常驻模式下忽略出现概率、持续时间和冷却</source>
       <translation>*Each slot checks independently; resident mode ignores appearance chance, duration and cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1271" />
+      <location filename="../oracle/ui/settings.py" line="1296" />
       <source>*至少选择一条边缘，选择多条边缘时，应当是连续的，以保证人偶能够正常到达</source>
       <translation>*Select at least one edge. Multiple edges must be connected so Iterator can reach them.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1249" />
+      <location filename="../oracle/ui/settings.py" line="1274" />
       <source>*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中</source>
       <translation>*Top/bottom: left to right. Left/right: top to bottom. 50% is the center.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="473" />
+      <location filename="../oracle/ui/behavior_settings.py" line="45" />
       <source>*鼠标进入此范围时，人偶可能会观察鼠标</source>
       <translation>The radius uses logical pixels and scales with the pet. One chance is rolled after each continuous stay; leaving resets it. Set attention chance to 0 to disable.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1211" />
+      <location filename="../oracle/ui/settings.py" line="1236" />
       <source>0 接近直线 V 形，数值越大越接近 U 形</source>
       <translation>0 approaches a straight V; higher values make a fuller U shape.</translation>
     </message>
@@ -90,12 +95,12 @@
       <translation>PNG image</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1195" />
+      <location filename="../oracle/ui/settings.py" line="1220" />
       <source>V 型</source>
       <translation>V-shaped</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1212" />
+      <location filename="../oracle/ui/settings.py" line="1237" />
       <source>V 型尖端圆角</source>
       <translation>V-tip radius</translation>
     </message>
@@ -390,7 +395,7 @@
       <translation>ui.language must be auto, zh or en.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="508" />
+      <location filename="../oracle/ui/settings.py" line="522" />
       <source>【注意】当前桌宠为未开发完成的测试版本，可能出现各种问题
 如需反馈bug或蹲蹲功能更新/正式版，欢迎添加此群 → 672754728
 
@@ -403,22 +408,27 @@ This is an unofficial fan project. Commercial use of this project or its derivat
 Original names, characters and assets belong to their respective owners. Please support Rain World! &gt;ㅅ&lt;</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/profile_presets.py" line="14" />
+      <source>【角色设置】包含迭代器的【外观】与【影响行动风格的设置项】</source>
+      <translation>Character settings include appearance and behavior. Personal changes leave the shared file unchanged.</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/ear_editor.py" line="16" />
       <source>三角形</source>
       <translation>Triangle</translation>
     </message>
     <message>
-      <location filename="../presets/common.py" line="54" />
-      <source>不属于此预设范围的配置字段：{path}</source>
-      <translation>Setting is outside the scope of this preset: {path}</translation>
+      <location filename="../presets/common.py" line="56" />
+      <source>不属于此配置类型的字段：{path}</source>
+      <translation>Field does not belong to this configuration type: {path}</translation>
     </message>
     <message>
-      <location filename="../presets/common.py" line="111" />
-      <source>不支持此预设版本，请使用匹配版本的桌宠</source>
-      <translation>Unsupported preset version. Use a compatible version of the pet.</translation>
+      <location filename="../presets/common.py" line="113" />
+      <source>不支持此配置文件版本，请使用匹配版本的桌宠</source>
+      <translation>Unsupported configuration file version. Use a matching version of the pet.</translation>
     </message>
     <message>
-      <location filename="../settings_store.py" line="88" />
+      <location filename="../settings_store.py" line="110" />
       <source>不支持的用户设置文件版本</source>
       <translation>Unsupported user settings file version.</translation>
     </message>
@@ -438,9 +448,10 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Both editors stay in sync. Save and Apply writes your settings and updates the pet. Closing the preview keeps unsaved edits.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="525" />
-      <source>主体外观</source>
-      <translation>Body appearance</translation>
+      <location filename="../presets/personal.py" line="23" />
+      <location filename="../presets/personal.py" line="114" />
+      <source>个人调整包含不属于外观或角色设置的字段</source>
+      <translation>Personal changes contain fields outside appearance or character settings</translation>
     </message>
     <message>
       <location filename="../oracle/config.py" line="260" />
@@ -448,12 +459,12 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Body appearance must be bell / custom</translation>
     </message>
     <message>
-      <location filename="../presets/appearance.py" line="18" />
+      <location filename="../presets/appearance.py" line="19" />
       <source>主体外观必须为 bell 或 custom</source>
       <translation>Body appearance must be bell or custom</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="89" />
+      <location filename="../oracle/ui/settings.py" line="120" />
       <source>主屏幕（自动）</source>
       <translation>Primary (automatic)</translation>
     </message>
@@ -463,44 +474,59 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>The Overseer has left.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="458" />
+      <location filename="../oracle/ui/behavior_settings.py" line="34" />
       <source>人偶可能会躲避鼠标</source>
       <translation>Iterator may shy away from the mouse</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="763" />
+      <location filename="../oracle/ui/settings.py" line="750" />
       <source>人偶安全距离</source>
       <translation>Safe distance from Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="445" />
+      <location filename="../oracle/ui/settings.py" line="482" />
       <source>人偶想去哪去哪</source>
       <translation>Let Iterator act freely</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1270" />
+      <location filename="../oracle/ui/settings.py" line="1295" />
       <source>人偶活动范围</source>
       <translation>Allowed edges</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="761" />
+      <location filename="../oracle/ui/settings.py" line="748" />
       <source>人偶缩回距离</source>
       <translation>Retreat distance from Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="637" />
+      <location filename="../oracle/ui/behavior_settings.py" line="78" />
       <source>人偶避让矩阵半径</source>
       <translation>Matrix avoidance radius</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="815" />
+      <location filename="../oracle/ui/settings.py" line="813" />
       <source>仅填入机械臂缩放和活动带宽度，点击保存后生效</source>
       <translation>Fill the arm scale and edge band width; changes take effect when saved</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="444" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="31" />
+      <source>仅替换当前角色的外观，保留行为参数；可通过外观历史恢复</source>
+      <translation>Replace only this character’s appearance, keeping its behavior settings. Previous appearances remain in history.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="481" />
       <source>仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素</source>
       <translation>4× only: enlarge 1× pixels instead of the default 2× pixels</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="42" />
+      <source>从文件选择…</source>
+      <translation>Choose from file…</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="90" />
+      <source>以人偶为中心的矩形范围，超出范围的珍珠会跟随迁移；数值为逻辑像素</source>
+      <translation>A rectangle centered on the puppet. Pearls outside it move along to follow the puppet. Values use logical pixels.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="52" />
@@ -513,27 +539,32 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Look down</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="266" />
+      <location filename="../oracle/ui/settings.py" line="297" />
       <source>体型</source>
       <translation>Body size</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="615" />
-      <source>使用 1× PNG，最大 32×32 像素，保留原色和透明留白；图片中心对齐头部中心，X 向右、Y 向下</source>
-      <translation>Use a 1× PNG up to 32×32 pixels. Colors and transparent margins are preserved. The image is centered on the head; X moves right, Y moves down.</translation>
+      <location filename="../oracle/ui/settings.py" line="633" />
+      <source>最大 32×32 像素，x 向右、y 向下</source>
+      <translation>Use a 1× PNG up to 32×32 pixels; X moves right, Y moves down</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="443" />
+      <location filename="../oracle/ui/settings.py" line="480" />
       <source>使用更加狗啃的像素化效果</source>
       <translation>Extra crunchy pixels</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="708" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="168" />
+      <source>保存</source>
+      <translation>Save</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="698" />
       <source>保存后将桌宠移至所选显示器。未连接时暂用主屏幕，重新连接后自动返回。</source>
       <translation>Saving moves the pet to the selected display. If disconnected, the pet temporarily uses the primary screen and returns when it reconnects.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1429" />
+      <location filename="../oracle/ui/settings.py" line="1457" />
       <source>保存失败：{error}</source>
       <translation>Could not save: {error}</translation>
     </message>
@@ -554,7 +585,22 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Save and Apply</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="729" />
+      <location filename="../oracle/ui/preset_controls.py" line="18" />
+      <source>保存当前调整</source>
+      <translation>Save changes</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="143" />
+      <source>保存方式</source>
+      <translation>Save mode</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="13" />
+      <source>保留原有设置</source>
+      <translation>Keep your existing settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="716" />
       <source>允许出现监视者</source>
       <translation>Allow Overseer visits</translation>
     </message>
@@ -579,7 +625,7 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Flash outer ring</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="683" />
+      <location filename="../oracle/ui/settings.py" line="689" />
       <source>光环大小</source>
       <translation>Halo size</translation>
     </message>
@@ -609,49 +655,69 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Joint color</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="394" />
+      <location filename="../oracle/ui/preset_workflow.py" line="217" />
+      <source>关闭</source>
+      <translation>Close</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="429" />
       <source>关闭设置</source>
       <translation>Close settings</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="644" />
+      <location filename="../oracle/ui/settings.py" line="657" />
       <source>内圈数量</source>
       <translation>Inner pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="749" />
+      <location filename="../oracle/ui/settings.py" line="736" />
       <source>冷却时间 - 最短</source>
       <translation>Min. cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="749" />
+      <location filename="../oracle/ui/settings.py" line="736" />
       <source>冷却时间 - 最长</source>
       <translation>Max. cooldown</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="740" />
+      <location filename="../oracle/ui/settings.py" line="727" />
       <source>出现检查间隔</source>
       <translation>Appearance check interval</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="742" />
+      <location filename="../oracle/ui/settings.py" line="729" />
       <source>出现概率</source>
       <translation>Appearance probability</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/preset_panel.py" line="34" />
+      <location filename="../oracle/ui/preset_controls.py" line="44" />
+      <source>切换前的外观</source>
+      <translation>Previous appearance</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="112" />
+      <source>创建</source>
+      <translation>Create</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_panel.py" line="40" />
       <source>刷新</source>
       <translation>Refresh</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="14" />
-      <source>包含行为参数和外观副本，保留本机偏好；选择后点击保存生效</source>
-      <translation>Includes behavior settings and an appearance copy. Your local preferences are kept. Save to apply your selection.</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="645" />
+      <location filename="../oracle/ui/settings.py" line="658" />
       <source>卫星珍珠数量</source>
       <translation>Satellite pearls</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="11" />
+      <source>双手交替动作占比</source>
+      <translation>Alternating gesture share</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="10" />
+      <source>双手动作占比</source>
+      <translation>Two-hand gesture share</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="17" />
@@ -664,12 +730,12 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Zero-gravity drift</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="719" />
+      <location filename="../oracle/ui/behavior_settings.py" line="25" />
       <source>反重力漫游概率</source>
       <translation>Drift probability</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="494" />
+      <location filename="../oracle/ui/settings.py" line="508" />
       <source>发光不透明度</source>
       <translation>Glow opacity</translation>
     </message>
@@ -679,7 +745,7 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Glow opacity must be between 0 and 1.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="501" />
+      <location filename="../oracle/ui/settings.py" line="515" />
       <source>发光半径</source>
       <translation>Glow radius</translation>
     </message>
@@ -689,7 +755,7 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Glow radius must be between 1 and 24 logical pixels.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="500" />
+      <location filename="../oracle/ui/settings.py" line="514" />
       <source>发光颜色</source>
       <translation>Glow color</translation>
     </message>
@@ -700,8 +766,17 @@ Original names, characters and assets belong to their respective owners. Please 
     </message>
     <message>
       <location filename="../oracle/ui/settings.py" line="845" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="48" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="113" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="169" />
+      <location filename="../oracle/ui/preset_workflow.py" line="217" />
       <source>取消</source>
       <translation>Cancel</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="95" />
+      <source>古人工程师模拟器</source>
+      <translation>Ancient Simulator</translation>
     </message>
     <message>
       <location filename="../oracle/ui/toolbar.py" line="17" />
@@ -710,14 +785,35 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Ancient Simulator</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="482" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="140" />
+      <source>另存为新文件</source>
+      <translation>Save as a new file</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="137" />
+      <source>只能更新配置库内的文件</source>
+      <translation>Only files inside the configuration library can be updated</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="496" />
       <source>可能会节省一些计算开销</source>
       <translation>May reduce CPU usage.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1231" />
+      <location filename="../oracle/ui/settings.py" line="1256" />
       <source>右侧</source>
       <translation>Right</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="23" />
+      <source>右键参数可恢复默认值</source>
+      <translation>Right-click a parameter to reset it</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="105" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="152" />
+      <source>名称</source>
+      <translation>Name</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="19" />
@@ -730,12 +826,12 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Look left</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1247" />
+      <location filename="../oracle/ui/settings.py" line="1272" />
       <source>启动时在边上的位置</source>
       <translation>Position along starting edge</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1246" />
+      <location filename="../oracle/ui/settings.py" line="1271" />
       <source>启动时所在边缘</source>
       <translation>Starting edge</translation>
     </message>
@@ -745,46 +841,63 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>The starting edge must be among the allowed edges.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="603" />
+      <location filename="../oracle/ui/behavior_settings.py" line="55" />
+      <source>启用拖动反应</source>
+      <translation>Enable drag reactions</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="621" />
       <source>启用高领</source>
       <translation>Enable high collar</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="455" />
+      <location filename="../oracle/ui/settings.py" line="492" />
       <source>启用鼠标拖动</source>
       <translation>Enable mouse dragging</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="645" />
+      <location filename="../oracle/ui/preset_controls.py" line="31" />
+      <source>回退到导入前的上一外观</source>
+      <translation>Restore previous appearance</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="32" />
+      <source>回退到指定的历史外观…</source>
+      <translation>Recent appearances…</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="658" />
       <source>固定珍珠数量</source>
       <translation>Fixed pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="593" />
+      <location filename="../oracle/ui/settings.py" line="611" />
       <source>圆角半径；0 为直角，实际半径受袖宽与袖长限制</source>
       <translation>Corner radius; 0 gives square corners. The effective radius is limited by sleeve width and length</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1378" />
+      <location filename="../oracle/ui/settings.py" line="571" />
+      <location filename="../oracle/ui/face_preview.py" line="53" />
+      <source>在预览视图中调整面部！</source>
+      <translation>Adjust Face in Preview Window</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="1404" />
       <location filename="../oracle/ui/desktop.py" line="601" />
+      <location filename="../oracle/ui/preset_workflow.py" line="104" />
       <location filename="../oracle/config.py" line="311" />
       <source>场景空间不足，请扩大活动带、缩小机械臂或降低显示倍率</source>
       <translation>Not enough space: widen the edge band, reduce the arm scale, or lower the display scale</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="813" />
+      <location filename="../oracle/ui/settings.py" line="811" />
       <source>填入推荐设置</source>
       <translation>Fill recommended settings</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="644" />
+      <location filename="../oracle/ui/settings.py" line="657" />
       <source>外圈数量</source>
       <translation>Outer pearls</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="518" />
-      <source>外观</source>
-      <translation>Appearance</translation>
     </message>
     <message>
       <location filename="../oracle/graphics/face_assets.py" line="23" />
@@ -797,21 +910,24 @@ Original names, characters and assets belong to their respective owners. Please 
       <translation>Appearance PNG width and height must be between 1 and {limit} pixels</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="13" />
+      <location filename="../presets/personal.py" line="124" />
+      <source>外观历史中包含非外观字段</source>
+      <translation>Appearance history contains non-appearance fields</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/appearance_presets.py" line="14" />
       <source>外观名称</source>
       <translation>Appearance name</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="57" />
-      <source>外观来源：{name}
-导出时携带当前编辑后的副本，不自动跟随外观库更新</source>
-      <translation>Appearance source: {name}
-Export includes your current edits. Library updates are not applied automatically.</translation>
+      <location filename="../oracle/ui/settings.py" line="58" />
+      <source>外观细节</source>
+      <translation>Appearance details</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="55" />
-      <source>外观来源：当前编辑的外观，导出时创建独立副本</source>
-      <translation>Appearance source: your current appearance. Exporting creates an independent copy.</translation>
+      <location filename="../presets/personal.py" line="42" />
+      <source>外观贴图不存在，无法保存当前调整</source>
+      <translation>An appearance image is missing; personal changes could not be saved</translation>
     </message>
     <message>
       <location filename="../oracle/graphics/face_assets.py" line="31" />
@@ -819,12 +935,18 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>Appearance images must be static PNG files</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="12" />
-      <source>外观配置 (*.json)</source>
-      <translation>Appearance presets (*.json)</translation>
+      <location filename="../oracle/ui/appearance_presets.py" line="8" />
+      <source>外观配置</source>
+      <translation>Appearance configuration</translation>
     </message>
     <message>
-      <location filename="../presets/appearance.py" line="32" />
+      <location filename="../oracle/ui/appearance_presets.py" line="13" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="67" />
+      <source>外观配置 (*.json)</source>
+      <translation>Appearance configuration (*.json)</translation>
+    </message>
+    <message>
+      <location filename="../presets/appearance.py" line="33" />
       <source>外观配置必须包含 oracle 对象</source>
       <translation>Appearance configuration must contain an oracle object</translation>
     </message>
@@ -834,12 +956,7 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>Appearance colors must be a color configuration</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="7" />
-      <source>外观预设</source>
-      <translation>Appearance preset</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="567" />
+      <location filename="../oracle/ui/settings.py" line="585" />
       <source>头部长度</source>
       <translation>Head length</translation>
     </message>
@@ -854,34 +971,9 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>Head accessory highlights</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="119" />
+      <location filename="../oracle/ui/settings.py" line="150" />
       <source>女仆套装</source>
       <translation>Maid outfit</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/profile_presets.py" line="13" />
-      <source>完整预设</source>
-      <translation>Full preset</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/profile_presets.py" line="18" />
-      <source>完整预设 (*.json)</source>
-      <translation>Full preset (*.json)</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/profile_presets.py" line="20" />
-      <source>完整预设名称</source>
-      <translation>Full preset name</translation>
-    </message>
-    <message>
-      <location filename="../presets/profile.py" line="64" />
-      <source>完整预设引用的外观 ID 与包内文件不一致</source>
-      <translation>The referenced appearance ID does not match the bundled file</translation>
-    </message>
-    <message>
-      <location filename="../presets/profile.py" line="61" />
-      <source>完整预设必须包含外观 ID 与包内路径</source>
-      <translation>A full preset must include an appearance ID and a path within the package</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="83" />
@@ -894,22 +986,32 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>Width</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="47" />
+      <source>导入</source>
+      <translation>Import</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/face_editor.py" line="28" />
       <source>导入 PNG</source>
       <translation>Import PNG</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="12" />
+      <location filename="../oracle/ui/appearance_presets.py" line="13" />
       <source>导入外观</source>
       <translation>Import appearance</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="7" />
-      <source>导入外观…</source>
-      <translation>Import appearance…</translation>
+      <location filename="../oracle/ui/preset_dialogs.py" line="27" />
+      <source>导入外观到当前角色设置</source>
+      <translation>Import appearance into current character</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="12" />
+      <location filename="../oracle/ui/appearance_presets.py" line="8" />
+      <source>导入外观到当前角色设置…</source>
+      <translation>Import appearance into current character…</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/appearance_presets.py" line="13" />
       <source>导入外观失败：{error}</source>
       <translation>Could not import appearance: {error}</translation>
     </message>
@@ -921,48 +1023,48 @@ Export includes your current edits. Library updates are not applied automaticall
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="18" />
-      <source>导入完整预设</source>
-      <translation>Import full preset</translation>
+      <source>导入角色设置</source>
+      <translation>Import character settings</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="13" />
-      <source>导入完整预设…</source>
-      <translation>Import full preset…</translation>
+      <source>导入角色设置…</source>
+      <translation>Import character settings…</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="19" />
-      <source>导入完整预设失败：{error}</source>
-      <translation>Could not import the full preset: {error}</translation>
+      <source>导入角色设置失败：{error}</source>
+      <translation>Could not import the character settings: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="13" />
+      <location filename="../oracle/ui/appearance_presets.py" line="14" />
       <source>导出外观</source>
       <translation>Export appearance</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="7" />
-      <source>导出外观…</source>
-      <translation>Export appearance…</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="14" />
+      <location filename="../oracle/ui/appearance_presets.py" line="15" />
       <source>导出外观失败：{error}</source>
       <translation>Could not export appearance: {error}</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/appearance_presets.py" line="8" />
+      <source>导出当前角色的外观…</source>
+      <translation>Export current character appearance…</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/profile_presets.py" line="19" />
-      <source>导出完整预设</source>
-      <translation>Export full preset</translation>
+      <source>导出角色设置</source>
+      <translation>Export character settings</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="13" />
-      <source>导出完整预设…</source>
-      <translation>Export full preset…</translation>
+      <source>导出角色设置…</source>
+      <translation>Export character settings…</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="20" />
-      <source>导出完整预设失败：{error}</source>
-      <translation>Could not export the full preset: {error}</translation>
+      <source>导出角色设置失败：{error}</source>
+      <translation>Could not export the character settings: {error}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_editor.py" line="109" />
@@ -970,12 +1072,17 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>No PNG selected</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="596" />
+      <location filename="../oracle/ui/settings.py" line="614" />
       <source>尺寸均为逻辑像素，宽度均为完整宽度；衣袍长度为未摆动时衣料顶端至下摆的距离，不随领口深度改变</source>
       <translation>Dimensions use logical pixels; widths are full widths. Robe length is measured from the resting fabric top to the hem, independently of neckline depth.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="704" />
+      <location filename="../oracle/ui/settings.py" line="57" />
+      <source>屏幕</source>
+      <translation>Screen</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="702" />
       <source>屏幕边缘活动带宽度</source>
       <translation>Edge activity band width</translation>
     </message>
@@ -985,12 +1092,12 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>The work area is temporarily unavailable.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1231" />
+      <location filename="../oracle/ui/settings.py" line="1256" />
       <source>左侧</source>
       <translation>Left</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="583" />
+      <location filename="../oracle/ui/settings.py" line="601" />
       <source>左右袖根参考点之间的距离；调大时上肩向外展开、肩线更平，胸肩和袖口尺寸保持不变</source>
       <translation>Distance between the two sleeve roots; increasing it broadens and flattens the upper shoulders without resizing the chest or cuffs</translation>
     </message>
@@ -1000,16 +1107,21 @@ Export includes your current edits. Library updates are not applied automaticall
       <translation>Temporarily reduced to {scale:.2f}x; your saved scale is unchanged</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1441" />
+      <location filename="../oracle/ui/settings.py" line="1470" />
       <source>已保存并应用</source>
       <translation>Saved and applied</translation>
     </message>
     <message>
-      <location filename="../settings_store.py" line="175" />
+      <location filename="../settings_store.py" line="200" />
       <source>已保留原有设置，但无法保存新增设置：{error}
 本次仍可使用；请检查设置文件的写入权限后重试。</source>
       <translation>Your settings were kept, but new defaults could not be saved: {error}
 You can continue for now. Check write permissions for the settings file and try again.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/profile_presets.py" line="17" />
+      <source>已加载当前选中的角色设置！</source>
+      <translation>Character settings and appearance loaded</translation>
     </message>
     <message>
       <location filename="../oracle/ui/desktop.py" line="737" />
@@ -1017,7 +1129,7 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>A matrix pearl has been called over for inspection.</translation>
     </message>
     <message>
-      <location filename="../presets/appearance.py" line="82" />
+      <location filename="../presets/appearance.py" line="84" />
       <source>已启用的部件缺少贴图：{path}</source>
       <translation>An enabled part is missing its image: {path}</translation>
     </message>
@@ -1027,12 +1139,12 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Relocated inside the wall; waiting until it is safe to emerge.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1041" />
+      <location filename="../oracle/ui/settings.py" line="1051" />
       <source>已填入推荐设置，点击保存后生效</source>
       <translation>Recommended settings filled in; save to apply</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/preset_panel.py" line="166" />
+      <location filename="../oracle/ui/preset_panel.py" line="218" />
       <source>已导出至：{path}</source>
       <translation>Exported to: {path}</translation>
     </message>
@@ -1047,12 +1159,12 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Zero-gravity drift started.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1149" />
+      <location filename="../oracle/ui/settings.py" line="1169" />
       <source>已恢复全部默认设置，点击保存后生效。</source>
       <translation>All settings have been reset to defaults. Save to apply.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1150" />
+      <location filename="../oracle/ui/settings.py" line="1170" />
       <source>已恢复本页默认设置，点击保存后生效。</source>
       <translation>This tab has been reset to defaults. Save to apply.</translation>
     </message>
@@ -1087,46 +1199,51 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Overseer visit triggered.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/preset_panel.py" line="101" />
-      <source>已跳过无效预设：{path}
+      <location filename="../oracle/ui/preset_panel.py" line="132" />
+      <source>已跳过无效配置文件：{path}
 {error}</source>
-      <translation>Skipped invalid preset: {path}
+      <translation>Skipped invalid configuration file: {path}
 {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="11" />
-      <source>已载入外观，点击保存后生效</source>
-      <translation>Appearance loaded; save to apply</translation>
+      <location filename="../oracle/ui/appearance_presets.py" line="12" />
+      <source>已载入外观</source>
+      <translation>Appearance loaded</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="17" />
-      <source>已载入完整预设及包内外观，点击保存后生效</source>
-      <translation>Full preset and bundled appearance loaded. Save to apply.</translation>
+      <location filename="../oracle/ui/behavior_settings.py" line="62" />
+      <source>已选择双手动作时，采用交替摆手的概率，其余情况为随机扑腾</source>
+      <translation>Chance of alternating the hands during a two-hand gesture; otherwise they flutter randomly.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="434" />
-      <location filename="../oracle/ui/settings.py" line="119" />
+      <location filename="../oracle/ui/settings.py" line="57" />
+      <location filename="../oracle/ui/settings.py" line="150" />
       <source>常规</source>
       <translation>General</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="732" />
-      <location filename="../oracle/ui/settings.py" line="1061" />
+      <location filename="../oracle/ui/settings.py" line="719" />
+      <location filename="../oracle/ui/settings.py" line="1076" />
       <source>常驻</source>
       <translation>Resident</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1231" />
+      <location filename="../oracle/ui/behavior_settings.py" line="21" />
+      <source>底座滑动速度</source>
+      <translation>Arm base speed</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="1256" />
       <source>底部</source>
       <translation>Bottom</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="486" />
+      <location filename="../oracle/ui/settings.py" line="500" />
       <source>开启人偶语音</source>
       <translation>Enable Iterator's voice</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="493" />
+      <location filename="../oracle/ui/settings.py" line="507" />
       <source>开启外发光</source>
       <translation>Enable outer glow</translation>
     </message>
@@ -1137,12 +1254,12 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Enable mouse dragging</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1195" />
+      <location filename="../oracle/ui/settings.py" line="1220" />
       <source>弧形</source>
       <translation>Curved</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1209" />
+      <location filename="../oracle/ui/settings.py" line="1234" />
       <source>弧形圆润度</source>
       <translation>Curve roundness</translation>
     </message>
@@ -1152,9 +1269,14 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>At {scale:g}x, the scene is approximately {width:.0f} x {height:.0f} logical pixels</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="9" />
-      <source>当前外观（不关联预设）</source>
-      <translation>Current appearance (unlinked)</translation>
+      <location filename="../oracle/ui/profile_presets.py" line="13" />
+      <source>当前使用角色</source>
+      <translation>Current character settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/appearance_presets.py" line="10" />
+      <source>当前外观（不关联文件）</source>
+      <translation>Current appearance (not linked to a file)</translation>
     </message>
     <message>
       <location filename="../oracle/ui/space.py" line="30" />
@@ -1175,8 +1297,26 @@ You can continue for now. Check write permissions for the settings file and try 
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="15" />
-      <source>当前配置（不关联完整预设）</source>
-      <translation>Current settings (no linked full preset)</translation>
+      <source>当前角色设置（不关联文件）</source>
+      <translation>Current character settings (not linked to a file)</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_workflow.py" line="76" />
+      <location filename="../oracle/ui/preset_workflow.py" line="157" />
+      <source>当前调整保存失败，已保留当前选择</source>
+      <translation>Could not save personal changes. Your current selection has been kept.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_workflow.py" line="92" />
+      <location filename="../oracle/ui/preset_workflow.py" line="186" />
+      <source>当前调整尚未保存</source>
+      <translation>Personal changes not saved</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_workflow.py" line="137" />
+      <location filename="../oracle/ui/preset_workflow.py" line="186" />
+      <source>当前调整已保存</source>
+      <translation>Personal changes saved</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="31" />
@@ -1189,9 +1329,9 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Necklace beads</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="837" />
-      <source>恢复全部默认设置</source>
-      <translation>Reset All to Defaults</translation>
+      <location filename="../oracle/ui/preset_controls.py" line="34" />
+      <source>恢复当前角色设置原本提供的外观，保留行为参数</source>
+      <translation>Restore the appearance originally provided by this character, keeping behavior settings.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/settings.py" line="839" />
@@ -1199,22 +1339,37 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Restore defaults for every tab and the game directory. Save to apply.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1109" />
-      <source>恢复本页默认设置</source>
-      <translation>Reset This Tab to Defaults</translation>
+      <location filename="../oracle/ui/settings.py" line="1127" />
+      <source>恢复本页程序默认值</source>
+      <translation>Restore app defaults for this tab</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="13" />
+      <location filename="../oracle/ui/settings.py" line="774" />
+      <source>恢复此角色默认值</source>
+      <translation>Restore character defaults</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="63" />
+      <source>恢复此项默认值</source>
+      <translation>Restore this parameter's default</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="837" />
+      <source>恢复程序默认设置</source>
+      <translation>Restore app defaults</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="33" />
+      <source>恢复默认外观</source>
+      <translation>Restore default appearance</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/appearance_presets.py" line="14" />
       <source>我的外观</source>
       <translation>My appearance</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="20" />
-      <source>我的迭代器</source>
-      <translation>My Iterator</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="710" />
+      <location filename="../oracle/ui/settings.py" line="700" />
       <source>所在屏幕</source>
       <translation>Screen</translation>
     </message>
@@ -1229,9 +1384,21 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Trigger one visit, even when automatic visits are off or cooling down. Safe placement still applies.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="523" />
+      <location filename="../oracle/ui/settings.py" line="537" />
+      <location filename="../oracle/ui/profile_presets.py" line="40" />
+      <location filename="../presets/startup.py" line="64" />
       <source>手势之铃</source>
       <translation>Bell</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="61" />
+      <source>手势触发后选择双手动作的概率，其余情况为单手动作</source>
+      <translation>Chance of using both hands when a gesture starts; otherwise a one-hand gesture is used.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="8" />
+      <source>手势触发概率</source>
+      <translation>Gesture probability</translation>
     </message>
     <message>
       <location filename="../oracle/ui/desktop.py" line="279" />
@@ -1240,15 +1407,15 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Open action toolbar</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_panel.py" line="47" />
+      <source>打开文件夹</source>
+      <translation>Open folder</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/desktop.py" line="278" />
       <location filename="../oracle/ui/desktop.py" line="300" />
       <source>打开设置菜单</source>
       <translation>Open settings</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/preset_panel.py" line="40" />
-      <source>打开预设目录</source>
-      <translation>Open preset folder</translation>
     </message>
     <message>
       <location filename="../shared/atlas.py" line="20" />
@@ -1256,18 +1423,18 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Game atlas container not found: {value0}. Check game_dir in config.toml.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="662" />
+      <location filename="../oracle/ui/settings.py" line="58" />
       <source>投影</source>
       <translation>Projections</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="664" />
+      <location filename="../oracle/ui/settings.py" line="670" />
       <source>投影不透明度</source>
       <translation>Projection opacity</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="673" />
-      <location filename="../oracle/ui/settings.py" line="670" />
+      <location filename="../oracle/ui/settings.py" line="679" />
+      <location filename="../oracle/ui/settings.py" line="676" />
       <source>投影颜色</source>
       <translation>Projection color</translation>
     </message>
@@ -1287,7 +1454,17 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Read a matrix pearl</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="693" />
+      <location filename="../oracle/ui/behavior_settings.py" line="52" />
+      <source>拖动反应</source>
+      <translation>Drag reactions</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="63" />
+      <source>拖动反应中尝试播放语音的概率，实际播放还需在常规页开启人偶语音</source>
+      <translation>Chance of requesting a voice clip while dragged. Voice must also be enabled in General.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="67" />
       <source>拖动投影冷却时间</source>
       <translation>Drag projection cooldown</translation>
     </message>
@@ -1297,7 +1474,7 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Drag projection cooldown must be between 0 and 3600 seconds</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="691" />
+      <location filename="../oracle/ui/behavior_settings.py" line="65" />
       <source>拖动投影触发概率</source>
       <translation>Drag projection chance</translation>
     </message>
@@ -1307,19 +1484,34 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Drag projection chance must be between 0 and 1</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="9" />
+      <source>拖动时睁眼概率</source>
+      <translation>Eye-opening probability</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="12" />
+      <source>拖动时语音概率</source>
+      <translation>Voice probability while dragged</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/toolbar.py" line="59" />
       <source>拖动结束后可用</source>
       <translation>Available after dragging ends.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="748" />
+      <location filename="../oracle/ui/settings.py" line="735" />
       <source>持续时间 - 最短</source>
       <translation>Min. duration</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="748" />
+      <location filename="../oracle/ui/settings.py" line="735" />
       <source>持续时间 - 最长</source>
       <translation>Max. duration</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="56" />
+      <source>控制拖动时的手势、睁眼、语音和投影反应，不影响鼠标拖动本身</source>
+      <translation>Controls gestures, eye opening, voice and projections while dragged. Dragging itself is unaffected.</translation>
     </message>
     <message>
       <location filename="../shared/atlas.py" line="54" />
@@ -1327,13 +1519,13 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Could not extract the game atlas: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="655" />
+      <location filename="../oracle/ui/settings.py" line="664" />
       <source>播放光晕特效大小</source>
       <translation>Playback bubble size</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="657" />
-      <location filename="../oracle/ui/settings.py" line="660" />
+      <location filename="../oracle/ui/settings.py" line="666" />
+      <location filename="../oracle/ui/settings.py" line="1201" />
       <source>播放光晕特效颜色</source>
       <translation>Playback bubble color</translation>
     </message>
@@ -1358,9 +1550,29 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>The file does not contain a valid PNG image</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_panel.py" line="216" />
+      <source>文件已导出，但当前调整尚未保存：{error}</source>
+      <translation>File exported, but personal changes could not be saved: {error}</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/profile_presets.py" line="31" />
+      <source>新建角色…</source>
+      <translation>New character…</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="103" />
+      <source>新建迭代器111</source>
+      <translation>new iterator 111</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/ear_editor.py" line="50" />
       <source>旋转</source>
       <translation>Rotation</translation>
+    </message>
+    <message>
+      <location filename="../presets/personal.py" line="109" />
+      <source>无效的个人调整类型</source>
+      <translation>Invalid personal changes type</translation>
     </message>
     <message>
       <location filename="../oracle/graphics/face_assets.py" line="57" />
@@ -1368,9 +1580,20 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Unable to prepare a copy of the appearance image</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/preset_panel.py" line="173" />
+      <location filename="../oracle/ui/preset_workflow.py" line="228" />
+      <location filename="../oracle/ui/preset_workflow.py" line="272" />
+      <source>无法恢复外观：{error}</source>
+      <translation>Could not restore appearance: {error}</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_panel.py" line="225" />
       <source>无法打开文件夹</source>
       <translation>Could not open folder</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="124" />
+      <source>无法新建角色：{error}</source>
+      <translation>Could not create character: {error}</translation>
     </message>
     <message>
       <location filename="../shared/atlas.py" line="66" />
@@ -1383,36 +1606,37 @@ You can continue for now. Check write permissions for the settings file and try 
       <translation>Unable to read the appearance PNG</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="9" />
+      <location filename="../oracle/ui/appearance_presets.py" line="10" />
       <source>无法读取外观库：{error}</source>
       <translation>Could not read the appearance library: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="15" />
-      <source>无法读取完整预设库：{error}</source>
-      <translation>Could not read the full preset library: {error}</translation>
-    </message>
-    <message>
-      <location filename="../settings_store.py" line="167" />
+      <location filename="../settings_store.py" line="192" />
       <source>无法读取已保存设置：{error}
 请重新确认，保存时会保留旧文件的备份。</source>
       <translation>Could not read saved settings: {error}
 Please review your settings. The old file will be backed up when you save.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1126" />
+      <location filename="../oracle/ui/profile_presets.py" line="15" />
+      <source>无法读取角色设置库：{error}</source>
+      <translation>Could not read the character settings library: {error}</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="1144" />
       <source>无法读取默认设置：{error}</source>
       <translation>Could not read default settings: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="11" />
+      <location filename="../oracle/ui/appearance_presets.py" line="12" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="73" />
       <source>无法载入外观：{error}</source>
       <translation>Could not load appearance: {error}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="17" />
-      <source>无法载入完整预设：{error}</source>
-      <translation>Could not load the full preset: {error}</translation>
+      <source>无法载入角色设置：{error}</source>
+      <translation>Could not load the character settings: {error}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/eye_editor.py" line="26" />
@@ -1425,38 +1649,38 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Scale</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="682" />
+      <location filename="../oracle/ui/settings.py" line="688" />
       <source>显示光环</source>
       <translation>Show halo</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="602" />
+      <location filename="../oracle/ui/settings.py" line="620" />
       <source>显示内搭</source>
       <translation>Show inner garment</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="643" />
+      <location filename="../oracle/ui/settings.py" line="656" />
       <source>显示环绕珍珠</source>
       <translation>Show orbiting pearls</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="687" />
+      <location filename="../oracle/ui/settings.py" line="693" />
       <source>显示电弧</source>
       <translation>Show electric arcs</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="634" />
+      <location filename="../oracle/ui/settings.py" line="652" />
       <source>显示矩阵珍珠</source>
       <translation>Show pearl matrix</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1215" />
+      <location filename="../oracle/ui/settings.py" line="1240" />
       <source>显示领边装饰</source>
       <translation>Show neckline trim</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="248" />
-      <location filename="../oracle/ui/settings.py" line="1064" />
+      <location filename="../oracle/ui/settings.py" line="279" />
+      <location filename="../oracle/ui/settings.py" line="1079" />
       <source>普通</source>
       <translation>Standard</translation>
     </message>
@@ -1468,13 +1692,18 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Pause Iterator</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="706" />
+      <location filename="../oracle/ui/preset_dialogs.py" line="142" />
+      <source>更新已有文件</source>
+      <translation>Update an existing file</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="704" />
       <source>最高 49.9%，仍保留中央避让和机械臂可达范围限制</source>
       <translation>Up to 49.9%; center clearance and arm reach limits still apply</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="249" />
-      <location filename="../oracle/ui/settings.py" line="1064" />
+      <location filename="../oracle/ui/settings.py" line="280" />
+      <location filename="../oracle/ui/settings.py" line="1079" />
       <source>朋友？</source>
       <translation>Friend?</translation>
     </message>
@@ -1484,7 +1713,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Unknown configuration fields: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="99" />
+      <location filename="../oracle/ui/settings.py" line="130" />
       <source>未连接：{name}</source>
       <translation>Disconnected: {name}</translation>
     </message>
@@ -1504,7 +1733,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Arm body</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="529" />
+      <location filename="../oracle/ui/settings.py" line="705" />
       <source>机械臂缩放</source>
       <translation>Mechanical arm scale</translation>
     </message>
@@ -1520,12 +1749,12 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Bell Desktop Pet</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="367" />
+      <location filename="../oracle/ui/settings.py" line="398" />
       <source>桌宠初始化设置</source>
       <translation>Setup</translation>
     </message>
     <message>
-      <location filename="../app.py" line="85" />
+      <location filename="../app.py" line="110" />
       <source>桌宠启动失败</source>
       <translation>Could not start pet</translation>
     </message>
@@ -1535,7 +1764,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Paused. Resume from the tray menu.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="442" />
+      <location filename="../oracle/ui/settings.py" line="479" />
       <location filename="../oracle/ui/desktop.py" line="266" />
       <location filename="../oracle/ui/desktop.py" line="304" />
       <source>桌宠显示大小</source>
@@ -1547,7 +1776,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Pet movement space</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="367" />
+      <location filename="../oracle/ui/settings.py" line="398" />
       <source>桌宠设置</source>
       <translation>Settings</translation>
     </message>
@@ -1567,14 +1796,26 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Trapezoid</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="14" />
+      <source>检测到旧版的珍珠、行动等设置。确认后，会将这些设置保留为「手势之铃」的个人调整。
+你仍可右键点击参数，恢复为该角色提供的默认值。</source>
+      <translation>Pearl, behavior and related settings from an earlier version were found. Confirm to keep them as personal adjustments for Bell.
+You can still right-click a parameter to restore the defaults provided by this character.</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/ear_editor.py" line="15" />
       <source>椭圆</source>
       <translation>Ellipse</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1400" />
+      <location filename="../oracle/ui/settings.py" line="1426" />
       <source>正在获取游戏资源，请稍候...</source>
       <translation>Preparing game assets, please wait...</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_workflow.py" line="212" />
+      <source>正在调整：{name}</source>
+      <translation>Editing: {name}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="19" />
@@ -1597,6 +1838,11 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>No other safe position; waiting in place.</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="57" />
+      <source>没有可用的外观，请从文件选择</source>
+      <translation>No appearances available. Choose an appearance file.</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/desktop.py" line="728" />
       <location filename="../overseer/events.py" line="182" />
       <source>没有安全的边缘位置，本次跳过</source>
@@ -1608,22 +1854,22 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>No free Overseer slots; add one in settings or wait for an event to end</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1222" />
+      <location filename="../oracle/ui/settings.py" line="1247" />
       <source>沿领口向衣料内侧留出的距离；0 为贴边包边，大于 0 为留有间隔的襟线</source>
       <translation>Distance from the opening into the fabric: 0 creates an edge binding; positive values leave a gap before the trim.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="463" />
+      <location filename="../oracle/ui/behavior_settings.py" line="38" />
       <source>注视鼠标时睁眼概率</source>
       <translation>Eye-opening chance when watching the mouse</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="412" />
+      <location filename="../oracle/ui/settings.py" line="447" />
       <source>浏览...</source>
       <translation>Browse...</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="282" />
+      <location filename="../oracle/ui/settings.py" line="313" />
       <source>添加监视者</source>
       <translation>Add Overseer</translation>
     </message>
@@ -1633,12 +1879,12 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Texture missing from the main game atlas: {value0}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="723" />
+      <location filename="../oracle/ui/behavior_settings.py" line="29" />
       <source>漫游时长</source>
       <translation>Drift duration</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="722" />
+      <location filename="../oracle/ui/behavior_settings.py" line="28" />
       <source>漫游移动速度</source>
       <translation>Drift speed</translation>
     </message>
@@ -1653,7 +1899,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Click this notification to open settings</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="632" />
+      <location filename="../oracle/ui/settings.py" line="57" />
       <source>珍珠</source>
       <translation>Pearls</translation>
     </message>
@@ -1663,12 +1909,17 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Primary pearl color</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="76" />
+      <source>珍珠互动</source>
+      <translation>Pearl interaction</translation>
+    </message>
+    <message>
       <location filename="../oracle/config.py" line="31" />
       <source>珍珠共有色</source>
       <translation>Shared pearl color</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="650" />
+      <location filename="../oracle/ui/behavior_settings.py" line="82" />
       <source>珍珠播放动画概率</source>
       <translation>Pearl playback probability</translation>
     </message>
@@ -1683,17 +1934,27 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>The pearl follow area must be at least 160 logical units wide and high.</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="87" />
+      <source>珍珠跟随范围宽度</source>
+      <translation>Pearl follow area width</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="88" />
+      <source>珍珠跟随范围高度</source>
+      <translation>Pearl follow area height</translation>
+    </message>
+    <message>
       <location filename="../oracle/config.py" line="31" />
       <source>珍珠辅色</source>
       <translation>Secondary pearl color</translation>
     </message>
     <message>
-      <location filename="../app.py" line="73" />
+      <location filename="../app.py" line="98" />
       <source>用户设置未更新</source>
       <translation>Settings could not be updated</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="688" />
+      <location filename="../oracle/ui/settings.py" line="694" />
       <source>电弧数量上限</source>
       <translation>Maximum arcs</translation>
     </message>
@@ -1708,27 +1969,27 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Skin / head / limbs</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="726" />
+      <location filename="../oracle/ui/settings.py" line="58" />
       <source>监视者</source>
       <translation>Overseer</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="235" />
+      <location filename="../oracle/ui/settings.py" line="266" />
       <source>监视者 1</source>
       <translation>Overseer 1</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="235" />
+      <location filename="../oracle/ui/settings.py" line="266" />
       <source>监视者 2</source>
       <translation>Overseer 2</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="235" />
+      <location filename="../oracle/ui/settings.py" line="266" />
       <source>监视者 3</source>
       <translation>Overseer 3</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="235" />
+      <location filename="../oracle/ui/settings.py" line="266" />
       <source>监视者 4</source>
       <translation>Overseer 4</translation>
     </message>
@@ -1738,12 +1999,12 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Overseer body size must be between 0.5 and 1</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="735" />
+      <location filename="../oracle/ui/settings.py" line="722" />
       <source>监视者出现方式</source>
       <translation>Overseer appearance mode</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="772" />
+      <location filename="../oracle/ui/settings.py" line="759" />
       <source>监视者观察概率</source>
       <translation>Overseer observation chance</translation>
     </message>
@@ -1753,7 +2014,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Overseer antenna count must be an integer from 3 to 5</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="253" />
+      <location filename="../oracle/ui/settings.py" line="284" />
       <source>监视者颜色</source>
       <translation>Overseer color</translation>
     </message>
@@ -1763,17 +2024,29 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>No matrix pearl is available for reading.</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_panel.py" line="155" />
+      <location filename="../oracle/ui/preset_panel.py" line="179" />
+      <location filename="../presets/common.py" line="142" />
+      <source>目标文件已被修改，请刷新后重新选择</source>
+      <translation>The target file has changed. Refresh and select it again.</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="158" />
+      <source>目标文件的资源发生冲突，请刷新后重试</source>
+      <translation>The target file has conflicting assets. Refresh and try again.</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/ear_editor.py" line="16" />
       <source>直线</source>
       <translation>Line</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="532" />
+      <location filename="../oracle/ui/settings.py" line="707" />
       <source>相对于原作臂段长度，默认 60%；修改后会重新安置人偶并更新机械臂可达范围。</source>
       <translation>Relative to the original arm segment lengths; default: 60%. Changing this repositions the puppet and updates the arm's reach.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1207" />
+      <location filename="../oracle/ui/settings.py" line="1232" />
       <source>相对胸部中心，正值向头部、负值向下摆；深度从此高度向下测量，修改宽度不会改变此高度</source>
       <translation>Relative to the chest center: positive toward the head, negative toward the hem. Depth is measured downward from this height; changing the width does not change it.</translation>
     </message>
@@ -1819,7 +2092,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Rectangle</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="636" />
+      <location filename="../oracle/ui/settings.py" line="653" />
       <source>矩阵珍珠数量</source>
       <translation>Matrix pearls</translation>
     </message>
@@ -1829,12 +2102,17 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Matrix avoidance radius must be between 0 and 300 logical pixels.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="700" />
-      <source>移动</source>
-      <translation>Movement</translation>
+      <location filename="../oracle/ui/preset_dialogs.py" line="17" />
+      <source>确认</source>
+      <translation>Confirm</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="256" />
+      <location filename="../oracle/ui/behavior_settings.py" line="18" />
+      <source>移动与漫游</source>
+      <translation>Movement and roaming</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="287" />
       <source>移除</source>
       <translation>Remove</translation>
     </message>
@@ -1844,7 +2122,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Remove image</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="245" />
+      <location filename="../oracle/ui/settings.py" line="276" />
       <source>类型</source>
       <translation>Type</translation>
     </message>
@@ -1860,12 +2138,12 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Resume</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="674" />
+      <location filename="../oracle/ui/settings.py" line="680" />
       <source>编辑当前主体外观的投影颜色，两套配色分别保存</source>
       <translation>Edit the projection color for the selected body appearance. Each appearance has its own palette</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="765" />
+      <location filename="../oracle/ui/settings.py" line="752" />
       <source>缩回后换位概率</source>
       <translation>Relocation probability after retreat</translation>
     </message>
@@ -1905,24 +2183,34 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Earphone part 3</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="580" />
+      <location filename="../oracle/ui/settings.py" line="598" />
       <source>肩膀宽度</source>
       <translation>Shoulder width</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="576" />
+      <location filename="../oracle/ui/settings.py" line="594" />
       <source>胸肩上缘高度</source>
       <translation>Chest upper height</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="574" />
+      <location filename="../oracle/ui/settings.py" line="592" />
       <source>胸肩宽度</source>
       <translation>Chest width</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="579" />
+      <location filename="../oracle/ui/settings.py" line="597" />
       <source>胸部中心至胸肩最高点的距离；领口起始高度保持独立</source>
       <translation>Distance from the chest center to its highest point; neckline start height stays independent</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="16" />
+      <source>自动保存修改</source>
+      <translation>Auto-save changes</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_controls.py" line="17" />
+      <source>自动保存并应用当前角色的调整；关闭后切换角色或关闭设置会丢弃未保存修改；本机设置仍需点击保存并应用</source>
+      <translation>Automatically save and apply adjustments to this character. When disabled, switching characters or closing settings discards unsaved changes. Local preferences still require Save and apply.</translation>
     </message>
     <message>
       <location filename="../oracle/config.py" line="151" />
@@ -1940,9 +2228,14 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Custom appearance must be a dimension configuration</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="523" />
+      <location filename="../oracle/ui/settings.py" line="537" />
       <source>自定义迭代器</source>
       <translation>Custom iterator</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="57" />
+      <source>行为</source>
+      <translation>Behavior</translation>
     </message>
     <message>
       <location filename="../oracle/config.py" line="27" />
@@ -1955,34 +2248,74 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Lower robe</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="567" />
+      <location filename="../oracle/ui/settings.py" line="585" />
       <source>衣袍长度</source>
       <translation>Robe length</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1197" />
+      <location filename="../oracle/ui/settings.py" line="1222" />
       <source>衣袍领口形状</source>
       <translation>Robe neckline shape</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="590" />
+      <location filename="../oracle/ui/settings.py" line="608" />
       <source>袖口圆角</source>
       <translation>Cuff corner radius</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="587" />
+      <location filename="../oracle/ui/settings.py" line="605" />
       <source>袖口宽度</source>
       <translation>Cuff width</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="585" />
+      <location filename="../oracle/ui/settings.py" line="603" />
       <source>袖根宽度</source>
       <translation>Sleeve root width</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="151" />
+      <source>覆盖文件</source>
+      <translation>Overwrite file</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="73" />
       <source>视角</source>
       <translation>View</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="58" />
+      <source>角色设置</source>
+      <translation>Character settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/profile_presets.py" line="18" />
+      <source>角色设置 (*.json)</source>
+      <translation>Character settings (*.json)</translation>
+    </message>
+    <message>
+      <location filename="../app.py" line="79" />
+      <source>角色设置初始化失败</source>
+      <translation>Could not initialize character settings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/profile_presets.py" line="20" />
+      <source>角色设置名称</source>
+      <translation>Character settings name</translation>
+    </message>
+    <message>
+      <location filename="../presets/profile.py" line="37" />
+      <source>角色设置字段类型无效：{path}</source>
+      <translation>Invalid character settings field type: {path}</translation>
+    </message>
+    <message>
+      <location filename="../presets/profile.py" line="66" />
+      <source>角色设置引用的外观 ID 与包内文件不一致</source>
+      <translation>The referenced appearance ID does not match the bundled appearance</translation>
+    </message>
+    <message>
+      <location filename="../presets/profile.py" line="63" />
+      <source>角色设置必须包含外观 ID 与包内路径</source>
+      <translation>Character settings must include an appearance ID and an in-package path</translation>
     </message>
     <message>
       <location filename="../oracle/ui/toolbar.py" line="11" />
@@ -1995,7 +2328,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Trigger Overseer</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="268" />
+      <location filename="../oracle/ui/settings.py" line="299" />
       <source>触须数量</source>
       <translation>Antennae</translation>
     </message>
@@ -2011,7 +2344,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Could not change language: {error}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="487" />
+      <location filename="../oracle/ui/settings.py" line="501" />
       <source>语音音量</source>
       <translation>Voice volume</translation>
     </message>
@@ -2021,7 +2354,7 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Enable the pearl matrix in Settings &gt; Pearls and set its count above 0.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1351" />
+      <location filename="../oracle/ui/settings.py" line="1377" />
       <source>请先选择 RainWorld 安装目录</source>
       <translation>Please select the Rain World installation folder first.</translation>
     </message>
@@ -2046,18 +2379,24 @@ Please review your settings. The old file will be backed up when you save.</tran
       <translation>Please choose a PNG appearance image</translation>
     </message>
     <message>
-      <location filename="../settings_store.py" line="56" />
+      <location filename="../settings_store.py" line="57" />
       <source>请选择 Rain World 安装目录：其中应包含 RainWorld_Data 文件夹及 resources.assets。</source>
       <translation>Select the Rain World installation folder containing RainWorld_Data and resources.assets.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="419" />
+      <location filename="../oracle/ui/settings.py" line="454" />
       <source>请选择这台电脑上雨世界的安装目录
 一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容
 首次启动时，需要一点时间从安装目录中读取资源</source>
       <translation>Select the Rain World installation folder on this computer.
 It is usually named Rain World and contains RainWorld_Data and RainWorld.exe.
 The first launch takes a little time to prepare game assets.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_workflow.py" line="130" />
+      <location filename="../oracle/ui/preset_workflow.py" line="152" />
+      <source>调整尚未保存：{error}</source>
+      <translation>Changes not saved: {error}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/desktop.py" line="716" />
@@ -2070,17 +2409,17 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Image unavailable. Import it again or disable it.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="359" />
+      <location filename="../oracle/ui/settings.py" line="390" />
       <source>资源准备失败：{error}</source>
       <translation>Could not prepare game assets: {error}</translation>
     </message>
     <message>
-      <location filename="../presets/common.py" line="85" />
-      <source>资源路径超出了预设目录：{path}</source>
-      <translation>Asset path is outside the preset directory: {path}</translation>
+      <location filename="../presets/common.py" line="87" />
+      <source>资源路径超出了配置包目录：{path}</source>
+      <translation>Asset path is outside the configuration package directory: {path}</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="715" />
+      <location filename="../oracle/ui/behavior_settings.py" line="23" />
       <source>跨到相邻边概率</source>
       <translation>Chance of moving to a neighboring edge</translation>
     </message>
@@ -2090,26 +2429,36 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Skip the wait; distance and activity band limits still apply.</translation>
     </message>
     <message>
+      <location filename="../oracle/ui/preset_dialogs.py" line="99" />
+      <source>这个迭代器叫什么名字？</source>
+      <translation>Name this iterator:</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/profile_presets.py" line="20" />
+      <source>迭代器名称111</source>
+      <translation>iterator_name111</translation>
+    </message>
+    <message>
       <location filename="../oracle/ui/desktop.py" line="293" />
       <location filename="../oracle/ui/desktop.py" line="302" />
       <source>退出</source>
       <translation>Exit</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="411" />
-      <location filename="../oracle/ui/settings.py" line="1343" />
+      <location filename="../oracle/ui/settings.py" line="446" />
+      <location filename="../oracle/ui/settings.py" line="1369" />
       <source>选择 Rain World 安装目录</source>
       <translation>Select the Rain World installation folder</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="496" />
+      <location filename="../oracle/ui/settings.py" line="510" />
       <source>选择外发光颜色</source>
       <translation>Choose glow color</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/profile_presets.py" line="37" />
-      <source>选择或调整外观</source>
-      <translation>Choose or edit appearance</translation>
+      <location filename="../oracle/ui/preset_dialogs.py" line="67" />
+      <source>选择外观文件</source>
+      <translation>Choose appearance file</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="98" />
@@ -2122,12 +2471,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Choose face PNG</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="8" />
-      <source>选择预设会填入外观参数，保存后生效；分享时请复制整个预设文件夹</source>
-      <translation>Selecting a preset fills the form; save to apply. Share the entire preset folder.</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="713" />
+      <location filename="../oracle/ui/behavior_settings.py" line="20" />
       <source>通常移动速度</source>
       <translation>Normal movement speed</translation>
     </message>
@@ -2142,10 +2486,65 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Electric arcs are disabled in settings.</translation>
     </message>
     <message>
+      <location filename="../presets/common.py" line="46" />
+      <source>配置内容必须为对象</source>
+      <translation>Configuration content must be an object</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="51" />
+      <source>配置字段格式无效：{path}</source>
+      <translation>Invalid configuration field format: {path}</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="79" />
+      <source>配置引用路径必须为字符串</source>
+      <translation>Configuration reference paths must be strings</translation>
+    </message>
+    <message>
       <location filename="../config.py" line="58" />
-      <location filename="../settings_store.py" line="90" />
+      <location filename="../settings_store.py" line="112" />
       <source>配置必须为对象</source>
       <translation>Configuration must be an object.</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="107" />
+      <source>配置文件不能超过 256 KB</source>
+      <translation>Configuration files must not exceed 256 KB</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="101" />
+      <source>配置文件包含无效数值</source>
+      <translation>The configuration file contains an invalid numeric value</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="95" />
+      <source>配置文件包含重复字段：{path}</source>
+      <translation>The configuration file contains a duplicate field: {path}</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="115" />
+      <source>配置文件字段不完整或包含未知字段</source>
+      <translation>The configuration file has missing or unknown fields</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="73" />
+      <source>配置文件的 ID、名称或更新时间无效</source>
+      <translation>Invalid configuration ID, name, or update time</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="196" />
+      <source>配置文件路径超出了配置包目录</source>
+      <translation>Configuration file path is outside the configuration package directory</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="111" />
+      <source>配置类型不匹配，请选择对应类型的文件</source>
+      <translation>Configuration type mismatch. Select a file of the correct type.</translation>
+    </message>
+    <message>
+      <location filename="../presets/common.py" line="83" />
+      <source>配置资源必须使用包内相对路径：{path}</source>
+      <translation>Configuration assets must use relative paths within the package: {path}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="33" />
@@ -2153,17 +2552,17 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Color</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/appearance_presets.py" line="10" />
-      <source>重复外观「{name}」，使用日期最新的有效版本：
+      <location filename="../oracle/ui/appearance_presets.py" line="11" />
+      <source>重复外观「{name}」，最新有效版本列在第一项：
 {paths}</source>
-      <translation>Duplicate appearance "{name}"; using the newest valid version:
+      <translation>Duplicate appearance "{name}"; newest valid version listed first:
 {paths}</translation>
     </message>
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="16" />
-      <source>重复完整预设「{name}」，使用日期最新的有效版本：
+      <source>重复角色设置「{name}」，最新有效版本列在第一项：
 {paths}</source>
-      <translation>Duplicate full preset "{name}"; using the newest valid version:
+      <translation>Duplicate character settings "{name}"; newest valid version listed first:
 {paths}</translation>
     </message>
     <message>
@@ -2178,7 +2577,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Closed</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="774" />
+      <location filename="../oracle/ui/settings.py" line="761" />
       <source>间隔时间</source>
       <translation>Observation interval</translation>
     </message>
@@ -2193,7 +2592,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Highlight</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="528" />
+      <location filename="../oracle/ui/settings.py" line="544" />
       <source>附加外观</source>
       <translation>Additional appearance</translation>
     </message>
@@ -2203,28 +2602,28 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>No nearby endpoint meets the distance and activity band limits.</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="731" />
-      <location filename="../oracle/ui/settings.py" line="1061" />
+      <location filename="../oracle/ui/settings.py" line="718" />
+      <location filename="../oracle/ui/settings.py" line="1076" />
       <source>随机出现</source>
       <translation>Random</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="481" />
+      <location filename="../oracle/ui/settings.py" line="495" />
       <source>隐藏电缆</source>
       <translation>Hide cables</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="418" />
+      <location filename="../oracle/ui/settings.py" line="453" />
       <source>雨世界目录</source>
       <translation>Rain World folder</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="461" />
+      <location filename="../oracle/ui/behavior_settings.py" line="36" />
       <source>面向鼠标概率</source>
       <translation>Mouse attention chance</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="619" />
+      <location filename="../oracle/ui/settings.py" line="637" />
       <location filename="../oracle/ui/face_preview.py" line="119" />
       <source>面部装饰 PNG</source>
       <translation>Face decoration PNG</translation>
@@ -2255,83 +2654,12 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Face image paths and names must be strings</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="552" />
-      <location filename="../oracle/ui/face_preview.py" line="53" />
-      <source>面部预览</source>
-      <translation>Face preview</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="1231" />
+      <location filename="../oracle/ui/settings.py" line="1256" />
       <source>顶部</source>
       <translation>Top</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="783" />
-      <source>预设</source>
-      <translation>Presets</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="49" />
-      <source>预设字段格式无效：{path}</source>
-      <translation>Invalid preset field format: {path}</translation>
-    </message>
-    <message>
-      <location filename="../presets/profile.py" line="36" />
-      <source>预设字段类型无效：{path}</source>
-      <translation>Invalid preset field type: {path}</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="77" />
-      <source>预设引用路径必须为字符串</source>
-      <translation>Preset reference paths must be strings</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="99" />
-      <source>预设文件包含无效数值</source>
-      <translation>The preset contains an invalid numeric value</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="93" />
-      <source>预设文件包含重复字段：{path}</source>
-      <translation>The preset contains a duplicate field: {path}</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="113" />
-      <source>预设文件字段不完整或包含未知字段</source>
-      <translation>The preset has missing or unknown fields</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="144" />
-      <source>预设文件路径超出了预设目录</source>
-      <translation>Preset file path is outside the preset directory</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="71" />
-      <source>预设的 ID、名称或更新时间无效</source>
-      <translation>Invalid preset ID, name, or update time</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="109" />
-      <source>预设类型不匹配，请选择对应类型的配置文件</source>
-      <translation>Preset type mismatch. Select a file of the correct type.</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="81" />
-      <source>预设资源必须使用包内相对路径：{path}</source>
-      <translation>Preset assets must use relative paths within the package: {path}</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="44" />
-      <source>预设配置必须为对象</source>
-      <translation>Preset settings must be an object</translation>
-    </message>
-    <message>
-      <location filename="../presets/common.py" line="105" />
-      <source>预设配置文件不能超过 256 KB</source>
-      <translation>Preset files must not exceed 256 KB</translation>
-    </message>
-    <message>
-      <location filename="../oracle/ui/settings.py" line="1200" />
+      <location filename="../oracle/ui/settings.py" line="1225" />
       <source>领口宽度</source>
       <translation>Neckline width</translation>
     </message>
@@ -2341,22 +2669,22 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Neckline shape must be arc / v</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1201" />
+      <location filename="../oracle/ui/settings.py" line="1226" />
       <source>领口深度</source>
       <translation>Neckline depth</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1204" />
+      <location filename="../oracle/ui/settings.py" line="1229" />
       <source>领口起始高度</source>
       <translation>Neckline start height</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1220" />
+      <location filename="../oracle/ui/settings.py" line="1245" />
       <source>领边与开口距离</source>
       <translation>Trim offset</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1218" />
+      <location filename="../oracle/ui/settings.py" line="1243" />
       <source>领边宽度</source>
       <translation>Trim width</translation>
     </message>
@@ -2366,17 +2694,17 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Neckline trim</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1216" />
+      <location filename="../oracle/ui/settings.py" line="1241" />
       <source>领边颜色</source>
       <translation>Trim color</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="594" />
+      <location filename="../oracle/ui/settings.py" line="612" />
       <source>颈部宽度</source>
       <translation>Neck width</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="252" />
+      <location filename="../oracle/ui/settings.py" line="283" />
       <location filename="../oracle/ui/eye_editor.py" line="30" />
       <source>颜色</source>
       <translation>Color</translation>
@@ -2387,7 +2715,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Forehead mark</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="619" />
+      <location filename="../oracle/ui/settings.py" line="637" />
       <location filename="../oracle/ui/face_preview.py" line="119" />
       <source>额头标记 PNG</source>
       <translation>Forehead mark PNG</translation>
@@ -2398,12 +2726,12 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Height</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="607" />
+      <location filename="../oracle/ui/settings.py" line="625" />
       <source>高领上口宽度</source>
       <translation>Collar top width</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="609" />
+      <location filename="../oracle/ui/settings.py" line="627" />
       <source>高领下口宽度</source>
       <translation>Collar bottom width</translation>
     </message>
@@ -2413,7 +2741,7 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Inner robe</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="604" />
+      <location filename="../oracle/ui/settings.py" line="622" />
       <source>高领高度</source>
       <translation>Collar height</translation>
     </message>
@@ -2424,8 +2752,8 @@ The first launch takes a little time to prepare game assets.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="111" />
-      <source>默认睁眼保持睁开；默认闭眼仍可在观察或互动时短暂睁开；隐藏的眼睛不显示</source>
-      <translation>An eye set to open stays open. An eye set to closed may briefly open during observation or interaction. Hidden eyes stay hidden.</translation>
+      <source>*默认闭眼仍可在观察或互动时睁开</source>
+      <translation>An eye set to closed may briefly open during observation or interaction.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/face_preview.py" line="21" />
@@ -2433,34 +2761,45 @@ The first launch takes a little time to prepare game assets.</translation>
       <translation>Default expression</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="468" />
+      <location filename="../oracle/ui/behavior_settings.py" line="41" />
       <source>鼠标停留半径</source>
       <translation>Mouse hover radius</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="470" />
+      <location filename="../oracle/ui/behavior_settings.py" line="43" />
       <source>鼠标停留时间</source>
       <translation>Mouse dwell time</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="758" />
+      <location filename="../oracle/ui/settings.py" line="745" />
       <source>鼠标安全距离</source>
       <translation>Safe distance from cursor</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="756" />
+      <location filename="../oracle/ui/settings.py" line="743" />
       <source>鼠标缩回距离</source>
       <translation>Retreat distance from cursor</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="95" />
+      <location filename="../oracle/ui/behavior_settings.py" line="33" />
+      <source>鼠标观察与避让</source>
+      <translation>Mouse attention and avoidance</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="126" />
       <source>（主屏幕）</source>
       <translation> (primary)</translation>
     </message>
     <message>
-      <location filename="../oracle/ui/settings.py" line="1267" />
+      <location filename="../oracle/ui/settings.py" line="1292" />
       <source>（屏幕）</source>
       <translation>(Screen)</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/preset_panel.py" line="107" />
+      <location filename="../oracle/ui/preset_panel.py" line="121" />
+      <source>（已载入版本）</source>
+      <translation> (loaded version)</translation>
     </message>
     <message>
       <location filename="../oracle/ui/space.py" line="34" />
@@ -2471,6 +2810,240 @@ The first launch takes a little time to prepare game assets.</translation>
       <location filename="../oracle/ui/space.py" line="36" />
       <source>；建议降低显示倍率以留出活动余量</source>
       <translation>; lower the display scale to allow more movement</translation>
+    </message>
+    <message>
+      <source>显示头饰</source>
+      <translation>Show headdress</translation>
+    </message>
+    <message>
+      <source>显示肩部花边</source>
+      <translation>Show shoulder lace</translation>
+    </message>
+    <message>
+      <source>显示围裙</source>
+      <translation>Show apron</translation>
+    </message>
+    <message>
+      <source>显示头部蝴蝶结</source>
+      <translation>Show head ribbon</translation>
+    </message>
+    <message>
+      <source>显示胸口蝴蝶结</source>
+      <translation>Show chest ribbon</translation>
+    </message>
+    <message>
+      <source>位移使用逻辑像素，沿部件自身方向调整；正 X 向右、正 Y 向下，对称复制包含位移</source>
+      <translation>Offsets use logical pixels along each part's local axes: positive X moves right, positive Y moves down. Mirroring includes the offset.</translation>
+    </message>
+    <message>
+      <source>水平对称复制</source>
+      <translation>Mirror horizontally</translation>
+    </message>
+    <message>
+      <source>X 位移</source>
+      <translation>X offset</translation>
+    </message>
+    <message>
+      <source>Y 位移</source>
+      <translation>Y offset</translation>
+    </message>
+    <message>
+      <source>色相</source>
+      <translation>Hue</translation>
+    </message>
+    <message>
+      <source>饱和度</source>
+      <translation>Saturation</translation>
+    </message>
+    <message>
+      <source>明度</source>
+      <translation>Brightness</translation>
+    </message>
+    <message>
+      <source>相对原图的增量，0 保持原色；灰白区域不受色相和饱和度影响</source>
+      <translation>Adjustment relative to the original image. Zero keeps the original color; hue and saturation do not affect grayscale areas.</translation>
+    </message>
+    <message>
+      <source>附加外观部件配置无效</source>
+      <translation>Invalid outfit component settings</translation>
+    </message>
+    <message>
+      <source>附加外观配置无效</source>
+      <translation>Invalid outfit settings</translation>
+    </message>
+    <message>
+      <source>附加外观参数 {name} 必须为布尔值</source>
+      <translation>Outfit parameter {name} must be a boolean</translation>
+    </message>
+    <message>
+      <source>附加外观参数 {name} 必须在 {low}～{high} 之间</source>
+      <translation>Outfit parameter {name} must be between {low} and {high}</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="651" />
+      <source>柔性部件用于围巾等垂挂装饰，保持鼠标穿透；尺寸为逻辑像素，X 向右、Y 向脚，随固定部位旋转</source>
+      <translation>Use soft parts for hanging accessories such as scarves. They let mouse clicks pass through. Sizes are in logical pixels; X points right and Y toward the feet, rotating with the anchor.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="18" />
+      <source>启用柔性部件 1</source>
+      <translation>Enable soft part 1</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="18" />
+      <source>启用柔性部件 2</source>
+      <translation>Enable soft part 2</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="21" />
+      <source>圆端直线</source>
+      <translation>Round-ended line</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="22" />
+      <source>人偶后方</source>
+      <translation>Behind puppet</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="22" />
+      <source>人偶前方</source>
+      <translation>In front of puppet</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="23" />
+      <source>颈根（随胸肩）</source>
+      <translation>Neck base (follows shoulders)</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="23" />
+      <source>头部</source>
+      <translation>Head</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="23" />
+      <source>腰部</source>
+      <translation>Waist</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="56" />
+      <source>外形</source>
+      <translation>Shape</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="57" />
+      <source>图层</source>
+      <translation>Layer</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="59" />
+      <source>固定点</source>
+      <translation>Anchor</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="60" />
+      <source>柔性部件颜色</source>
+      <translation>Soft part color</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="80" />
+      <source>0 沿固定部位朝脚的方向，正值顺时针旋转</source>
+      <translation>0 points toward the feet relative to the anchor; positive values rotate clockwise</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="81" />
+      <source>相对根部宽度的比例，仅影响梯形</source>
+      <translation>Percentage of the root width; applies only to trapezoids</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="82" />
+      <source>越高越容易弯折</source>
+      <translation>Higher values allow more bending</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="83" />
+      <source>越高越快停止回摆</source>
+      <translation>Higher values stop swinging sooner</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="105" />
+      <source>静态 PNG，宽高各为 1～128 像素，不超过 1 MB；顶边中点接根部，按宽度和长度铺满，保留原色与透明度</source>
+      <translation>Static PNG, 1-128 pixels per side, up to 1 MB. The top center attaches to the root. The image fills the chosen width and length, preserving its colors and transparency.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="178" />
+      <location filename="../oracle/ui/soft_part_editor.py" line="204" />
+      <source>请导入柔性部件 PNG、选择几何形状，或关闭此部件</source>
+      <translation>Import a soft part PNG, choose a geometric shape, or disable this part</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="183" />
+      <source>选择柔性部件 PNG</source>
+      <translation>Choose a soft part PNG</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="65" />
+      <source>长度</source>
+      <translation>Length</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="66" />
+      <source>根部出发角度</source>
+      <translation>Root angle</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="66" />
+      <source>梯形末端宽度</source>
+      <translation>Trapezoid tip width</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="67" />
+      <source>柔软程度</source>
+      <translation>Softness</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/soft_part_editor.py" line="67" />
+      <source>回摆衰减</source>
+      <translation>Swing damping</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="42" />
+      <source>柔性部件开关必须为布尔值</source>
+      <translation>The soft part enabled field must be a boolean</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="44" />
+      <source>柔性部件固定点必须为 neck / head / waist</source>
+      <translation>The soft part anchor must be neck, head, or waist</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="46" />
+      <source>不支持的柔性部件形状</source>
+      <translation>Unsupported soft part shape</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="48" />
+      <source>柔性部件图层必须为 back / front</source>
+      <translation>The soft part layer must be back or front</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="50" />
+      <source>柔性部件贴图路径和名称必须为字符串</source>
+      <translation>Soft part image paths and names must be strings</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="52" />
+      <source>柔性部件颜色必须为 #RRGGBB</source>
+      <translation>The soft part color must use #RRGGBB</translation>
+    </message>
+    <message>
+      <location filename="../oracle/soft_part_config.py" line="57" />
+      <source>柔性部件 {name} 必须在 {low}～{high} 之间</source>
+      <translation>Soft part {name} must be between {low} and {high}</translation>
+    </message>
+    <message>
+      <location filename="../oracle/config.py" line="164" />
+      <source>柔性部件必须为部件配置</source>
+      <translation>Soft parts must use soft part configuration objects</translation>
     </message>
   </context>
 </TS>

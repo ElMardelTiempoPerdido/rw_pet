@@ -41,7 +41,7 @@ def main(argv=None, *, default_desktop=False):
             config, first_run, message = store.startup(path)
             # 独立调试可沿用已保存设置，但颜色重载只接受显式 TOML。
             path = store.path if bell_desktop else args.config
-            if args.scale is not None:
+            if args.scale is not None and not bell_desktop:
                 config = replace(config, desktop=replace(config.desktop, scale=args.scale))
         else:
             config = AppConfig.load(path)
@@ -57,12 +57,37 @@ def main(argv=None, *, default_desktop=False):
         app.setQuitOnLastWindowClosed(False)
         from .settings_store import validate_game_directory
         from .oracle.ui.settings import OracleSettingsDialog
+        from .presets.startup import prepare_character
+        from .oracle.ui.preset_dialogs import acknowledge_character_upgrade
+        from PySide6.QtWidgets import QMessageBox
+        try:
+            initialization = prepare_character(config, store)
+            if initialization.notice:
+                acknowledge_character_upgrade()
+                initialization.notice = False
+            if args.config is None:
+                config = initialization.config
+                if not first_run:
+                    with store.preset_state(initialization.state.serialize()):
+                        store.save(config)
+            else:
+                # 显式 TOML 仅覆盖本次启动，不自动写入个人调整
+                initialization.config = config
+                entry = initialization.state.entries[initialization.state.active]
+                entry.update(config, store.path.parent/'appearance/images')
+        except (OSError, ValueError, TypeError, RuntimeError) as exc:
+            QMessageBox.critical(None, tr('角色设置初始化失败'), tr(exc))
+            return 1
+        if args.scale is not None:
+            config = replace(config, desktop=replace(config.desktop, scale=args.scale))
+            initialization.config = config
         try:
             validate_game_directory(config.game_dir)
         except (OSError, ValueError) as exc:
             first_run, message = True, str(exc)
         if first_run or args.settings:
-            dialog = OracleSettingsDialog(config, store, first_run=first_run, message=message)
+            dialog = OracleSettingsDialog(config, store, first_run=first_run, message=message,
+                                          initialization=initialization)
             if app.primaryScreen() is not None:
                 dialog.fit_workarea(app.primaryScreen().availableGeometry())
             if dialog.exec() != dialog.DialogCode.Accepted:

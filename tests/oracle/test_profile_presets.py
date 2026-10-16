@@ -1,4 +1,4 @@
-"""完整预设在设置面板中的草稿、外观引用和统一保存"""
+"""角色设置在设置面板中的草稿、外观引用和统一保存"""
 from dataclasses import replace
 from pathlib import Path
 import tempfile
@@ -55,6 +55,11 @@ class ProfilePresetUiTests(unittest.TestCase):
 
     def dialog(self, config=None):
         dialog = OracleSettingsDialog(config or self.config, self.store, assets=object())
+        # 此组验证手动保存边界；默认开启的自动保存由 test_preset_workflow 覆盖
+        dialog.preset_workflow.state.autosave = False
+        dialog.personal_controls.autosave.blockSignals(True)
+        dialog.personal_controls.autosave.setChecked(False)
+        dialog.personal_controls.autosave.blockSignals(False)
         self.dialogs.append(dialog)
         self.enterContext(patch.object(dialog, 'space_assessment', return_value=None))
         return dialog
@@ -77,7 +82,7 @@ class ProfilePresetUiTests(unittest.TestCase):
         self.assertEqual(value.audio.volume, .19)
         self.assertEqual(value.oracle.arm_scale, .55)
         self.assertFalse(value.oracle.halo_enabled)
-        self.assertEqual(value.oracle.colors.skin, '#abcdef')
+        self.assertEqual(value.oracle.colors.skin, self.config.oracle.colors.skin)
         self.assertEqual(profile_mapping(value), profile_mapping(self.profile))
         self.assertEqual(value.oracle.custom_colors.skin, '#abc123')
         self.assertIsNone(d.appearance_presets.loaded)
@@ -106,7 +111,7 @@ class ProfilePresetUiTests(unittest.TestCase):
         self.assertEqual(preset.config.oracle.float_speed, 1.1)
         self.assertEqual(preset.appearance.oracle.colors.skin, '#123456')
         self.assertEqual(d._appearance_source.id, preset.appearance.id)
-        second = d.profile_presets.export_current('当前草稿')
+        second = d.profile_presets.export_current('当前草稿', target=preset)
         self.assertEqual(preset.id, second.id)
         self.assertEqual(preset.appearance.id, second.appearance.id)
         self.assertFalse(self.store.path.exists())
@@ -120,8 +125,8 @@ class ProfilePresetUiTests(unittest.TestCase):
         preset.appearance.path.unlink()
         panel.choose(panel.selector.currentIndex())
         self.assertEqual(d.candidate(), before)
-        self.assertIsNone(panel.loaded)
-        self.assertIn('无法载入完整预设', panel.status.text())
+        self.assertIsNotNone(panel.loaded)
+        self.assertIn('无法载入角色设置', panel.status.text())
 
     def test_changing_appearance_after_profile_preserves_behavior_and_updates_export_reference(self):
         preset = self.library.export(self.profile, '角色')
@@ -146,7 +151,7 @@ class ProfilePresetUiTests(unittest.TestCase):
         self.select(d, preset)
         self.assertEqual(d.candidate().oracle.colors.skin, self.config.oracle.colors.skin)
         self.assertEqual(d._appearance_source.path, preset.appearance.path)
-        self.assertEqual(d.appearance_presets.selector.currentIndex(), 0)
+        self.assertTrue(d.appearance_presets.selection_panel.isHidden())
 
     def test_import_copies_bundle_and_updates_reference_without_committing(self):
         external = ProfileLibrary(self.root/'external')
@@ -162,16 +167,17 @@ class ProfilePresetUiTests(unittest.TestCase):
         preset = self.library.export(self.profile, '用户命名')
         d = self.dialog()
         self.select(d, preset)
-        d.tabs.setCurrentIndex(6)
+        d.tabs.setCurrentWidget(d.pages['profile'])
         language_manager().set_language('en')
         self.app.processEvents()
-        self.assertEqual(d.tabs.tabText(6), 'Presets')
-        self.assertEqual(d.profile_presets.import_button.text(), 'Import full preset…')
-        self.assertEqual(d.profile_presets.selector.currentText(), '用户命名')
-        self.assertIn('用户命名', d.profile_presets.reference_label.text())
+        self.assertEqual(d.tabs.tabText(d.tabs.currentIndex()), 'Character settings')
+        self.assertEqual(d.profile_presets.import_button.text(), 'Import character settings…')
+        self.assertEqual(d.profile_presets.selector.currentText(), '用户命名 *')
+        self.assertEqual(d._appearance_source.id, preset.appearance.id)
         self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
-        d.profile_presets.appearance_button.click()
-        self.assertEqual(d.tabs.currentIndex(), 1)
+        d.tabs.setCurrentWidget(d.pages['appearance'])
+        self.assertIs(d.tabs.currentWidget(), d.pages['appearance'])
+        self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
 
 
 if __name__ == '__main__':

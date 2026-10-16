@@ -69,7 +69,7 @@ class AppearancePresetTests(unittest.TestCase):
         bell = replace(self.config, oracle=replace(self.config.oracle, body_appearance='bell'))
         preset = self.library.export(bell, 'Bell')
         keys = appearance_mapping(preset.oracle)['oracle']
-        self.assertEqual(set(keys), {'body_appearance', 'outfit', 'colors', 'pearl_bubble_color'})
+        self.assertEqual(set(keys), {'body_appearance', 'outfit', 'outfit_settings', 'colors', 'pearl_bubble_color'})
         result = apply_appearance(self.config, preset, self.root/'cache')
         self.assertEqual(result.oracle.custom_appearance, self.config.oracle.custom_appearance)
         self.assertEqual(result.oracle.custom_colors, self.config.oracle.custom_colors)

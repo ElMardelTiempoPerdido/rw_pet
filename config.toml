@@ -43,12 +43,15 @@ edge_fraction = 0.20
 base_side = 'top'
 allowed_edges = ['top', 'right', 'bottom', 'left'] # 活动边缘须连续，且包含启动边缘
 base_fraction = 0.50
-arm_scale = 0.60                # 原作臂段长度的 60%；设置 → 外观可调整 35%～75%
+arm_scale = 0.60                # 原作臂段长度的 60%；设置 → 屏幕可调整 35%～75%
 float_speed = 1.6               # 通常移动速度
 drift_speed = 1.0               # 反重力漫游速度
+base_speed = 2.8                # 机械臂底座沿边框滑动的速度
 cross_edge_probability = 0.05   # 跨到相邻边的概率
 antigravity_probability = 0.08  # 进入反重力漫游的概率
 antigravity_duration_seconds = 300.0
+pearl_follow_width = 360.0      # 珍珠跟随矩形的完整宽度，逻辑像素
+pearl_follow_height = 280.0     # 珍珠跟随矩形的完整高度，逻辑像素
 pearl_matrix_enabled = true
 pearl_matrix_count = 7          # 0～64；原版 14
 pearl_matrix_avoid_radius = 80.0 # 人偶自主选点时避让矩阵的半径；0 关闭
@@ -72,6 +75,53 @@ pixel_mode = 'adaptive'         # adaptive：大倍率缩放时精细像素 / cl
 
 # 设置面板中的参数均在本文件列出；未列出的高级参数使用代码默认值。
 # 升级时只补齐用户配置缺少的字段，已有值不会被本文件覆盖。
+# 附加外观：位移为逻辑像素，色相为角度，饱和度/明度为百分比增量
+# 调整仅作用于当前角色；选择常规外观时保留这些值
+[oracle.outfit_settings.maid.head]
+enabled = true
+offset_x = 0.0
+offset_y = 0.0
+mirror = false
+hue = 0.0
+saturation = 0.0
+brightness = 0.0
+
+[oracle.outfit_settings.maid.lace]
+enabled = true
+offset_x = 0.0
+offset_y = 0.0
+mirror = true
+hue = 0.0
+saturation = 0.0
+brightness = 0.0
+
+[oracle.outfit_settings.maid.apron]
+enabled = true
+offset_x = 0.0
+offset_y = 0.0
+mirror = false
+hue = 0.0
+saturation = 0.0
+brightness = 0.0
+
+[oracle.outfit_settings.maid.ribbon_up]
+enabled = true
+offset_x = 0.0
+offset_y = 0.0
+mirror = false
+hue = 0.0
+saturation = 0.0
+brightness = 0.0
+
+[oracle.outfit_settings.maid.ribbon_down]
+enabled = true
+offset_x = 0.0
+offset_y = 0.0
+mirror = false
+hue = 0.0
+saturation = 0.0
+brightness = 0.0
+
 [oracle.custom_appearance]
 chest_width = 12.0            # 胸肩最宽处的完整宽度，8～18 逻辑像素
 chest_height = 8.0            # 胸部中心至胸肩最高点，4～10 逻辑像素
@@ -85,8 +135,8 @@ neck_width = 3.0               # 颈部完整宽度，1～8 逻辑像素
 inner_robe_enabled = true      # 自定义内搭，关闭后露出皮肤
 inner_collar_enabled = true    # 内搭高领，关闭后保留平领口内搭
 inner_collar_height = 3.0      # 高领高度，0～8 逻辑像素
-inner_collar_top_width = 3.0   # 高领上口完整宽度，1～12 逻辑像素
-inner_collar_bottom_width = 4.0 # 高领下口完整宽度，1～12 逻辑像素
+inner_collar_top_width = 3.0   # 高领上口完整宽度，1～24 逻辑像素
+inner_collar_bottom_width = 4.0 # 高领下口完整宽度，1～24 逻辑像素
 neckline_shape = 'v'           # 外层衣袍领口：arc 弧形 / v 型
 neckline_width = 7.6           # 领口完整宽度，2～18 逻辑像素
 neckline_depth = 6.0           # 从起始高度向下的深度，0～16 逻辑像素
@@ -174,45 +224,80 @@ tone = 'shell'
 image_path = ''
 image_name = ''
 
+# 柔性部件：默认关闭，调试入口见 docs/oracle/soft-parts.md
+[oracle.custom_appearance.soft_part_1]
+enabled = false
+kind = 'rectangle'             # rectangle / ellipse / trapezoid / triangle / line / png
+layer = 'front'                # back 人偶后方 / front 人偶前方
+image_path = ''                # PNG 顶边接根部，原色和透明度保留，宽高各不超过 128px
+image_name = ''
+tip_width_ratio = 0.5          # 梯形末端宽度 / 根部宽度，0～1
+anchor = 'neck'                # neck 颈根 / head 头部 / waist 腰部
+offset_x = -3.0                # 本地 X 偏移，-32～32 逻辑像素
+offset_y = 0.0                 # 本地 Y 偏移，正值向脚，-32～32 逻辑像素
+angle = 0.0                    # 根部方向，0 向脚，正值顺时针，-180～180 度
+length = 28.0                  # 几何长度，2～64 逻辑像素；PNG 使用图片原始高度
+width = 4.0                    # 几何完整宽度，0.5～24 逻辑像素；PNG 使用图片原始宽度
+color = '#ffb7c5'
+softness = 0.7                 # 0～1，越大越易弯曲
+damping = 0.5                  # 0～1，越大回摆衰减越快
+
+[oracle.custom_appearance.soft_part_2]
+enabled = false
+kind = 'rectangle'
+layer = 'front'
+image_path = ''
+image_name = ''
+tip_width_ratio = 0.5
+anchor = 'neck'
+offset_x = 3.0
+offset_y = 0.0
+angle = 0.0
+length = 22.0
+width = 4.0
+color = '#ffb7c5'
+softness = 0.7
+damping = 0.5
+
 # Bell 配色；切换自定义外观不会改写此组
 [oracle.colors]
-skin = '#478ca1'                # 肤色
+skin = '#66a0d3'                # 肤色
 eyes = '#211920'                # 眼睛
-head_shell = '#969ca1'          # 头部附件底色
+head_shell = '#8fa0ad'          # 头部附件底色
 head_highlight = '#c2c7ca'      # 头部附件高光
-robe_top = '#ff6569'            # 衣袍上部和袖子
-robe_bottom = '#d2373b'         # 衣袍下部
-inner_robe = '#ffb7c5'          # 高领内搭
-collar_trim = '#ff949f'         # V 形领边
+robe_top = '#ff8088'            # 衣袍上部和袖子
+robe_bottom = '#f03f57'         # 衣袍下部
+inner_robe = '#ffc0d1'          # 高领内搭
+collar_trim = '#ffa3b5'         # V 形领边
 beads = '#9cddd8'               # 念珠主体
-arm = '#8b94a2'                 # 机械臂与底座主体
+arm = '#9fa2a8'                 # 机械臂与底座主体
 arm_highlight = '#dfd6d2'       # 机械臂与底座高光
 joints = '#113246'              # 关节与细支架颜色；不影响底座主体和高光
-third_eye = '#0d5885'           # 额头标记
+third_eye = '#17629c'           # 额头标记
 pearl = '#d8cdc5'               # 珍珠白色
 pearl_primary = '#024866'       # 珍珠主色
 pearl_secondary = '#ff2c07'     # 珍珠辅色
-pearl_glyph = '#c5dedd'         # 投影颜色：珍珠文字、光环及电弧
+pearl_glyph = '#ffcfd0'         # 投影颜色：珍珠文字、光环及电弧
 
 # 自定义迭代器的独立配色，初始值与 Bell 相同
 [oracle.custom_colors]
-skin = '#478ca1'
+skin = '#66a0d3'
 eyes = '#211920'               # 旧配置迁移来源；实际双眼颜色由 custom_appearance.eye_1 / eye_2 设置
-head_shell = '#969ca1'
+head_shell = '#8fa0ad'
 head_highlight = '#c2c7ca'
-robe_top = '#ff6569'
-robe_bottom = '#d2373b'
+robe_top = '#ff8088'
+robe_bottom = '#ffc0d1'
 inner_robe = '#ffb7c5'
-collar_trim = '#ff949f'
+collar_trim = '#ffa3b5'
 beads = '#9cddd8'               # 保留数据，当前自定义模板不绘制念珠
-arm = '#8b94a2'
+arm = '#9fa2a8'
 arm_highlight = '#dfd6d2'
 joints = '#113246'
 third_eye = '#0d5885'           # 保留数据，后续由自定义标记使用
 pearl = '#d8cdc5'
 pearl_primary = '#024866'
 pearl_secondary = '#ff2c07'
-pearl_glyph = '#c5dedd'
+pearl_glyph = '#ffcfd0'
 
 [oracle.drag_reactions]
 enabled = true

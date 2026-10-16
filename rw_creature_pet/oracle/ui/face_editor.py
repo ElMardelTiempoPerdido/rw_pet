@@ -10,6 +10,7 @@ from ...i18n import tr
 from ...shared.messages import Message
 from ..face_config import FACE_OFFSET_LIMIT, FaceDecal
 from ..graphics.face_assets import face_image, import_face_png, read_face_png
+from .settings_style import parameter_group_background
 from .inputs import WheelSafeDoubleSpinBox
 
 
@@ -18,10 +19,11 @@ class FaceDecalEditor(QWidget):
 
     def __init__(self, title, value, directory):
         super().__init__()
+        parameter_group_background(self)
         self.directory = Path(directory)
         self._value, self._error = None, ''
         layout = QGridLayout(self)
-        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setContentsMargins(12, 12, 12, 12)
         layout.setHorizontalSpacing(16)
         layout.setVerticalSpacing(12)
         self.enabled = QCheckBox(title)

@@ -82,12 +82,13 @@ class GlowTests(unittest.TestCase):
         bounds = visual_bounds(scene)
         scene.config = replace(scene.config, glow_enabled=True, glow_opacity=1.)
         full = rgba(self.paint(renderer, scene))
-        names = ('_body_glow', '_head_glow', '_chest_ribbon_glow', '_pearl_glow')
-        cached = [getattr(renderer, name).image for name in names]
+        layers = [renderer._body_glow, renderer._head_glow, renderer._pearl_glow]
+        layers += [sprite.glow for sprite in renderer._front_outfit_layers]
+        cached = [layer.image for layer in layers]
         scene.config = replace(scene.config, glow_opacity=.4)
         faded = rgba(self.paint(renderer, scene))
-        for name, old in zip(names, cached):
-            self.assertIs(getattr(renderer, name).image, old)
+        for layer, old in zip(layers, cached):
+            self.assertIs(layer.image, old)
         empty, solid = base[:, :, 3] == 0, base[:, :, 3] == 255
         self.assertTrue(np.all(faded[:, :, 3][empty] <= full[:, :, 3][empty]))
         self.assertGreater(faded[:, :, 3][empty].sum(), 0)

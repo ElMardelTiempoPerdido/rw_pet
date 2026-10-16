@@ -8,6 +8,7 @@ from math import atan2, cos, pi, sin, sqrt
 
 from ...shared.geometry import Vec2
 from .cords import OracleCords
+from .upper_body import BELL_UPPER_BODY, upper_body_shape
 
 
 def normalized(v, fallback=Vec2(0, -1)):
@@ -60,18 +61,15 @@ class HangingHand(SoftPoint):
     """原版 GenericBodyPart 手部；积分速度与约束后的实际位移分开保存。"""
     drive_velocity: Vec2 = Vec2()
     reach_weight: float = 0.
-    shoulder_rise: float = 2.
-    shoulder_half: float = 4.
+    shoulder_half: float = BELL_UPPER_BODY.shoulder_width/2
     MAX_REACH = 15.
     SWING_REACH = 16.
     SWING_TARGET_REACH = 15.5
-    SHOULDER_HALF = 4.
-    SHOULDER_RISE = 2.
     SWING_MIN = -40*pi/180
     SWING_MAX = 50*pi/180
 
     def shoulder(self, origin, direction, index):
-        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*self.shoulder_half)+direction*self.shoulder_rise
+        return origin+perpendicular(direction)*((-1 if index == 0 else 1)*self.shoulder_half)
 
     def reach_limit(self, origin, shoulder):
         # 常态保留原版胸部中心限长；主动手势改用实际袖根，避免外展时扣掉肩宽。
@@ -213,10 +211,9 @@ class OracleAppearance:
         # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
         self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
                       for f in self.hand_forces()]
-        shape = scene.config.active_custom_appearance
+        shape = upper_body_shape(scene.config.active_custom_appearance)
         for hand in self.hands:
-            hand.shoulder_rise = 0. if shape is not None else hand.SHOULDER_RISE
-            hand.shoulder_half = shape.shoulder_width/2 if shape is not None else hand.SHOULDER_HALF
+            hand.shoulder_half = shape.shoulder_width/2
         self.feet = [SoftPoint.at(p) for p in self.foot_goals()]
         n = self.CLOTH_DIVS
         shape = scene.config.active_custom_appearance
@@ -332,7 +329,8 @@ class OracleAppearance:
     def configure_cloth(self, length, shape=None):
         """胸肩只影响衣袍上部两侧；下摆长度和中央领口参考点保持独立"""
         self.robe_length = length
-        self._cloth_shape = (length, shape.chest_width, shape.chest_height) if shape else (length, 12., 8.)
+        shape = upper_body_shape(shape)
+        self._cloth_shape = (length, shape.chest_width, shape.chest_height)
         n = self.CLOTH_DIVS
         self._cloth_local = []
         for y in range(n):
@@ -340,11 +338,10 @@ class OracleAppearance:
                 across = (2*x/(n-1)-1)*(5+6*y/(n-1))
                 curve = sin(pi*x/(n-1))*.35
                 depth = (5-23*y/(n-1))*(1+curve*(2*y/(n-1)-1))
-                if shape is not None:
-                    t = min(1., y/(n-1)/.45)
-                    shoulder_weight = 1-t*t*(3-2*t)
-                    across *= 1+(shape.chest_width/12-1)*shoulder_weight
-                    depth += (shape.chest_height-8)*5/8*(2*x/(n-1)-1)**2*shoulder_weight
+                t = min(1., y/(n-1)/.45)
+                shoulder_weight = 1-t*t*(3-2*t)
+                across *= 1+(shape.chest_width/12-1)*shoulder_weight
+                depth += (shape.chest_height-8)*5/8*(2*x/(n-1)-1)**2*shoulder_weight
                 if y/(n-1) > .45 and length != 1.:
                     anchor = (5-23*.45)*(1+curve*(2*.45-1))
                     depth = anchor+(depth-anchor)*length
@@ -364,17 +361,16 @@ class OracleAppearance:
 
     def sync_shape(self, scene):
         shape = scene.config.active_custom_appearance
-        rise = 0. if shape is not None else HangingHand.SHOULDER_RISE
-        half = shape.shoulder_width/2 if shape is not None else HangingHand.SHOULDER_HALF
-        if any(hand.shoulder_rise != rise or hand.shoulder_half != half for hand in self.hands):
+        body = upper_body_shape(shape)
+        half = body.shoulder_width/2
+        if any(hand.shoulder_half != half for hand in self.hands):
             for hand in self.hands:
-                hand.shoulder_rise = rise
                 hand.shoulder_half = half
             self.sleeping = False
             self._quiet_ticks = 0
             self.revision += 1
         length = shape.robe_length if shape else 1.
-        cloth_shape = (length, shape.chest_width, shape.chest_height) if shape else (length, 12., 8.)
+        cloth_shape = (length, body.chest_width, body.chest_height)
         if cloth_shape == self._cloth_shape:
             return
         old_goals = self.cloth_goals()

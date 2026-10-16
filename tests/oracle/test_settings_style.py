@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.oracle.ui.settings_style import INK, PAPER, pixel_box, pixel_rule, settings_font, settings_font_family
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.ui_config import UiConfig
@@ -112,6 +113,7 @@ class SettingsStyleTests(unittest.TestCase):
         settings_font_family.cache_clear()
         with tempfile.TemporaryDirectory() as temporary, chdir(temporary):
             config = replace(AppConfig(), ui=UiConfig('zh'))
+            isolate_characters(self, Path(temporary))
             dialog = OracleSettingsDialog(config, SettingsStore(Path(temporary)/'settings.json'))
             try:
                 dialog.show()

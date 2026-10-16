@@ -1,5 +1,6 @@
-"""完整预设：已登记的行为参数，加上明确指向包内外观副本的引用"""
+"""角色设置：已登记的行为参数，加上明确指向包内外观副本的引用"""
 from dataclasses import dataclass
+from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 
@@ -33,7 +34,7 @@ def validate_config(data):
                  type(value) in (int, float) if type(default) is float else
                  type(value) is type(default))
         if not valid or (type(value) is float and not isfinite(value)):
-            raise ValueError(Message('预设字段类型无效：{path}', path=path))
+            raise ValueError(Message('角色设置字段类型无效：{path}', path=path))
         set_value(values, path, value)
     return replace_fields(defaults, values)
 
@@ -46,6 +47,7 @@ class ProfilePreset:
     config: AppConfig
     appearance: AppearancePreset
     path: Path
+    revision: str = ''
 
     @property
     def timestamp(self):
@@ -58,11 +60,12 @@ def load_profile(path):
     config = validate_config(data['config'])
     reference = data['appearance']
     if not isinstance(reference, dict) or set(reference) != {'id', 'path'}:
-        raise ValueError('完整预设必须包含外观 ID 与包内路径')
+        raise ValueError('角色设置必须包含外观 ID 与包内路径')
     appearance = load_appearance(package_path(path.parent, reference['path']))
     if appearance.id != reference['id']:
-        raise ValueError('完整预设引用的外观 ID 与包内文件不一致')
-    return ProfilePreset(data['id'], data['name'], data['updated_at'], config, appearance, path)
+        raise ValueError('角色设置引用的外观 ID 与包内文件不一致')
+    revision = sha256(path.read_bytes()+appearance.revision.encode('ascii')).hexdigest()
+    return ProfilePreset(data['id'], data['name'], data['updated_at'], config, appearance, path, revision)
 
 
 def apply_profile(config, preset, asset_directory):

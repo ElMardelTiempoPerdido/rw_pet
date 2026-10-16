@@ -63,6 +63,7 @@ class OracleMouseAvoidance:
         return scene.body.chunks[0].position-self.offset
 
     def neutral_velocity(self, scene):
+        
         return scene.body.chunks[0].velocity-self.offset_velocity
 
     @classmethod

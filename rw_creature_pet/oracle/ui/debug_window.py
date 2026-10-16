@@ -503,6 +503,10 @@ class OracleDebugWindow(QMainWindow):
         self.overseer_button = QPushButton('监视者调试…')
         self.overseer_button.clicked.connect(self.open_overseer_debug)
         audio_controls.addWidget(self.overseer_button)
+        self.soft_parts_panel = None
+        self.soft_parts_button = QPushButton('柔性部件调试…')
+        self.soft_parts_button.clicked.connect(self.open_soft_parts_debug)
+        audio_controls.addWidget(self.soft_parts_button)
         layout.addLayout(audio_controls)
         controls = QHBoxLayout()
         controls.addWidget(QLabel('初始底座'))
@@ -781,6 +785,14 @@ class OracleDebugWindow(QMainWindow):
         self.clock.single_step(self.step_scene)
         self.refresh()
 
+    def open_soft_parts_debug(self):
+        if self.soft_parts_panel is None:
+            from .soft_parts_debug import SoftPartsDebugDialog
+            self.soft_parts_panel = SoftPartsDebugDialog(self)
+        self.soft_parts_panel.refresh_status()
+        self.soft_parts_panel.show()
+        self.soft_parts_panel.raise_()
+
     def reset_scene(self):
         self.cancel_drag()
         self.scene.reset()
@@ -940,9 +952,11 @@ class OracleDebugWindow(QMainWindow):
         self.orbit_pearl_button.setEnabled(scene.sliding_base and available)
         now = perf_counter()
         revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
-                    scene.halo_visual_revision, scene.projection.revision, self.canvas.overseer_group.revision, self.canvas.overseer.revision)
+                    scene.halo_visual_revision, scene.projection.revision, scene.soft_parts, scene.soft_parts.revision,
+                    self.canvas.overseer_group.revision, self.canvas.overseer.revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
-                                                   or not scene.pearls_settled or scene.eyes.moving))
+                                                   or not scene.pearls_settled or scene.eyes.moving
+                                                   or not scene.soft_parts.sleeping))
                        or revision != self._last_visual_revision)
         if force or (needs_frame and now >= self._next_render_time):
             self.canvas.update()
@@ -957,6 +971,8 @@ class OracleDebugWindow(QMainWindow):
         self._last_status_time = now
         if self.overseer_panel is not None and self.overseer_panel.isVisible():
             self.overseer_panel.refresh_status()
+        if self.soft_parts_panel is not None and self.soft_parts_panel.isVisible():
+            self.soft_parts_panel.refresh_status()
         for control in (self.look_pearl_button, self.recall_pearl_button, self.orbit_pearl_button,
                         self.meditate_button, self.short_roam_button, self.drift_button,
                         self.cross_edge_button, self.clockwise_button, self.counterclockwise_button):

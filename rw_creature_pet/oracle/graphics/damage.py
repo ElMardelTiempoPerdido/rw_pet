@@ -1,6 +1,7 @@
 """透明桌面的保守外形包围盒，包含前后物理帧，供缓存与清除旧像素使用。"""
 from PySide6.QtCore import QRectF
 from ..ear_config import ear_radius
+from .outfit_definition import outfit_padding
 
 
 def point_bounds(points, padding):
@@ -16,11 +17,12 @@ def body_bounds(scene):
     # 33px 头图、袖口、领边均含在 20px 余量内。线缆允许垂入中央，
     # 必须取真实节点，不能仅使用活动带或人偶质点作为清除范围。
     points = scene.appearance.body_points if scene.config.hide_cords else scene.appearance.points
+    extra = outfit_padding(scene.config)
     soft = point_bounds((v for p in points
-                         for v in (p.previous_position, p.position)), 20.)
+                         for v in (p.previous_position, p.position)), 20.+extra)
     head = scene.appearance.head
-    radius = ear_radius(scene.config.active_custom_appearance)
-    if radius > 20:
+    radius = ear_radius(scene.config.active_custom_appearance)+extra
+    if radius > 20.+extra:
         soft = soft.united(point_bounds((head.previous_position, head.position), radius))
     # 外壳弯折至多 24，活塞可伸出 length/4，另含底座和抗锯齿余量。
     arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
@@ -29,8 +31,18 @@ def body_bounds(scene):
     return soft.united(arm)
 
 
+def soft_part_bounds(part, alpha=None):
+    """带宽覆盖网格法线；未指定插值时覆盖前后物理帧及其中任意插值姿态"""
+    points = ((v for p in part.points for v in (p.previous_position, p.position)) if alpha is None
+              else (p.sample(alpha) for p in part.points))
+    return point_bounds(points, part.width/2+2)
+
+
 def visual_bounds(scene):
     result = body_bounds(scene)
+    for part in scene.soft_parts.parts:
+        if part is not None:
+            result = result.united(soft_part_bounds(part))
     projection = scene.projection
     if projection.visible:
         for center in (projection.previous_position, projection.position):
@@ -55,6 +67,7 @@ def visual_bounds(scene):
         result = result.united(point_bounds((pearl.previous_position, pearl.position),
                                            scene.config.pearl_bubble_max_size/2+2))
     if scene.config.glow_enabled and scene.config.glow_opacity > 0:
+        # 包含附件自身的柔光；绘制密度至少为 1，额外 3px 覆盖画布取整和模糊留白
         margin = scene.config.glow_radius+3
         result = result.adjusted(-margin, -margin, margin, margin)
     return result

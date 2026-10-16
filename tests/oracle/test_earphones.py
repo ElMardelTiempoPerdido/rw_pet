@@ -22,6 +22,7 @@ from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.interaction.input import PuppetHitMap
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 
@@ -74,6 +75,7 @@ class EarphoneTests(unittest.TestCase):
         config = AppConfig(game_dir=self.root, oracle=OracleConfig(body_appearance='custom'))
         store = SettingsStore(self.root/'settings.json')
         store.save(config)
+        isolate_characters(self, store.path.parent)
         dialog = OracleSettingsDialog(config, store, assets=OracleAssets(OracleRenderer(), '', {}, ''))
         self.windows.append(dialog)
         dialog.open_face_preview()
@@ -213,7 +215,7 @@ class EarphoneTests(unittest.TestCase):
         self.assertTrue(p.apply_button.isEnabled())
         defaults = d.original
         with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=defaults):
-            d.restore_defaults(1)
+            d.restore_defaults(d.tabs.indexOf(d.pages['appearance']))
         self.assertEqual(editor.value(), defaults.oracle.custom_appearance.ear_part_2)
         d.busy(True)
         self.assertFalse(p.editors.isEnabled())

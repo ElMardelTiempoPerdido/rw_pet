@@ -17,9 +17,11 @@ from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, CustomAppearance, 
 from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
-from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from rw_creature_pet.oracle.ui.settings import BELL_COLOR_ORDER, CUSTOM_COLOR_ORDER, OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.presets.fields import paths_for
 from tests.oracle.test_desktop import FakeScreen
+from tests.oracle.character_fixture import isolate_characters
 
 
 class OracleSettingsTests(unittest.TestCase):
@@ -32,6 +34,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         root = Path(self.temporary.name)
+        isolate_characters(self, root)
         (root/'游戏/RainWorld_Data').mkdir(parents=True)
         (root/'游戏/RainWorld_Data/resources.assets').write_bytes(b'fixture')
         self.config = AppConfig(game_dir=root/'游戏')
@@ -68,6 +71,136 @@ class OracleSettingsTests(unittest.TestCase):
         d.reject()
         self.assertFalse(self.store.path.exists())
         self.assertEqual(self.config.desktop.scale, 1.)
+
+    def test_tab_order_and_screen_controls_are_separate_from_character_movement(self):
+        d = self.dialog()
+        self.assertEqual(list(d.pages), ['general', 'screen', 'behavior', 'pearls',
+                                        'projection', 'overseer', 'profile', 'appearance'])
+        for page, keys in {
+            'screen': ('desktop.screen', 'oracle.edge_fraction', 'oracle.arm_scale', 'oracle.base_fraction'),
+            'behavior': ('oracle.float_speed', 'oracle.cross_edge_probability', 'oracle.antigravity_probability',
+                         'oracle.drift_speed', 'oracle.antigravity_duration_seconds'),
+            'appearance': ('oracle.colors.arm',),
+        }.items():
+            for key in keys:
+                with self.subTest(page=page, key=key):
+                    self.assertTrue(d.pages[page].isAncestorOf(d.controls[key]))
+        for control in (*d.edge_checks.values(), *d.start_edge_buttons.values()):
+            self.assertTrue(d.pages['screen'].isAncestorOf(control))
+        d.tabs.setCurrentWidget(d.pages['appearance'])
+        d.show_space_settings()
+        self.assertIs(d.tabs.currentWidget(), d.pages['screen'])
+        # 调整顺序后，恢复按钮仍属于原页面，不重置新位置上的其他分类
+        d.controls['oracle.arm_scale'].setValue(70)
+        d.controls['oracle.float_speed'].setValue(1.4)
+        d.tabs.tabBar().moveTab(d.tabs.indexOf(d.pages['screen']), d.tabs.indexOf(d.pages['behavior']))
+        reset = next(button for button in d.reset_tab_buttons if d.pages['screen'].isAncestorOf(button))
+        with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=self.config):
+            reset.click()
+        self.assertEqual(d.candidate().oracle.arm_scale, self.config.oracle.arm_scale)
+        self.assertEqual(d.candidate().oracle.float_speed, 1.4)
+
+    def test_bubble_color_syncs_appearance_and_pearl_editors_and_enabled_state(self):
+        d = self.dialog()
+        key = 'oracle.pearl_bubble_color'
+        appearance, custom, pearl = d.color_editors[key]
+        for editor in (appearance, custom):
+            self.assertTrue(d.pages['appearance'].isAncestorOf(editor))
+        self.assertTrue(d.pages['pearls'].isAncestorOf(pearl))
+        appearance.setValue('#123456')
+        self.assertEqual(pearl.value(), '#123456')
+        self.assertEqual(custom.value(), '#123456')
+        custom.setValue('#654321')
+        self.assertEqual(appearance.value(), '#654321')
+        self.assertEqual(pearl.value(), '#654321')
+        pearl.setValue('#abcdef')
+        self.assertEqual(appearance.value(), '#abcdef')
+        self.assertEqual(d.candidate().oracle.pearl_bubble_color, '#abcdef')
+        config = replace(self.config, oracle=replace(self.config.oracle, pearl_bubble_color='#456789'))
+        d.fill_preset(config, (key,))
+        self.assertTrue(all(editor.value() == '#456789' for editor in (appearance, custom, pearl)))
+        d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
+        d.controls['oracle.pearl_matrix_count'].setValue(4)
+        for probability, enabled in ((0, False), (25, True)):
+            d.controls['oracle.pearl_playback_probability'].setValue(probability)
+            self.assertEqual(pearl.isEnabled(), enabled)
+            self.assertTrue(appearance.isEnabled())
+            self.assertTrue(custom.isEnabled())
+
+    def test_behavior_page_covers_action_fields_without_local_or_visual_preferences(self):
+        d = self.dialog()
+        visual_fields = {
+            'oracle.pearl_matrix_enabled', 'oracle.pearl_matrix_count', 'oracle.pearl_orbits_enabled',
+            'oracle.pearl_inner_count', 'oracle.pearl_outer_count', 'oracle.pearl_fixed_count',
+            'oracle.pearl_satellite_count', 'oracle.pearl_bubble_max_size',
+            'oracle.projection_opacity', 'oracle.halo_scale', 'oracle.halo_arc_max_count',
+        }
+        self.assertTrue(set(paths_for('profile')).issubset(d.controls))
+        actual = {key for key, control in d.controls.items() if d.pages['behavior'].isAncestorOf(control)}
+        self.assertEqual(actual, set(paths_for('profile')) - visual_fields)
+        self.assertEqual(len(actual), 23)
+        self.assertEqual([label.text() for label in d.pages['behavior'].findChildren(QLabel)
+                          if label.text() in ('移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动')],
+                         ['移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动'])
+        for key in ('interaction.drag_enabled', 'desktop.autonomous', 'audio.enabled', 'audio.volume'):
+            self.assertTrue(d.pages['general'].isAncestorOf(d.controls[key]))
+
+    def test_drag_reaction_dependencies_preserve_values_and_keep_projection_independent_of_gestures(self):
+        d = self.dialog()
+        c = d.controls
+        prefix = 'oracle.drag_reactions.'
+        c[prefix+'voice_probability'].setValue(32.1)
+        c[prefix+'alternating_probability'].setValue(27.8)
+        c[prefix+'gesture_probability'].setValue(0)
+        self.assertFalse(c[prefix+'flutter_probability'].isEnabled())
+        self.assertFalse(c[prefix+'alternating_probability'].isEnabled())
+        self.assertTrue(c[prefix+'voice_probability'].isEnabled())
+        self.assertTrue(c['oracle.drag_projection_probability'].isEnabled())
+        c[prefix+'gesture_probability'].setValue(90)
+        c[prefix+'flutter_probability'].setValue(0)
+        self.assertFalse(c[prefix+'alternating_probability'].isEnabled())
+        c[prefix+'flutter_probability'].setValue(50)
+        self.assertTrue(c[prefix+'alternating_probability'].isEnabled())
+        c[prefix+'enabled'].setChecked(False)
+        self.assertFalse(c[prefix+'voice_probability'].isEnabled())
+        self.assertFalse(c['oracle.drag_projection_probability'].isEnabled())
+        c[prefix+'enabled'].setChecked(True)
+        self.assertEqual(c[prefix+'voice_probability'].value(), 32.1)
+        self.assertEqual(c[prefix+'alternating_probability'].value(), 27.8)
+        c['oracle.drag_projection_probability'].setValue(0)
+        self.assertFalse(c['oracle.drag_projection_cooldown_seconds'].isEnabled())
+        self.assertEqual(d.candidate().interaction.drag_enabled, self.config.interaction.drag_enabled)
+
+    def test_new_behavior_values_save_apply_to_desktop_and_reopen(self):
+        w = self.desktop()
+        w.open_settings()
+        d = w.settings_dialog
+        values = {
+            'oracle.base_speed': 3.25, 'oracle.pearl_follow_width': 600.5, 'oracle.pearl_follow_height': 320.5,
+            'oracle.drag_reactions.gesture_probability': 78.9,
+            'oracle.drag_reactions.flutter_probability': 45.6,
+            'oracle.drag_reactions.alternating_probability': 12.3,
+            'oracle.drag_reactions.eye_open_probability': 55.5,
+            'oracle.drag_reactions.voice_probability': 66.6,
+        }
+        for key, value in values.items():
+            d.controls[key].setValue(value)
+        d.controls['oracle.drag_reactions.enabled'].setChecked(False)
+        candidate = d.candidate()
+        d.apply_button.click()
+        self.assertEqual(self.store.load(), candidate)
+        self.assertEqual(w.motion.scene.config.base_speed, 3.25)
+        self.assertEqual(w.motion.scene.config.pearl_follow_width, 600.5)
+        self.assertEqual(w.motion.scene.config.pearl_follow_height, 320.5)
+        self.assertEqual(w.motion.scene.drag_reactions.config, candidate.oracle.drag_reactions)
+        self.assertAlmostEqual(candidate.oracle.drag_reactions.voice_probability, .666)
+        self.assertFalse(w.motion.scene.drag_reactions.config.enabled)
+        d.reject()
+        w.open_settings()
+        reopened = w.settings_dialog
+        self.assertEqual(reopened.candidate(), candidate)
+        for key, value in values.items():
+            self.assertEqual(reopened.controls[key].value(), value)
 
     def test_neckline_controls_save_apply_and_preserve_bell_and_inactive_values(self):
         w = self.desktop()
@@ -138,7 +271,7 @@ class OracleSettingsTests(unittest.TestCase):
         w = self.desktop()
         w.open_settings()
         d = w.settings_dialog
-        d.tabs.setCurrentIndex(2)
+        d.tabs.setCurrentWidget(d.pages['pearls'])
         bar = d.tabs.currentWidget().verticalScrollBar()
         bar.setValue(40)
         scroll = bar.value()
@@ -149,7 +282,7 @@ class OracleSettingsTests(unittest.TestCase):
             self.assertIs(w.settings_dialog, d)
             self.assertTrue(d.isVisible())
             self.assertTrue(d.apply_button.isEnabled())
-            self.assertEqual(d.tabs.currentIndex(), 2)
+            self.assertIs(d.tabs.currentWidget(), d.pages['pearls'])
             self.assertEqual(bar.value(), scroll)
             self.assertEqual(w.voice_player.volume, value / 100)
             self.assertEqual(self.store.load().audio.volume, value / 100)
@@ -763,8 +896,8 @@ class OracleSettingsTests(unittest.TestCase):
         prefix = 'oracle.custom_appearance.'
         c['oracle.body_appearance'].setValue('custom')
         c[prefix+'inner_collar_height'].setValue(6.5)
-        c[prefix+'inner_collar_top_width'].setValue(5.)
-        c[prefix+'inner_collar_bottom_width'].setValue(8.)
+        c[prefix+'inner_collar_top_width'].setValue(24.)
+        c[prefix+'inner_collar_bottom_width'].setValue(20.)
         c[prefix+'inner_collar_enabled'].setChecked(False)
         self.assertFalse(c[prefix+'inner_collar_height'].isEnabled())
         c[prefix+'inner_collar_enabled'].setChecked(True)
@@ -778,7 +911,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertIs(w.motion.scene, scene)
         shape = scene.config.active_custom_appearance
         self.assertEqual((shape.inner_collar_height, shape.inner_collar_top_width, shape.inner_collar_bottom_width),
-                         (6.5, 5., 8.))
+                         (6.5, 24., 20.))
         self.assertEqual(self.store.load().oracle.custom_appearance, shape)
         c['oracle.body_appearance'].setValue('bell')
         d.save()
@@ -903,7 +1036,7 @@ class OracleSettingsTests(unittest.TestCase):
 
     def test_body_choice_only_hides_bell_drafts_and_preserves_outfit(self):
         d = self.dialog(assets=self.assets)
-        d.tabs.setCurrentIndex(1)
+        d.tabs.setCurrentWidget(d.pages['appearance'])
         selector = d.controls['oracle.body_appearance']
         self.assertEqual(selector.value(), 'bell')
         d.controls['oracle.outfit'].setValue('maid')
@@ -923,12 +1056,13 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertTrue(d.custom_parameters.isHidden())
         self.assertEqual(d.candidate().oracle.colors, candidate.oracle.colors)
         d.reject()
-        self.assertFalse(self.store.path.exists())
+        self.assertEqual(self.store.load().oracle.colors, candidate.oracle.colors)
+        self.assertEqual(self.store.load().oracle.arm_scale, self.config.oracle.arm_scale)
 
     def test_custom_palette_row_heights_survive_body_switches_and_window_resize(self):
         self.config = replace(self.config, oracle=replace(self.config.oracle, body_appearance='custom'))
         d = self.dialog(assets=self.assets)
-        d.tabs.setCurrentIndex(1)
+        d.tabs.setCurrentWidget(d.pages['appearance'])
         selector = d.controls['oracle.body_appearance']
         colors = ('skin', 'head_highlight', 'arm', 'inner_robe')
 
@@ -1075,12 +1209,17 @@ class OracleSettingsTests(unittest.TestCase):
     def test_appearance_colors_have_three_columns_and_localized_horizontal_choice(self):
         d = self.dialog(assets=self.assets)
         self.addCleanup(language_manager().set_language, self.config.ui.language)
-        d.tabs.setCurrentIndex(1)
+        d.tabs.setCurrentWidget(d.pages['appearance'])
         d.resize(800, 900)
         selector = d.controls['oracle.body_appearance']
         palette = fields(OracleColors)
         self.assertEqual(set(d.color_editors), {'oracle.colors.' + f.name for f in palette}
-                         | {'oracle.custom_colors.'+name for name in CUSTOM_COLOR_NAMES})
+                         | {'oracle.custom_colors.'+name for name in CUSTOM_COLOR_NAMES}
+                         | {'oracle.pearl_bubble_color'})
+        self.assertCountEqual([name for name in BELL_COLOR_ORDER if name is not None],
+                              [f.name for f in palette])
+        self.assertCountEqual([name for name in CUSTOM_COLOR_ORDER if name is not None],
+                              CUSTOM_COLOR_NAMES)
         for language in ('zh', 'en'):
             language_manager().set_language(language)
             for _ in range(3):
@@ -1088,21 +1227,40 @@ class OracleSettingsTests(unittest.TestCase):
             bell, custom = selector.buttons['bell'], selector.buttons['custom']
             self.assertEqual(bell.text(), tr('手势之铃'))
             self.assertEqual(custom.text(), tr('自定义迭代器'))
-            self.assertEqual(bell.geometry().center().y(), custom.geometry().center().y())
-            self.assertLess(bell.geometry().right(), custom.geometry().left())
-            for start in range(0, len(palette), 3):
-                controls = [d.controls['oracle.colors.' + f.name] for f in palette[start:start + 3]]
-                positions = [c.mapTo(d.bell_parameters, c.rect().center()) for c in controls]
-                self.assertLessEqual(max(p.y() for p in positions) - min(p.y() for p in positions), 1)
-                self.assertEqual([p.x() for p in positions], sorted(p.x() for p in positions))
-                for control in controls:
-                    self.assertTrue(d.bell_parameters.rect().contains(
-                        control.mapTo(d.bell_parameters, control.rect().bottomRight())))
-                    label = next(label for label in control.parentWidget().findChildren(QLabel)
-                                 if label.buddy() is control)
-                    self.assertLess(label.geometry().right(), control.geometry().left())
-                    # Qt 的行高取整允许 1px 差异，不能挤掉整行换行文字
-                    self.assertGreaterEqual(label.height() + 1, label.heightForWidth(label.width()))
+            self.assertTrue(selector.isHidden())
+            self.assertTrue(d.appearance_owner.text())
+            for mode, prefix, order, panel in (
+                    ('bell', 'oracle.colors.', BELL_COLOR_ORDER, d.bell_parameters),
+                    ('custom', 'oracle.custom_colors.', CUSTOM_COLOR_ORDER, d.custom_parameters)):
+                selector.setValue(mode)
+                QTest.qWait(30)
+                previous_y = -1
+                for start in range(0, len(order), 3):
+                    names = order[start:start+3]
+                    controls = [d.controls[prefix+name] for name in names if name is not None]
+                    positions = [c.mapTo(panel, c.rect().center()) for c in controls]
+                    self.assertLessEqual(max(p.y() for p in positions) - min(p.y() for p in positions), 1)
+                    self.assertGreater(min(p.y() for p in positions), previous_y)
+                    previous_y = max(p.y() for p in positions)
+                    self.assertEqual([p.x() for p in positions], sorted(p.x() for p in positions))
+                    row = controls[0].parentWidget().parentWidget().layout()
+                    self.assertEqual(row.count(), 3)
+                    cells = [row.itemAt(i).widget() for i in range(3)]
+                    self.assertLessEqual(max(c.width() for c in cells) - min(c.width() for c in cells), 1)
+                    for cell, name in zip(cells, names):
+                        if name is None:
+                            self.assertEqual(cell.layout().rowCount(), 0)
+                        else:
+                            self.assertIs(d.controls[prefix+name].parentWidget(), cell)
+                    for control in controls:
+                        self.assertTrue(panel.rect().contains(
+                            control.mapTo(panel, control.rect().bottomRight())))
+                        label = next(label for label in control.parentWidget().findChildren(QLabel)
+                                     if label.buddy() is control)
+                        self.assertLess(label.geometry().right(), control.geometry().left())
+                        # Qt 的行高取整允许 1px 差异，不能挤掉整行换行文字
+                        self.assertGreaterEqual(label.height() + 1, label.heightForWidth(label.width()),
+                                                (language, mode, label.text(), label.size().toTuple()))
 
     def test_body_appearance_config_rejects_unknown_options(self):
         self.assertEqual(OracleConfig().body_appearance, 'bell')
@@ -1127,7 +1285,7 @@ class OracleSettingsTests(unittest.TestCase):
     def test_wheel_scrolls_page_without_changing_focused_or_unfocused_numbers(self):
         d = self.dialog(assets=self.assets)
         d.fit_workarea(QRect(0, 0, 800, 480))
-        d.tabs.setCurrentIndex(4)
+        d.tabs.setCurrentWidget(d.pages['screen'])
         self.app.processEvents()
         area = d.tabs.currentWidget()
         control = d.controls['oracle.edge_fraction']

@@ -18,6 +18,7 @@ from rw_creature_pet.oracle.face_config import FaceDecal
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from tests.oracle.character_fixture import isolate_characters
 
 
 class FaceEditorTests(unittest.TestCase):
@@ -29,6 +30,7 @@ class FaceEditorTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
+        isolate_characters(self, self.root)
         (self.root/'RainWorld_Data').mkdir()
         (self.root/'RainWorld_Data/resources.assets').touch()
         self.config = AppConfig(game_dir=self.root, oracle=OracleConfig(body_appearance='custom'))
@@ -49,6 +51,7 @@ class FaceEditorTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def test_preview_tracks_unsaved_edits_and_keeps_live_renderer_and_settings_unchanged(self):
+        self.dialog.personal_controls.autosave.setChecked(False)
         before = self.store.path.read_bytes()
         d = self.dialog
         d.open_face_preview()
@@ -95,6 +98,7 @@ class FaceEditorTests(unittest.TestCase):
 
     def test_save_roundtrip_reset_and_bell_switch_preserve_independent_data(self):
         d = self.dialog
+        d.personal_controls.autosave.setChecked(False)
         editor = d.face_editors['face']
         editor.import_file(self.source)
         editor.x_input.setValue(-1.25)
@@ -106,7 +110,7 @@ class FaceEditorTests(unittest.TestCase):
         self.assertEqual(self.store.load().oracle.custom_appearance.face, decal)
         self.assertEqual(d.original.oracle.custom_appearance.face, decal)
         with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=self.config):
-            d.restore_defaults(1)
+            d.restore_defaults(d.tabs.indexOf(d.pages['appearance']))
         self.assertEqual(editor.value(), FaceDecal())
         self.assertEqual(self.store.load().oracle.custom_appearance.face, decal)
         d.reject()
@@ -132,7 +136,7 @@ class FaceEditorTests(unittest.TestCase):
         d.open_face_preview()
         language_manager().set_language('en')
         self.app.processEvents()
-        self.assertEqual(d.face_preview.windowTitle(), 'Face preview')
+        self.assertEqual(d.face_preview.windowTitle(), 'Adjust Face in Preview Window')
         self.assertEqual(d.face_preview.view.itemText(0), 'Front')
         self.assertEqual(d.face_editors['face'].import_button.text(), 'Import PNG')
         self.assertIn('头部.png', d.face_editors['face'].file_label.text())

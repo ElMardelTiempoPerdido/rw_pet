@@ -8,9 +8,10 @@
 | 生物 ID / 原版随机参数兼容计划 | [lizard/random-id-compatibility.md](lizard/random-id-compatibility.md) |
 | Oracle / Bell 的操作、外观、行为、珍珠、配置与验证记录 | [oracle/README.md](oracle/README.md) |
 | 默认 TOML、用户配置升级与设置面板初始值 | [设置升级说明](settings-upgrades.md) |
-| 外观、完整预设与本机字段的归属登记和覆盖检查 | [预设字段归属](preset-field-scopes.md) |
-| 外观预设的保存、分享、导入和重复版本处理 | [外观预设](appearance-presets.md) |
-| 完整预设的行为参数、随包外观与本机偏好保留 | [完整预设](profile-presets.md) |
+| 外观、角色设定与本机字段的归属登记和覆盖检查 | [配置字段归属](preset-field-scopes.md) |
+| 外观配置的保存、分享、导入和重复版本处理 | [外观配置](appearance-presets.md) |
+| 角色设定的行为参数、随包外观与本机偏好保留 | [角色设定](profile-presets.md) |
+| 自动保存、单项恢复、角色内外观副本与切换历史 | [个人调整与外观历史](personal-adjustments.md) |
 | 中英文切换、译文维护与翻译资源 | [界面语言](localization.md) |
 | 目录分工、依赖关系、测试与回放入口 | [开发指南](development.md) |
 

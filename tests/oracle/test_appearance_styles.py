@@ -18,6 +18,7 @@ from rw_creature_pet.oracle.interaction.input import PuppetHitMap
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
+from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.shared.geometry import Vec2
 
@@ -75,17 +76,18 @@ class AppearanceStyleTests(unittest.TestCase):
             store = SettingsStore(root/'settings.json')
             store.save(config)
             before = store.path.read_bytes()
+            isolate_characters(self, store.path.parent)
             dialog = OracleSettingsDialog(config, store)
             try:
                 defaults = replace(config, oracle=replace(config.oracle,
                     colors=replace(colors, pearl_glyph='#aabbcc'),
                     custom_colors=replace(custom, pearl_glyph='#ddeeff')))
                 with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=defaults):
-                    dialog.restore_defaults(3)
+                    dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['projection']))
                     self.assertEqual(dialog.candidate().oracle.colors, colors)
                     self.assertEqual(dialog.candidate().oracle.custom_colors.pearl_glyph, '#ddeeff')
                     dialog.controls['oracle.body_appearance'].setValue('bell')
-                    dialog.restore_defaults(1)
+                    dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['appearance']))
                     self.assertEqual(dialog.candidate().oracle.colors.pearl_glyph, '#aabbcc')
                     self.assertEqual(dialog.candidate().oracle.custom_colors.pearl_glyph, '#ddeeff')
                 dialog.reject()

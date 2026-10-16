@@ -32,11 +32,11 @@ def main():
         try:
             dialog.show()
             app.processEvents()
-            for i, name in enumerate(('general', 'appearance', 'pearls', 'halo', 'activity', 'overseer')):
-                dialog.tabs.setCurrentIndex(i)
+            for name, page in dialog.pages.items():
+                dialog.tabs.setCurrentWidget(page)
                 app.processEvents()
                 dialog.grab().save(str(out/f'oracle-settings-{name}.png'))
-            dialog.tabs.setCurrentIndex(0)
+            dialog.tabs.setCurrentWidget(dialog.pages['general'])
             dialog.controls['oracle.glow_enabled'].setChecked(True)
             app.processEvents()
             bar = dialog.tabs.currentWidget().verticalScrollBar()
@@ -44,7 +44,7 @@ def main():
             app.processEvents()
             dialog.grab().save(str(out/'oracle-settings-glow.png'))
             dialog.controls['oracle.glow_enabled'].setChecked(config.oracle.glow_enabled)
-            dialog.tabs.setCurrentIndex(4)
+            dialog.tabs.setCurrentWidget(dialog.pages['screen'])
             for edge, check in dialog.edge_checks.items():
                 check.setChecked(edge in ('top', 'bottom'))
             dialog.save()
@@ -56,11 +56,11 @@ def main():
                 check.setChecked(edge in config.oracle.allowed_edges)
             dialog.fit_workarea(QRect(-800, 0, 800, 480))
             app.processEvents()
-            dialog.grab().save(str(out/'oracle-settings-activity-small.png'))
-            dialog.tabs.setCurrentIndex(2)
+            dialog.grab().save(str(out/'oracle-settings-screen-small.png'))
+            dialog.tabs.setCurrentWidget(dialog.pages['pearls'])
             app.processEvents()
             dialog.grab().save(str(out/'oracle-settings-small.png'))
-            dialog.tabs.setCurrentIndex(0)
+            dialog.tabs.setCurrentWidget(dialog.pages['general'])
             dialog.game_dir.setText(str(config.game_dir/'invalid'))
             dialog.save()
             app.processEvents()

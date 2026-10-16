@@ -1,59 +1,47 @@
-"""完整预设入口与其外观来源提示，复用预设库的选择和文件操作"""
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy
+"""角色设置入口，复用预设库的选择和文件操作"""
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QPushButton
 
-from ...i18n import tr
 from ...presets.profile import load_profile
 from ...presets.profile_library import ProfileLibrary
+from ...presets.startup import BELL_PROFILE_ID, default_bell
+from ...settings_store import load_defaults
 from .preset_panel import PresetPanel
-from .settings_style import NOTE_STYLE
 
 
 PROFILE_TEXTS = {
-    'label': '完整预设', 'import_button': '导入完整预设…', 'export_button': '导出完整预设…',
-    'hint': '包含行为参数和外观副本，保留本机偏好；选择后点击保存生效',
-    'read_error': '无法读取完整预设库：{error}', 'current': '当前配置（不关联完整预设）',
-    'duplicates': '重复完整预设「{name}」，使用日期最新的有效版本：\n{paths}',
-    'load_error': '无法载入完整预设：{error}', 'loaded': '已载入完整预设及包内外观，点击保存后生效',
-    'import_title': '导入完整预设', 'filter': '完整预设 (*.json)',
-    'import_error': '导入完整预设失败：{error}', 'export_title': '导出完整预设',
-    'name': '完整预设名称', 'default_name': '我的迭代器', 'export_error': '导出完整预设失败：{error}',
+    'label': '当前使用角色', 'import_button': '导入角色设置…', 'export_button': '导出角色设置…',
+    'hint': '【角色设置】包含迭代器的【外观】与【影响行动风格的设置项】',
+    'read_error': '无法读取角色设置库：{error}', 'current': '当前角色设置（不关联文件）',
+    'duplicates': '重复角色设置「{name}」，最新有效版本列在第一项：\n{paths}',
+    'load_error': '无法载入角色设置：{error}', 'loaded': '已加载当前选中的角色设置！',
+    'import_title': '导入角色设置', 'filter': '角色设置 (*.json)',
+    'import_error': '导入角色设置失败：{error}', 'export_title': '导出角色设置',
+    'name': '角色设置名称', 'default_name': '迭代器名称111', 'export_error': '导出角色设置失败：{error}',
 }
 
 
 class ProfilePresetPanel(PresetPanel):
-    editAppearance = Signal()
+    createCharacter = Signal()
 
     def __init__(self, draft, apply, reference, *, library=None):
-        self.reference = reference
+        self.ready = False
         super().__init__(draft, apply, library=library or ProfileLibrary(), loader=load_profile,
                          texts=PROFILE_TEXTS, export_options=lambda: {'appearance_source': reference()})
-        self.reference_label = QLabel()
-        self.reference_label.setTextFormat(Qt.TextFormat.PlainText)
-        self.reference_label.setWordWrap(True)
-        self.reference_label.setStyleSheet(NOTE_STYLE)
-        self.reference_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.layout().addWidget(self.reference_label)
-        self.appearance_button = QPushButton('选择或调整外观')
-        self.appearance_button.setAutoDefault(False)
-        self.appearance_button.clicked.connect(self.editAppearance)
-        self.layout().addWidget(self.appearance_button, 0, Qt.AlignmentFlag.AlignLeft)
-        self.refresh_reference()
+        self.create_button = QPushButton('新建角色…')
+        self.create_button.setAutoDefault(False)
+        self.create_button.clicked.connect(self.createCharacter)
+        self.layout().itemAt(1).layout().insertWidget(0, self.create_button)
+        self.ready = True
 
-    @property
-    def dynamic_text_widgets(self):
-        return (*super().dynamic_text_widgets, self.reference_label)
-
-    def retranslate(self):
-        super().retranslate()
-        if hasattr(self, 'reference_label'):
-            self.refresh_reference()
-
-    def refresh_reference(self):
-        source = self.reference()
-        if source is None:
-            text = tr('外观来源：当前编辑的外观，导出时创建独立副本')
-        else:
-            text = tr('外观来源：{name}\n导出时携带当前编辑后的副本，不自动跟随外观库更新', name=source.name)
-        self.reference_label.setText(text)
-        self.reference_label.setToolTip(str(source.path) if source else '')
+    def refresh(self, selected_id=None):
+        try:
+            if not self.library.scan().presets:
+                preset = self.library.export(default_bell(load_defaults()), '手势之铃', preset_id=BELL_PROFILE_ID)
+                if self.ready:
+                    self.apply(preset)
+                    self.loaded = preset
+        except (OSError, ValueError, TypeError, RuntimeError) as exc:
+            self.set_message(exc)
+            return False
+        return super().refresh(selected_id)

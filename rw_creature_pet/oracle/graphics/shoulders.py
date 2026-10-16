@@ -1,4 +1,4 @@
-"""自定义袖根：隐藏截面保留搭接，可见上缘沿胸肩切线接入袖子"""
+"""公共袖根：隐藏截面保留搭接，可见上缘沿胸肩切线接入袖子"""
 from functools import lru_cache
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QTransform
@@ -7,6 +7,51 @@ from ...shared.geometry import Vec2
 from .appearance import normalized, perpendicular
 
 ROOT_OVERLAP = 1.  # 沿肩部横轴保留一逻辑像素的覆盖，避免旋转栅格化时露缝
+
+
+def _smoothstep(value):
+    value = max(0., min(1., value))
+    return value*value*(3-2*value)
+
+
+def follow_gown_root(edges, upper, direction, sign, hand, shape, gown_edge):
+    """袖根内缘靠近衣袍侧边，抬臂时再上提，修形在袖口之前连续归零"""
+    outward = perpendicular(direction)*sign
+    shoulder = upper+outward*(shape.shoulder_width*.5)
+    arm = normalized(hand-shoulder, direction*(-1))
+    rise = _smoothstep(arm.x*direction.x+arm.y*direction.y+.85)
+    reach = (hand-upper).x*outward.x+(hand-upper).y*outward.y
+    raised_weight = rise*_smoothstep((reach-shape.shoulder_width*.25)/4.)
+    # 下垂时把伸入胸前的近端收回两侧；收臂靠近中轴时平滑减弱
+    # 和抬臂权重互补，完全抬起后沿用原来的腋下位置
+    relaxed_weight = (1-rise)*_smoothstep(reach/max(1., shape.shoulder_width*.5))
+    if raised_weight == 0 and relaxed_weight == 0:
+        return edges
+    # 不逐帧寻找多重交点，沿固定的衣袍侧边拓扑插值，倒立时也不交换左右
+    # 从袖根下端逐渐上提半个半宽；选到的点随实际布料运动
+    depth = -shape.sleeve_root_width*.5*(1-.5*rise)
+    boundary = gown_edge[-1][1]
+    for (a_depth, a), (b_depth, b) in zip(gown_edge, gown_edge[1:]):
+        if depth >= b_depth:
+            t = max(0., min(1., (a_depth-depth)/max(a_depth-b_depth, 1e-9)))
+            boundary = a.lerp(b, t)
+            break
+    anchor = boundary-outward*.6
+
+    def offset(start, target):
+        delta = target-start
+        # 下垂修形只向局部外侧收窄，不提升袖身，也不把已在外侧的袖根拉回胸前
+        across = max(0., delta.x*outward.x+delta.y*outward.y)
+        return delta*raised_weight+outward*(across*relaxed_weight)
+
+    delta = offset(edges[1][0], anchor)
+    result = list(edges)
+    result[0] = (edges[0][0]+offset(edges[0][0], anchor-outward*.4), edges[0][1])
+    last = len(edges)-5
+    for i in range(1, last+1):
+        fade = 1-_smoothstep((i-1)/(last-1))
+        result[i] = (edges[i][0]+delta*fade, edges[i][1])
+    return result
 
 
 def attach_sleeve_root(edges, upper, direction, sign, torso, shape):

@@ -1,0 +1,53 @@
+{
+  "type": "rw-creature-pet.profile",
+  "version": 1,
+  "id": "296457e8-88c0-4b61-93ed-59ebb951ca92",
+  "name": "dust",
+  "updated_at": "2026-10-15T10:51:52.365185+00:00",
+  "config": {
+    "interaction": {
+      "hover_avoidance_enabled": false,
+      "hover_dwell_seconds": 1.0,
+      "hover_open_probability": 0.0,
+      "hover_probability": 1.0,
+      "hover_radius": 300.0
+    },
+    "oracle": {
+      "antigravity_duration_seconds": 300.0,
+      "antigravity_probability": 0.08,
+      "base_speed": 2.8,
+      "cross_edge_probability": 0.05,
+      "drag_projection_cooldown_seconds": 45.0,
+      "drag_projection_probability": 0.0,
+      "drag_reactions": {
+        "alternating_probability": 0.47,
+        "enabled": true,
+        "eye_open_probability": 0.65,
+        "flutter_probability": 0.85,
+        "gesture_probability": 0.9,
+        "voice_probability": 0.55
+      },
+      "drift_speed": 1.0,
+      "float_speed": 1.6,
+      "halo_arc_max_count": 10,
+      "halo_scale": 0.9,
+      "pearl_bubble_max_size": 12.0,
+      "pearl_fixed_count": 1,
+      "pearl_follow_height": 280.0,
+      "pearl_follow_width": 360.0,
+      "pearl_inner_count": 1,
+      "pearl_matrix_avoid_radius": 80.0,
+      "pearl_matrix_count": 5,
+      "pearl_matrix_enabled": true,
+      "pearl_orbits_enabled": true,
+      "pearl_outer_count": 2,
+      "pearl_playback_probability": 0.25,
+      "pearl_satellite_count": 1,
+      "projection_opacity": 0.3
+    }
+  },
+  "appearance": {
+    "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
+    "path": "appearance/appearance.json"
+  }
+}
