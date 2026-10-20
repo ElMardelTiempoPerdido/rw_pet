@@ -78,7 +78,7 @@ def bind_parameter_resets(settings, workflow, preview=None):
         names = {'enabled': 'enabled', 'x_input': 'offset_x', 'y_input': 'offset_y',
                  'width_input': 'width', 'height_input': 'height', 'rotation_input': 'rotation',
                  'kind': 'kind', 'tone': 'tone', 'visible': 'visible', 'color': 'color',
-                 'state': 'default_open', 'file_label': 'image_path'}
+                 'state': 'default_open', 'height_mode': 'height_mode', 'file_label': 'image_path'}
         for attribute, field in names.items():
             child = getattr(editor, attribute, None)
             if isinstance(child, QWidget):

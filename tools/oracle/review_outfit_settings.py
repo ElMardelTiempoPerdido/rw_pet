@@ -50,6 +50,17 @@ def main():
                     assert page.horizontalScrollBar().maximum() == 0
                     for group in dialog.outfit_part_groups.values():
                         assert group.width() <= page.viewport().width()
+                    prefix = 'oracle.outfit_settings.maid.lace.'
+                    layer = dialog.controls[prefix+'layer']
+                    layer.setCurrentIndex(layer.findData('after_cape'))
+                    page.ensureWidgetVisible(dialog.outfit_part_groups[prefix])
+                    app.processEvents()
+                    assert dialog.grab().save(str(output/f'{language}-{width}-layers.png'))
+                    assert page.horizontalScrollBar().maximum() == 0
+                    layer.showPopup()
+                    app.processEvents()
+                    assert layer.view().grab().save(str(output/f'{language}-{width}-choices.png'))
+                    layer.hidePopup()
             print('Saved:', output)
         finally:
             dialog.shutdown()

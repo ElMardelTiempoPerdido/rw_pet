@@ -4,37 +4,37 @@ from random import Random
 
 from ...shared.geometry import Bounds, Vec2
 from .controller import Activity
+from ..mouse_avoidance_config import MouseAvoidanceConfig
 from ..motion.navigation import approach
 
 
 class OracleMouseAvoidance:
-    DELAY = (1., 6.)
-    PROBABILITY = .95
-    DISTANCE = (18., 32.)
-    SPEED = (1.8, 3.6)  # 每段独立抽取导航速度上限，单位为逻辑像素/tick
-    LEAN_MOVE_DISTANCE = (16., 80.)
-    LEAN_MOVE_PROBABILITY = .95
     LEAN_MOVE_ANGLE = 14.  # 倾角明显改变才产生一次伴随移动机会
     LEAN_MOVE_POINTER_DISTANCE = 5.  # 排除人偶自身平移造成的倾角变化
-    MOVE_ANGLE_JITTER = 22.  # 远离鼠标方向两侧的随机偏角，单位为度
     MATRIX_AVOID_RADIUS = 32.  # 鼠标躲避的独立间距，不复用常规自主移动的矩阵避让半径
     MOVE_DISTANCE_FACTORS = (1., .55, .25)  # 每档最多尝试三个方向，共九个候选
-    LEAN = (30., 60.)
-    LEAN_SAMPLE_POWER = 2.  # 1 为均匀分布，大于 1 时更偏向小倾角
-    LEAN_SPEED = 90  # 度/秒，身体另有平滑转速和加速度限制
-    ENTER_DISTANCE = 55.  # 距简化身体轮廓的逻辑像素
-    EXIT_DISTANCE = 85.
-    LEAVE_GRACE = 1.5
-    POINTER_LAG = .35
-    RETRY = (.1, .3)
-    IMPATIENCE_TIME = (1., 1.5)
-    MOVE_PROBABILITY = .85
     MOVE_TIMEOUT = 8.
     PIVOT_LENGTH = 17.5  # 上身质点到双脚中间的虚拟支点，不读取摆动的衣摆
     HEAD_LENGTH = 14.
     BODY_RADIUS = 7.
 
-    def __init__(self):
+    def __init__(self, config=MouseAvoidanceConfig()):
+        self.config = config
+        self.DELAY = (config.delay_min_seconds, config.delay_max_seconds)
+        self.PROBABILITY = config.probability
+        self.DISTANCE = (config.move_min_distance, config.move_max_distance)
+        self.SPEED = (config.speed_min, config.speed_max)
+        self.LEAN_MOVE_DISTANCE = (config.lean_move_min_distance, config.lean_move_max_distance)
+        self.LEAN_MOVE_PROBABILITY = config.lean_move_probability
+        self.MOVE_ANGLE_JITTER = config.move_angle_jitter
+        self.LEAN = (config.lean_min_degrees, config.lean_max_degrees)
+        self.LEAN_SAMPLE_POWER = config.lean_sample_power
+        self.LEAN_SPEED = config.lean_speed
+        self.ENTER_DISTANCE, self.EXIT_DISTANCE = config.enter_distance, config.exit_distance
+        self.LEAVE_GRACE, self.POINTER_LAG = config.leave_grace_seconds, config.pointer_lag_seconds
+        self.RETRY = (config.retry_min_seconds, config.retry_max_seconds)
+        self.IMPATIENCE_TIME = (config.impatience_min_seconds, config.impatience_max_seconds)
+        self.MOVE_PROBABILITY = config.move_probability
         self.random = Random(8429)
         self.elapsed = 0.
         self.delay = None
@@ -308,7 +308,7 @@ class OracleMouseAvoidance:
         neutral_distance = self.clearance(pointer, self.neutral_position(scene), self.pivot_axis or axis)
         outside = min(distance, neutral_distance) > max(enter+20., self.EXIT_DISTANCE)
         self.away_elapsed = self.away_elapsed+dt if outside else 0.
-        if self.away_elapsed >= self.LEAVE_GRACE:
+        if outside and self.away_elapsed >= self.LEAVE_GRACE:
             self.cancel(scene)
             self.relax(dt)
             return

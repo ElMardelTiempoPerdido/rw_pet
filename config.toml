@@ -29,7 +29,7 @@ floor_y = 180.0
 
 # 迭代器调试用
 [oracle]
-body_appearance = 'bell'        # bell 手势之铃 / custom 使用下方独立的自定义尺寸
+body_appearance = 'bell'        # bell 手势之铃 / custom 自定义迭代器 / prince 固定特殊角色
 outfit = 'normal'               # normal 常规 / maid 女仆套装
 hide_cords = false              # 隐藏粗细线缆并停止其物理计算；保留机械臂
 glow_enabled = false            # 不透明部件的外发光
@@ -78,6 +78,8 @@ pixel_mode = 'adaptive'         # adaptive：大倍率缩放时精细像素 / cl
 # 附加外观：位移为逻辑像素，色相为角度，饱和度/明度为百分比增量
 # 调整仅作用于当前角色；选择常规外观时保留这些值
 [oracle.outfit_settings.maid.head]
+anchor = 'head_crown'
+layer = 'behind_head'
 enabled = true
 offset_x = 0.0
 offset_y = 0.0
@@ -87,6 +89,8 @@ saturation = 0.0
 brightness = 0.0
 
 [oracle.outfit_settings.maid.lace]
+anchor = 'body_collar'
+layer = 'after_sleeves'
 enabled = true
 offset_x = 0.0
 offset_y = 0.0
@@ -96,6 +100,8 @@ saturation = 0.0
 brightness = 0.0
 
 [oracle.outfit_settings.maid.apron]
+anchor = 'gown_collar'
+layer = 'before_sleeves'
 enabled = true
 offset_x = 0.0
 offset_y = 0.0
@@ -105,6 +111,8 @@ saturation = 0.0
 brightness = 0.0
 
 [oracle.outfit_settings.maid.ribbon_up]
+anchor = 'head_crown'
+layer = 'front_head'
 enabled = true
 offset_x = 0.0
 offset_y = 0.0
@@ -114,6 +122,8 @@ saturation = 0.0
 brightness = 0.0
 
 [oracle.outfit_settings.maid.ribbon_down]
+anchor = 'gown_collar'
+layer = 'front'
 enabled = true
 offset_x = 0.0
 offset_y = 0.0
@@ -130,6 +140,8 @@ head_length = 1.0              # 存储比例 0.7～1.5；设置面板换算为�
 sleeve_root_width = 6.0        # 袖根完整宽度，2～12 逻辑像素
 sleeve_cuff_width = 10.0       # 袖口完整宽度，2～16 逻辑像素
 robe_length = 1.0              # 下半部存储比例 0.7～1.5；面板显示中央领口至下摆长度，默认约 27.6px
+robe_flare = 1.0               # 下摆张开程度，0～2；1 为原轮廓，0 为不向外展开
+robe_hem_curve = 1.0           # 底边弯曲程度，0～2；1 为原弧度，0 为平底，不随长度拉伸
 sleeve_cuff_radius = 2.0       # 袖口圆角半径，0～4 逻辑像素；0 为直角，实际半径受袖宽与袖长限制
 neck_width = 3.0               # 颈部完整宽度，1～8 逻辑像素
 inner_robe_enabled = true      # 自定义内搭，关闭后露出皮肤
@@ -148,15 +160,33 @@ neckline_trim_width = 2.0     # 领边宽度，0～6 逻辑像素；0 不绘制
 neckline_trim_gap = 0.0       # 与实际开口的间隔，0～6 逻辑像素；0 包边，>0 襟线
 
 # 正面排列为眼睛1、眼睛2；编号随头部固定，转头或旋转不交换
+# 斗篷：自定义迭代器专用，长度为自然下垂时的逻辑像素
+[oracle.custom_appearance.cape]
+enabled = false
+length = 18.0
+color = '#a00018'
+neckline_shape = 'arc'
+neckline_width = 10.0
+neckline_depth = 3.0
+neckline_height = 4.0
+neckline_roundness = 0.65
+neckline_tip_radius = 0.0
+hem_trim_enabled = true
+hem_trim_color = '#f0c8a0'
+hem_trim_width = 0.8
+hem_trim_gap = 1.5
+
 [oracle.custom_appearance.eye_1]
 color = '#211920'
 visible = true
 default_open = false          # 默认闭眼仍可在观察或交互时短暂睁开
+height_mode = 'normal'        # normal 通常；lower 闭眼时下移 1 逻辑像素
 
 [oracle.custom_appearance.eye_2]
 color = '#211920'
 visible = true
 default_open = false
+height_mode = 'normal'
 
 # 1× PNG：每个源像素对应 1 逻辑像素，画布最大 32×32；偏移以头部中心为原点
 [oracle.custom_appearance.forehead]
@@ -259,6 +289,32 @@ color = '#ffb7c5'
 softness = 0.7
 damping = 0.5
 
+# 服装 PNG：原生像素对应逻辑像素，随衣料变形并裁剪到部位内部
+# 三个槽位可重复选择 robe / left_sleeve / right_sleeve，后面的槽位覆盖前面的槽位
+[oracle.custom_appearance.clothing_decal_1]
+enabled = false
+part = 'robe'
+image_path = ''                # 静态 PNG，宽高各不超过 128px，大小不超过 1 MB
+image_name = ''
+offset_x = 0.0                 # 参考姿态中向右，-128～128 逻辑像素
+offset_y = 0.0                 # 参考姿态中向下，-128～128 逻辑像素
+
+[oracle.custom_appearance.clothing_decal_2]
+enabled = false
+part = 'left_sleeve'
+image_path = ''
+image_name = ''
+offset_x = 0.0
+offset_y = 0.0
+
+[oracle.custom_appearance.clothing_decal_3]
+enabled = false
+part = 'right_sleeve'
+image_path = ''
+image_name = ''
+offset_x = 0.0
+offset_y = 0.0
+
 # Bell 配色；切换自定义外观不会改写此组
 [oracle.colors]
 skin = '#66a0d3'                # 肤色
@@ -299,6 +355,19 @@ pearl_primary = '#024866'
 pearl_secondary = '#ff2c07'
 pearl_glyph = '#ffcfd0'
 
+# prince 的独立配色；无眼睛、双臂，固定外观不读取自定义尺寸或附加套装
+[oracle.prince_colors]
+skin = '#34313f'
+robe_top = '#302e3b'
+robe_bottom = '#171620'
+arm = '#7b7889'
+arm_highlight = '#b3afbd'
+joints = '#474451'
+pearl = '#d8cdc5'
+pearl_primary = '#b597c9'
+pearl_secondary = '#889bab'
+pearl_glyph = '#b6a1cc'
+
 [oracle.drag_reactions]
 enabled = true
 gesture_probability = 0.90      # 鼠标拖动时触发反应的概率
@@ -329,3 +398,78 @@ observation_interval = 12.0         # 观察检查间隔（秒），观察结束
 safe_delay = 0.45                   # 连续安全等待（秒）
 emerge_seconds = 0.5                # 探出的主要动作时长，末段平滑收敛
 withdraw_seconds = 0.25             # 缩回的主要动作时长
+
+# 日常活动；时间为秒，距离为逻辑像素，权重只比较相对大小
+[oracle.daily_activity]
+idle_min_seconds = 3.0
+idle_max_seconds = 6.0
+long_idle_min_seconds = 7.5
+long_idle_max_seconds = 18.0
+move_min_distance = 60.0
+move_max_distance = 160.0
+idle_weight = 28.0
+move_weight = 35.0
+meditate_weight = 12.0
+meditate_min_seconds = 30.0
+meditate_max_seconds = 60.0
+cross_edge_cooldown_seconds = 60.0
+cross_edge_check_seconds = 20.0
+move_lean_degrees = 20.0
+
+# 普通停留后、排除跨边与漫游分支后的读珠概率
+[oracle.reading]
+start_probability = 0.25
+
+# 漫游节奏；时间为秒，速度浮动乘以 drift_speed
+[oracle.drift]
+cooldown_seconds = 120.0
+duration_variation = 0.1
+entry_min_seconds = 2.5
+entry_max_seconds = 5.0
+resume_min_seconds = 0.5
+resume_max_seconds = 3.0
+short_pause_min_seconds = 0.35
+short_pause_max_seconds = 1.2
+normal_pause_min_seconds = 1.8
+normal_pause_max_seconds = 5.5
+long_pause_min_seconds = 7.0
+long_pause_max_seconds = 14.0
+short_pause_weight = 50.0
+normal_pause_weight = 35.0
+long_pause_weight = 15.0
+bout_min_seconds = 4.0
+bout_max_seconds = 10.0
+long_bout_min_seconds = 12.0
+long_bout_max_seconds = 24.0
+long_bout_probability = 0.35
+move_min_distance = 60.0
+move_max_distance = 100.0
+speed_min_factor = 0.8
+speed_max_factor = 1.2
+
+# 人偶鼠标躲避；关注参数和总开关仍位于 interaction
+[oracle.mouse_avoidance]
+delay_min_seconds = 1.0
+delay_max_seconds = 6.0
+probability = 0.95
+enter_distance = 55.0
+exit_distance = 85.0
+leave_grace_seconds = 1.5
+pointer_lag_seconds = 0.35
+retry_min_seconds = 0.1
+retry_max_seconds = 0.3
+impatience_min_seconds = 1.0
+impatience_max_seconds = 1.5
+move_probability = 0.85
+move_min_distance = 18.0
+move_max_distance = 32.0
+speed_min = 1.8
+speed_max = 3.6
+lean_move_probability = 0.95
+lean_move_min_distance = 16.0
+lean_move_max_distance = 80.0
+lean_min_degrees = 30.0
+lean_max_degrees = 60.0
+lean_sample_power = 2.0
+lean_speed = 90.0
+move_angle_jitter = 22.0

@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 from ..oracle.config import OracleConfig
+from ..oracle.characters import CHARACTERS, PRINCE_COLOR_NAMES
 from ..shared.messages import Message
 from .fields import paths_for
 from .registry import FieldScope
@@ -15,9 +16,14 @@ MANIFEST = 'appearance.json'
 
 
 def appearance_paths(body):
-    if body not in ('bell', 'custom'):
-        raise ValueError('主体外观必须为 bell 或 custom')
-    excluded = ('oracle.custom_colors.', 'oracle.custom_appearance.') if body == 'bell' else ('oracle.colors.',)
+    if body not in CHARACTERS:
+        raise ValueError('主体外观必须为 bell / custom / prince')
+    if body == 'prince':
+        allowed = {'oracle.body_appearance', 'oracle.pearl_bubble_color',
+                   *('oracle.prince_colors.'+name for name in PRINCE_COLOR_NAMES)}
+        return tuple(path for path in paths_for(FieldScope.APPEARANCE) if path in allowed)
+    excluded = (('oracle.custom_colors.', 'oracle.custom_appearance.', 'oracle.prince_colors.')
+                if body == 'bell' else ('oracle.colors.', 'oracle.prince_colors.'))
     return tuple(path for path in paths_for(FieldScope.APPEARANCE) if not path.startswith(excluded))
 
 

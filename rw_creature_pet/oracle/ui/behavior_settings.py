@@ -1,7 +1,11 @@
 """行为页的四组参数，复用设置窗口的字段、保存和默认值处理"""
 from PySide6.QtWidgets import QLabel, QSizePolicy
+from ..characters import CHARACTERS
 
 from .settings_style import NOTE_STYLE, PixelRuleThin
+from .daily_activity_settings import build_daily_activity_settings
+from .drift_settings import build_drift_settings
+from .mouse_settings import build_mouse_avoidance_settings
 
 
 DRAG_PROBABILITIES = (
@@ -15,9 +19,7 @@ DRAG_PROBABILITIES = (
 
 def build_behavior_settings(dialog, form, config):
     o, interaction = config.oracle, config.interaction
-    heading = QLabel('移动与漫游')
-    heading.setStyleSheet(NOTE_STYLE)
-    form.addRow(heading)
+    dialog.section_heading(form, '移动与漫游')
     left, right = dialog.two_columns(form)
     dialog.spin(left, '通常移动速度', 'oracle.float_speed', o.float_speed, .3, 2., decimals=2, step=.1)
     dialog.spin(right, '底座滑动速度', 'oracle.base_speed', o.base_speed, 1.5, 4., decimals=2, step=.1)
@@ -30,11 +32,11 @@ def build_behavior_settings(dialog, form, config):
     dialog.spin(left, '漫游移动速度', 'oracle.drift_speed', o.drift_speed, .3, 1.8, decimals=2, step=.1)
     dialog.spin(right, '漫游时长', 'oracle.antigravity_duration_seconds', o.antigravity_duration_seconds,
                 1, 3600, decimals=1, suffix=' 秒')
+    build_daily_activity_settings(dialog, form, o.daily_activity)
+    build_drift_settings(dialog, form, o.drift)
 
     form.addRow(PixelRuleThin())
-    heading = QLabel('鼠标观察与避让')
-    heading.setStyleSheet(NOTE_STYLE)
-    form.addRow(heading)
+    dialog.section_heading(form, '鼠标观察与避让')
     dialog.check(form, '人偶可能会躲避鼠标', 'interaction.hover_avoidance_enabled', interaction.hover_avoidance_enabled)
     left, right = dialog.two_columns(form)
     dialog.spin(left, '面向鼠标概率', 'interaction.hover_probability', interaction.hover_probability * 100,
@@ -51,11 +53,11 @@ def build_behavior_settings(dialog, form, config):
     hover_note.setWordWrap(True)
     hover_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     form.addRow(hover_note)
+    build_mouse_avoidance_settings(dialog, form, o.mouse_avoidance)
+    dialog.controls['interaction.hover_avoidance_enabled'].toggled.connect(dialog.sync_dependencies)
 
     form.addRow(PixelRuleThin())
-    heading = QLabel('拖动反应')
-    heading.setStyleSheet(NOTE_STYLE)
-    form.addRow(heading)
+    dialog.section_heading(form, '拖动反应')
     reaction = o.drag_reactions
     prefix = 'oracle.drag_reactions.'
     dialog.check(form, '启用拖动反应', prefix+'enabled', reaction.enabled)
@@ -79,9 +81,12 @@ def build_behavior_settings(dialog, form, config):
         signal.connect(dialog.sync_dependencies)
 
     form.addRow(PixelRuleThin())
-    heading = QLabel('珍珠互动')
-    heading.setStyleSheet(NOTE_STYLE)
-    form.addRow(heading)
+    dialog.section_heading(form, '珍珠互动')
+    left, _ = dialog.two_columns(form)
+    dialog.spin(left, '停留后读珠概率', 'oracle.reading.start_probability', o.reading.start_probability * 100,
+                0, 100, decimals=1, suffix=' %')
+    dialog.controls['oracle.reading.start_probability'].setToolTip(
+        '普通停留结束且未选择跨边或漫游时，开始读珠的概率；不影响漫游期间、鼠标避让期间或手动触发的读珠')
     left, right = dialog.two_columns(form)
     dialog.spin(left, '人偶避让矩阵半径', 'oracle.pearl_matrix_avoid_radius', o.pearl_matrix_avoid_radius,
                 0, 300, suffix=' px')
@@ -100,8 +105,13 @@ def build_behavior_settings(dialog, form, config):
 
 def sync_behavior_dependencies(dialog):
     c = dialog.controls
+    character = CHARACTERS[c['oracle.body_appearance'].value()]
+    for key, control in c.items():
+        if key.startswith('oracle.mouse_avoidance.'):
+            control.setEnabled(c['interaction.hover_avoidance_enabled'].isChecked())
     prefix = 'oracle.drag_reactions.'
-    enabled = c[prefix+'enabled'].isChecked()
+    enabled = c[prefix+'enabled'].isChecked() and character.has_hands
+    c[prefix+'enabled'].setEnabled(character.has_hands)
     for name, _ in DRAG_PROBABILITIES:
         c[prefix+name].setEnabled(enabled)
     gestures = enabled and c[prefix+'gesture_probability'].value() > 0
@@ -109,3 +119,6 @@ def sync_behavior_dependencies(dialog):
     c[prefix+'alternating_probability'].setEnabled(gestures and c[prefix+'flutter_probability'].value() > 0)
     c['oracle.drag_projection_probability'].setEnabled(enabled)
     c['oracle.drag_projection_cooldown_seconds'].setEnabled(enabled and c['oracle.drag_projection_probability'].value() > 0)
+    c[prefix+'eye_open_probability'].setEnabled(enabled and character.has_eyes)
+    c['interaction.hover_open_probability'].setEnabled(character.has_eyes)
+    c[prefix+'voice_probability'].setEnabled(enabled and character.has_voice)

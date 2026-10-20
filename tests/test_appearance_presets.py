@@ -26,7 +26,8 @@ class AppearancePresetTests(unittest.TestCase):
         Image.new('RGBA', (6, 8), (120, 60, 240, 128)).save(self.png)
         self.config = AppConfig(ui=UiConfig('zh'))
         shape = CustomAppearance(forehead=FaceDecal(True, str(self.png), '原图.png', 1.25, -2.5),
-                                 face=FaceDecal(False, str(self.png), '关闭的贴图.png'))
+                                 face=FaceDecal(False, str(self.png), '关闭的贴图.png'),
+                                 robe_flare=1.6, robe_hem_curve=.4)
         self.config = replace(self.config, oracle=replace(self.config.oracle,
             body_appearance='custom', outfit='maid', custom_appearance=shape,
             custom_colors=OracleColors(skin='#123456'), pearl_bubble_color='#987654'))
@@ -58,6 +59,7 @@ class AppearancePresetTests(unittest.TestCase):
         self.assertEqual(result.oracle.custom_colors.skin, '#123456')
         self.assertEqual(result.oracle.pearl_bubble_color, '#987654')
         actual = result.oracle.custom_appearance
+        self.assertEqual((actual.robe_flare, actual.robe_hem_curve), (1.6, .4))
         self.assertFalse(actual.face.enabled)
         self.assertEqual(actual.face.image_name, '关闭的贴图.png')
         self.assertEqual(actual.forehead.offset_x, 1.25)

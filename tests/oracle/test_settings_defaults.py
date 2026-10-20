@@ -9,10 +9,11 @@ import tomllib
 import unittest
 from unittest.mock import patch
 
-from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QSpinBox
+from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QMessageBox, QSpinBox
 
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, OracleColors
+from rw_creature_pet.oracle.characters import PRINCE_COLOR_NAMES
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.presets.common import replace_fields, set_value
@@ -23,12 +24,17 @@ PERCENTAGES = {
     'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity', 'oracle.edge_fraction', 'oracle.base_fraction',
     'oracle.arm_scale',
     'oracle.drag_projection_probability',
+    'oracle.reading.start_probability',
+    'oracle.drift.duration_variation', 'oracle.drift.long_bout_probability',
+    'oracle.mouse_avoidance.probability', 'oracle.mouse_avoidance.move_probability',
+    'oracle.mouse_avoidance.lean_move_probability',
     'oracle.cross_edge_probability', 'oracle.antigravity_probability', 'oracle.pearl_playback_probability',
     'overseer.appearance_probability', 'overseer.relocation_probability', 'overseer.observation_probability',
     'interaction.hover_probability', 'interaction.hover_open_probability',
     'oracle.drag_reactions.gesture_probability', 'oracle.drag_reactions.flutter_probability',
     'oracle.drag_reactions.alternating_probability', 'oracle.drag_reactions.eye_open_probability',
     'oracle.drag_reactions.voice_probability',
+    'oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve',
 }
 
 
@@ -122,11 +128,76 @@ class SettingsDefaultsTests(unittest.TestCase):
             'interaction.hover_radius': 210.5, 'interaction.hover_dwell_seconds': 2.7,
             'interaction.hover_probability': .723, 'interaction.hover_open_probability': .416,
             'audio.enabled': False, 'audio.volume': .31,
+            'oracle.daily_activity.idle_min_seconds': 2.12345,
+            'oracle.daily_activity.idle_max_seconds': 9.67891,
+            'oracle.daily_activity.long_idle_min_seconds': 15.12345,
+            'oracle.daily_activity.long_idle_max_seconds': 35.67891,
+            'oracle.daily_activity.move_min_distance': 45.12345,
+            'oracle.daily_activity.move_max_distance': 270.67891,
+            'oracle.daily_activity.idle_weight': 0.,
+            'oracle.daily_activity.move_weight': 65.12345,
+            'oracle.daily_activity.meditate_weight': 34.87655,
+            'oracle.daily_activity.meditate_min_seconds': 42.12345,
+            'oracle.daily_activity.meditate_max_seconds': 90.67891,
+            'oracle.daily_activity.cross_edge_cooldown_seconds': 0.,
+            'oracle.daily_activity.cross_edge_check_seconds': 7.12345,
+            'oracle.daily_activity.move_lean_degrees': 12.34567,
+            'oracle.reading.start_probability': .456789,
+            'oracle.drift.cooldown_seconds': 80.123456,
+            'oracle.drift.duration_variation': .234567,
+            'oracle.drift.entry_min_seconds': .123456,
+            'oracle.drift.entry_max_seconds': 9.123456,
+            'oracle.drift.resume_min_seconds': .234567,
+            'oracle.drift.resume_max_seconds': 11.234567,
+            'oracle.drift.short_pause_min_seconds': .123456,
+            'oracle.drift.short_pause_max_seconds': 2.123456,
+            'oracle.drift.normal_pause_min_seconds': 3.123456,
+            'oracle.drift.normal_pause_max_seconds': 7.123456,
+            'oracle.drift.long_pause_min_seconds': 9.123456,
+            'oracle.drift.long_pause_max_seconds': 40.123456,
+            'oracle.drift.short_pause_weight': 0.,
+            'oracle.drift.normal_pause_weight': 73.123456,
+            'oracle.drift.long_pause_weight': 26.876544,
+            'oracle.drift.bout_min_seconds': 6.123456,
+            'oracle.drift.bout_max_seconds': 20.123456,
+            'oracle.drift.long_bout_min_seconds': 26.123456,
+            'oracle.drift.long_bout_max_seconds': 80.123456,
+            'oracle.drift.long_bout_probability': .765432,
+            'oracle.drift.move_min_distance': 35.123456,
+            'oracle.drift.move_max_distance': 180.123456,
+            'oracle.drift.speed_min_factor': .456789,
+            'oracle.drift.speed_max_factor': 1.456789,
+            'oracle.mouse_avoidance.delay_min_seconds': .234567,
+            'oracle.mouse_avoidance.delay_max_seconds': 12.345678,
+            'oracle.mouse_avoidance.probability': .123456,
+            'oracle.mouse_avoidance.enter_distance': 40.123456,
+            'oracle.mouse_avoidance.exit_distance': 120.123456,
+            'oracle.mouse_avoidance.leave_grace_seconds': 0.,
+            'oracle.mouse_avoidance.pointer_lag_seconds': .678912,
+            'oracle.mouse_avoidance.retry_min_seconds': .234567,
+            'oracle.mouse_avoidance.retry_max_seconds': 1.234567,
+            'oracle.mouse_avoidance.impatience_min_seconds': 4.123456,
+            'oracle.mouse_avoidance.impatience_max_seconds': 9.123456,
+            'oracle.mouse_avoidance.move_probability': .234567,
+            'oracle.mouse_avoidance.move_min_distance': 7.123456,
+            'oracle.mouse_avoidance.move_max_distance': 50.123456,
+            'oracle.mouse_avoidance.speed_min': .678912,
+            'oracle.mouse_avoidance.speed_max': 4.567891,
+            'oracle.mouse_avoidance.lean_move_probability': .345678,
+            'oracle.mouse_avoidance.lean_move_min_distance': 5.123456,
+            'oracle.mouse_avoidance.lean_move_max_distance': 60.123456,
+            'oracle.mouse_avoidance.lean_min_degrees': 13.123456,
+            'oracle.mouse_avoidance.lean_max_degrees': 43.123456,
+            'oracle.mouse_avoidance.lean_sample_power': 3.123456,
+            'oracle.mouse_avoidance.lean_speed': 55.123456,
+            'oracle.mouse_avoidance.move_angle_jitter': 12.345678,
             'oracle.hide_cords': True, 'oracle.glow_enabled': True,
             'oracle.outfit': 'maid', 'oracle.arm_scale': .67, 'oracle.coarse_pixels_4x': True,
             'oracle.body_appearance': 'custom',
             'oracle.custom_appearance.head_length': 1.23456,
             'oracle.custom_appearance.robe_length': .87654,
+            'oracle.custom_appearance.robe_flare': 1.23456,
+            'oracle.custom_appearance.robe_hem_curve': .67891,
             'oracle.custom_appearance.sleeve_root_width': 4.56789,
             'oracle.custom_appearance.sleeve_cuff_width': 12.34567,
             'oracle.custom_appearance.sleeve_cuff_radius': 1.23456,
@@ -191,8 +262,23 @@ class SettingsDefaultsTests(unittest.TestCase):
         }
         values.update({'oracle.colors.' + field.name: f'#{index + 1:06x}'
                        for index, field in enumerate(fields(OracleColors))})
+        values.update({'oracle.custom_appearance.cape.'+key: value for key, value in {
+            'enabled': True, 'length': 28.12345, 'color': '#123456', 'neckline_shape': 'v',
+            'neckline_width': 11.12345, 'neckline_depth': 5.12345, 'neckline_height': 2.12345,
+            'neckline_roundness': .712345, 'neckline_tip_radius': 1.12345,
+            'hem_trim_enabled': False, 'hem_trim_color': '#fedcba', 'hem_trim_width': 2.12345,
+            'hem_trim_gap': 3.12345,
+        }.items()})
         for part in ('head', 'lace', 'apron', 'ribbon_up', 'ribbon_down'):
+            anchor, layer = {
+                'head': ('body_collar', 'after_cape'),
+                'lace': ('head_crown', 'behind_head'),
+                'apron': ('body_collar', 'front'),
+                'ribbon_up': ('gown_collar', 'before_sleeves'),
+                'ribbon_down': ('head_crown', 'front_head'),
+            }[part]
             values.update({'oracle.outfit_settings.maid.'+part+'.'+name: value for name, value in {
+                'anchor': anchor, 'layer': layer,
                 'enabled': False, 'mirror': part != 'lace', 'offset_x': 2.12345, 'offset_y': -3.6789,
                 'hue': 45.1234, 'saturation': -35.1234, 'brightness': 20.1234,
             }.items()})
@@ -207,8 +293,14 @@ class SettingsDefaultsTests(unittest.TestCase):
                 'width': 6.12345+index, 'length': 40.6789, 'offset_x': -2.23456, 'offset_y': 1.34567,
                 'angle': 34.56789, 'tip_width_ratio': .423456, 'softness': .812345,
                 'damping': .612345, 'color': '#abcdef', 'image_path': '', 'image_name': ''}
+        for index, name in enumerate(('clothing_decal_1', 'clothing_decal_2', 'clothing_decal_3')):
+            values['oracle.custom_appearance.'+name] = {
+                'enabled': False, 'part': 'right_sleeve', 'image_path': '', 'image_name': '',
+                'offset_x': -2.12345-index, 'offset_y': 5.6789+index}
         values.update({'oracle.custom_colors.'+name: f'#{index+256:06x}'
                        for index, name in enumerate(CUSTOM_COLOR_NAMES)})
+        values.update({'oracle.prince_colors.'+name: f'#{index+512:06x}'
+                       for index, name in enumerate(PRINCE_COLOR_NAMES)})
         for key, value in values.items():
             target = self.data
             *path, field = key.split('.')
@@ -331,6 +423,30 @@ class SettingsDefaultsTests(unittest.TestCase):
         config, _, _ = self.store.startup()
         self.audit(config)
 
+    def test_bulk_reset_requires_confirmation(self):
+        write_toml(self.source, self.data)
+        config, _, _ = self.store.startup()
+        dialog = self.audit(config)
+        before = dialog.candidate()
+        page = dialog.pages['behavior']
+        page_button = next(button for button in dialog.reset_tab_buttons if page.isAncestorOf(button))
+        for button, index in ((page_button, dialog.tabs.indexOf(page)), (dialog.reset_all_button, None)):
+            for answer in (QMessageBox.StandardButton.Cancel, QMessageBox.StandardButton.Ok):
+                def respond(box):
+                    self.assertIs(box.defaultButton(), box.button(QMessageBox.StandardButton.Cancel))
+                    self.assertIs(box.escapeButton(), box.button(QMessageBox.StandardButton.Cancel))
+                    if index is not None:
+                        self.assertIn(dialog.tabs.tabText(index), box.text())
+                    return answer
+                with patch.object(QMessageBox, 'exec', respond), patch.object(dialog, 'restore_defaults') as restore:
+                    button.click()
+                    if answer == QMessageBox.StandardButton.Ok:
+                        restore.assert_called_once_with(index)
+                    else:
+                        restore.assert_not_called()
+                    self.assertEqual(dialog.candidate(), before)
+
+    @patch.object(QMessageBox, 'exec', lambda self: QMessageBox.StandardButton.Ok)
     def test_each_tab_restores_its_defaults_and_preserves_other_unsaved_edits(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
@@ -344,6 +460,17 @@ class SettingsDefaultsTests(unittest.TestCase):
                        'oracle.base_side': 'left', 'oracle.allowed_edges': ('top', 'left'),
                        'oracle.base_fraction': .713456},
             'behavior': {'oracle.float_speed': 1.23456, 'oracle.base_speed': 3.123456,
+                         'oracle.daily_activity.idle_min_seconds': 1.234567,
+                         'oracle.daily_activity.idle_max_seconds': 13.456789,
+                         'oracle.daily_activity.move_weight': 0.,
+                         'oracle.daily_activity.move_lean_degrees': 0.,
+                         'oracle.reading.start_probability': .456789,
+                         'oracle.drift.cooldown_seconds': 0.,
+                         'oracle.drift.duration_variation': .234567,
+                         'oracle.drift.long_bout_probability': .123456,
+                         'oracle.mouse_avoidance.leave_grace_seconds': 0.,
+                         'oracle.mouse_avoidance.lean_sample_power': 3.123456,
+                         'oracle.mouse_avoidance.lean_move_probability': .345678,
                          'interaction.hover_probability': .234567,
                          'oracle.drag_reactions.gesture_probability': .345678,
                          'oracle.drag_reactions.voice_probability': .456789,
@@ -399,6 +526,7 @@ class SettingsDefaultsTests(unittest.TestCase):
                     self.assertFalse(dialog.controls['oracle.halo_arc_max_count'].isEnabled())
                 dialog.close()
 
+    @patch.object(QMessageBox, 'exec', lambda self: QMessageBox.StandardButton.Ok)
     def test_reset_all_is_a_draft_and_preserves_hidden_settings_then_saves_exact_defaults(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
@@ -443,6 +571,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         self.assertEqual(self.source.read_bytes(), template_bytes)
         self.audit(expected)
 
+    @patch.object(QMessageBox, 'exec', lambda self: QMessageBox.StandardButton.Ok)
     def test_bad_template_preserves_draft_and_reset_buttons_are_disabled_while_saving(self):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()

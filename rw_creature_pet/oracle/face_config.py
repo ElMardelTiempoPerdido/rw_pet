@@ -1,6 +1,7 @@
 """自定义面部贴图参数，不依赖 Qt 或贴图读取"""
 from dataclasses import dataclass
 from math import isfinite
+from typing import ClassVar
 
 from ..shared.messages import Message
 
@@ -10,6 +11,7 @@ FACE_OFFSET_LIMIT = 32.
 
 @dataclass(frozen=True, slots=True)
 class FaceDecal:
+    OFFSET_LIMIT: ClassVar[float] = FACE_OFFSET_LIMIT
     enabled: bool = False
     image_path: str = ''
     image_name: str = ''
@@ -24,5 +26,5 @@ class FaceDecal:
         for name in ('offset_x', 'offset_y'):
             value = getattr(self, name)
             if (isinstance(value, bool) or not isinstance(value, (int, float))
-                    or not isfinite(value) or abs(value) > FACE_OFFSET_LIMIT):
-                raise ValueError(Message('面部贴图偏移必须在 -{limit}～{limit} 逻辑像素之间', limit=FACE_OFFSET_LIMIT))
+                    or not isfinite(value) or abs(value) > self.OFFSET_LIMIT):
+                raise ValueError(Message('外观贴图偏移必须在 -{limit}～{limit} 逻辑像素之间', limit=self.OFFSET_LIMIT))

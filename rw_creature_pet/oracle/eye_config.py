@@ -12,6 +12,7 @@ class EyeAppearance:
     color: str = '#050000'
     visible: bool = True
     default_open: bool = False
+    height_mode: str = 'normal'
 
     def __post_init__(self):
         if not isinstance(self.color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.color):
@@ -19,6 +20,8 @@ class EyeAppearance:
         for name in ('visible', 'default_open'):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(Message('眼睛参数 {name} 必须为布尔值', name=name))
+        if self.height_mode not in ('normal', 'lower'):
+            raise ValueError('眼位高度必须为 normal 或 lower')
 
     def openness(self, reaction):
         # 现有动画表达临时睁眼意愿；结束后回到各自的默认状态

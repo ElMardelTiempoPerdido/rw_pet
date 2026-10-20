@@ -2,15 +2,16 @@
 from ...interaction.config import InteractionConfig
 from ...interaction.hover_attention import HoverAttention
 from .mouse_avoidance import OracleMouseAvoidance
+from ..mouse_avoidance_config import MouseAvoidanceConfig
 
 
 class OracleMouseReaction:
     FIELDS = ('hover_radius', 'hover_dwell_seconds', 'hover_probability', 'hover_open_probability')
 
-    def __init__(self, config=InteractionConfig()):
+    def __init__(self, config=InteractionConfig(), *, avoidance_config=MouseAvoidanceConfig()):
         self.config = config
         self.attention = HoverAttention(*(getattr(config, name) for name in self.FIELDS))
-        self.avoidance = OracleMouseAvoidance()
+        self.avoidance = OracleMouseAvoidance(avoidance_config)
         self.pointer = None
 
     @property
@@ -18,11 +19,18 @@ class OracleMouseReaction:
         return self.attention.active or self.avoidance.engaged
 
     def configure(self, scene, config):
-        if any(getattr(self.config, name) != getattr(config, name) for name in self.FIELDS):
+        attention_changed = any(getattr(self.config, name) != getattr(config, name) for name in self.FIELDS)
+        avoidance_changed = self.avoidance.config != scene.config.mouse_avoidance
+        if attention_changed or avoidance_changed:
             self.cancel(scene)
+        if attention_changed:
             rng = self.attention.random.getstate()
             self.attention = HoverAttention(*(getattr(config, name) for name in self.FIELDS))
             self.attention.random.setstate(rng)
+        if avoidance_changed:
+            rng = self.avoidance.random.getstate()
+            self.avoidance = OracleMouseAvoidance(scene.config.mouse_avoidance)
+            self.avoidance.random.setstate(rng)
         if not config.hover_avoidance_enabled:
             self.avoidance.cancel(scene)
         self.config = config
@@ -46,7 +54,7 @@ class OracleMouseReaction:
         self.avoidance.step(scene, active=self.attention.active, pointer=self.pointer,
                             enabled=self.config.hover_avoidance_enabled)
         if self.active:
-            scene.eyes.attention_target = float(self.attention.opened)
+            scene.eyes.attention_target = float(self.attention.opened) if scene.config.character.has_eyes else None
         # 不活跃时，window_reaction.step 已恢复窗口或基础观察的眼睛意愿。
 
     def desired_look(self, scene, ordinary):

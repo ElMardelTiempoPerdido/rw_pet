@@ -1,0 +1,92 @@
+{
+  "type": "rw-creature-pet.appearance",
+  "version": 1,
+  "id": "6375c097-9801-4f03-9ca3-ea09025c2c29",
+  "name": "full-bell",
+  "updated_at": "2026-10-18T10:39:39.815392+00:00",
+  "config": {
+    "oracle": {
+      "body_appearance": "bell",
+      "colors": {
+        "arm": "#9fa2a8",
+        "arm_highlight": "#dfd6d2",
+        "beads": "#9cddd8",
+        "collar_trim": "#ffa3b5",
+        "eyes": "#211920",
+        "head_highlight": "#c2c7ca",
+        "head_shell": "#8fa0ad",
+        "inner_robe": "#ffc0d1",
+        "joints": "#113246",
+        "pearl": "#d8cdc5",
+        "pearl_glyph": "#ffcfd0",
+        "pearl_primary": "#024866",
+        "pearl_secondary": "#ff2c07",
+        "robe_bottom": "#f03f57",
+        "robe_top": "#ff8088",
+        "skin": "#66a0d3",
+        "third_eye": "#17629c"
+      },
+      "outfit": "normal",
+      "outfit_settings": {
+        "maid": {
+          "apron": {
+            "anchor": "gown_collar",
+            "brightness": 0.0,
+            "enabled": true,
+            "hue": 0.0,
+            "layer": "before_sleeves",
+            "mirror": false,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "saturation": 0.0
+          },
+          "head": {
+            "anchor": "head_crown",
+            "brightness": 0.0,
+            "enabled": true,
+            "hue": 0.0,
+            "layer": "behind_head",
+            "mirror": false,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "saturation": 0.0
+          },
+          "lace": {
+            "anchor": "body_collar",
+            "brightness": 0.0,
+            "enabled": true,
+            "hue": 0.0,
+            "layer": "after_sleeves",
+            "mirror": true,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "saturation": 0.0
+          },
+          "ribbon_down": {
+            "anchor": "gown_collar",
+            "brightness": 0.0,
+            "enabled": true,
+            "hue": 0.0,
+            "layer": "front",
+            "mirror": false,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "saturation": 0.0
+          },
+          "ribbon_up": {
+            "anchor": "head_crown",
+            "brightness": 0.0,
+            "enabled": true,
+            "hue": 0.0,
+            "layer": "front_head",
+            "mirror": false,
+            "offset_x": 0.0,
+            "offset_y": 0.0,
+            "saturation": 0.0
+          }
+        }
+      },
+      "pearl_bubble_color": "#00f1f1"
+    }
+  }
+}

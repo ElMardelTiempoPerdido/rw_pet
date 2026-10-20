@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from math import atan2, cos, pi, sin, sqrt
 
 from ...shared.geometry import Vec2
+from ..config import ROBE_LENGTH_ANCHOR
+from ..motion.cape import CapeMotion, motion_shape
+from ..motion.prince_robe import PrinceRobe, upper_cloth_point, UPPER_SLACK
 from .cords import OracleCords
 from .upper_body import BELL_UPPER_BODY, upper_body_shape
 
@@ -206,11 +209,14 @@ class OracleAppearance:
         self.direction = scene.body.direction
         self.lower = self.upper - self.direction * 9
         self.head = SoftPoint.at(scene.head.position)
+        self.neck_extension = scene.head.neck_extension
+        self.prince_posture = scene.prince_posture
+        self.prince_robe = None
         self.near_phone = -1
         self.step_phone_side(scene.look_direction)
         # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
         self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
-                      for f in self.hand_forces()]
+                      for f in self.hand_forces()] if scene.config.character.has_hands else []
         shape = upper_body_shape(scene.config.active_custom_appearance)
         for hand in self.hands:
             hand.shoulder_half = shape.shoulder_width/2
@@ -250,6 +256,32 @@ class OracleAppearance:
         self.previous_cog_turns = self.cog_turns.copy()
         self._arm_spans = self.arm_spans(scene)
         self.sync_cords(scene)
+        self.cape_motion = None
+        self.sync_cape(scene)
+        self.sync_prince_robe()
+
+    def sync_prince_robe(self):
+        enabled = self.prince_posture is not None
+        if enabled == (self.prince_robe is not None):
+            return
+        self.prince_robe = PrinceRobe(self) if enabled else None
+        self.refresh_points()
+        self.sleeping = False
+        self._quiet_ticks = 0
+        self.revision += 1
+
+    def sync_cape(self, scene):
+        shape = scene.config.active_custom_appearance
+        enabled = shape is not None and shape.cape.enabled
+        if not enabled and self.cape_motion is None:
+            return
+        if enabled and self.cape_motion is not None and self.cape_motion.shape == motion_shape(shape):
+            return
+        self.cape_motion = (CapeMotion(shape, self.upper, self.direction, tuple(h.position for h in self.hands))
+                            if enabled else None)
+        self.sleeping = False
+        self._quiet_ticks = 0
+        self.revision += 1
 
     def step_phone_side(self, look):
         # 与绘制使用相同的头部局部视线；倒立和侧躺时仍按面部左右判断。
@@ -271,15 +303,21 @@ class OracleAppearance:
             self.cords = OracleCords(scene, self.head.position)
             self.main_cord = self.cords.main.points
             self.small_cords = [rope.points for rope in self.cords.fine]
-            self._points = [*self.body_points, *self.main_cord,
-                            *(p for cord in self.small_cords for p in cord)]
         else:
             self.cords = None
             self.main_cord, self.small_cords = [], []
-            self._points = self.body_points
+        self.refresh_points()
         self.sleeping = False
         self._quiet_ticks = 0
         self.revision += 1
+
+    def refresh_points(self):
+        self.body_points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace]
+        if self.prince_posture is not None:
+            self.body_points.extend(self.prince_posture.points)
+        if self.prince_robe is not None:
+            self.body_points.extend(self.prince_robe.points)
+        self._points = [*self.body_points, *self.main_cord, *(p for cord in self.small_cords for p in cord)]
 
     @staticmethod
     def arm_spans(scene):
@@ -327,24 +365,38 @@ class OracleAppearance:
         self.lower = self.upper-self.waist_direction(self.direction)*9
 
     def configure_cloth(self, length, shape=None):
-        """胸肩只影响衣袍上部两侧；下摆长度和中央领口参考点保持独立"""
+        """中央长度、下摆张开和底边弧度独立；胸肩只影响衣袍上部两侧"""
         self.robe_length = length
+        flare = shape.robe_flare if shape else 1.
+        hem_curve = shape.robe_hem_curve if shape else 1.
         shape = upper_body_shape(shape)
-        self._cloth_shape = (length, shape.chest_width, shape.chest_height)
+        self._cloth_shape = (length, flare, hem_curve, shape.chest_width, shape.chest_height)
+        prince = self.prince_posture is not None
+        if prince:
+            self._cloth_shape = ('prince',)
+        self.CLOTH_SLACK = UPPER_SLACK if prince else type(self).CLOTH_SLACK
         n = self.CLOTH_DIVS
         self._cloth_local = []
         for y in range(n):
             for x in range(n):
-                across = (2*x/(n-1)-1)*(5+6*y/(n-1))
+                if prince:
+                    self._cloth_local.append(upper_cloth_point(x, y, n))
+                    continue
+                across = (2*x/(n-1)-1)*(5+6*flare*y/(n-1))
                 curve = sin(pi*x/(n-1))*.35
                 depth = (5-23*y/(n-1))*(1+curve*(2*y/(n-1)-1))
                 t = min(1., y/(n-1)/.45)
                 shoulder_weight = 1-t*t*(3-2*t)
                 across *= 1+(shape.chest_width/12-1)*shoulder_weight
                 depth += (shape.chest_height-8)*5/8*(2*x/(n-1)-1)**2*shoulder_weight
-                if y/(n-1) > .45 and length != 1.:
+                if y/(n-1) > .45:
                     anchor = (5-23*.45)*(1+curve*(2*.45-1))
-                    depth = anchor+(depth-anchor)*length
+                    bottom = -18*(1+curve)
+                    # 先独立确定中央长度和底边高差，再沿每列分配变形
+                    # 避免整体拉伸圆弧，也避免短衣袍配大弧度时下部网格反折
+                    length_offset = (-18*1.35-ROBE_LENGTH_ANCHOR)*(length-1)
+                    curve_offset = -18*(curve-.35)*(hem_curve-1)
+                    depth += (length_offset+curve_offset)*(depth-anchor)/(bottom-anchor)
                 self._cloth_local.append((across, depth))
         self._cloth_forces = []
         for i, (x, y) in enumerate(self._cloth_local):
@@ -360,6 +412,25 @@ class OracleAppearance:
         return goals
 
     def sync_shape(self, scene):
+        posture_changed = self.prince_posture is not scene.prince_posture
+        old_goals = self.cloth_goals() if posture_changed else None
+        self.prince_posture = scene.prince_posture
+        if self.neck_extension != scene.head.neck_extension or posture_changed:
+            # 暂停切换角色时也立即更新真实绘制/命中点，避免额外颈长只在下一物理帧生效
+            self.head.position = self.upper+rotate(scene.head.position-self.upper, self.sway)
+            self.head.previous_position = self.head.position
+            self.head.velocity = Vec2()
+            self.neck_extension = scene.head.neck_extension
+            self.sleeping = False
+            self._quiet_ticks = 0
+            self.revision += 1
+        if bool(self.hands) != scene.config.character.has_hands:
+            self.hands = ([HangingHand.at(self.upper+normalized(force)*HangingHand.MAX_REACH)
+                           for force in self.hand_forces()] if scene.config.character.has_hands else [])
+            self.refresh_points()
+            self.sleeping = False
+            self._quiet_ticks = 0
+            self.revision += 1
         shape = scene.config.active_custom_appearance
         body = upper_body_shape(shape)
         half = body.shoulder_width/2
@@ -370,20 +441,30 @@ class OracleAppearance:
             self._quiet_ticks = 0
             self.revision += 1
         length = shape.robe_length if shape else 1.
-        cloth_shape = (length, body.chest_width, body.chest_height)
-        if cloth_shape == self._cloth_shape:
+        cloth_shape = (length, shape.robe_flare if shape else 1.,
+                       shape.robe_hem_curve if shape else 1., body.chest_width, body.chest_height)
+        if self.prince_posture is not None:
+            cloth_shape = ('prince',)
+        if cloth_shape == self._cloth_shape and not posture_changed:
             return
-        old_goals = self.cloth_goals()
+        if old_goals is None:
+            old_goals = self.cloth_goals()
         goals = self.configure_cloth(length, shape)
-        for p, old, new in zip(self.cloth, old_goals, goals):
-            p.position += new-old
+        n = self.CLOTH_DIVS
+        for i, (p, old, new) in enumerate(zip(self.cloth, old_goals, goals)):
+            p.position = (new+Vec2(0, self.CLOTH_SLACK*(i//n)/(n-1)) if posture_changed
+                          else p.position+new-old)
             p.previous_position = p.position
             p.velocity = p.drive_velocity = Vec2()
         self.sleeping = False
         self._quiet_ticks = 0
         self.revision += 1
+        self.sync_prince_robe()
 
     def cloth_goals(self):
+        if self.prince_posture is not None:
+            frame = self.prince_posture.frame(self.upper, self.direction)
+            return [frame.cloth_point(x, y) for x, y in self._cloth_local]
         side = perpendicular(self.direction)
         # 原版 IdealPosForPoint：领半宽 5、下摆半宽 11、中央下摆长 18*1.35。
         return [Vec2(self.upper.x+side.x*x+self.direction.x*y,
@@ -473,6 +554,7 @@ class OracleAppearance:
     def step(self, scene):
         self.sync_shape(scene)
         self.sync_cords(scene)
+        self.sync_cape(scene)
         # 转动量只来自主跨度变化；固定 40 Hz 更新，静止不空转，绘制只插值。
         spans = self.arm_spans(scene)
         self.previous_cog_turns = self.cog_turns.copy()
@@ -485,7 +567,10 @@ class OracleAppearance:
         gravity_changed = abs(gravity-self.gravity_scale) > 1e-9
         reacting = (scene.drag_reactions.gesturing or scene.projection.busy
                     or any(hand.reach_weight > 0 for hand in self.hands))
-        if self.sleeping and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
+        cape_settled = self.cape_motion is None or self.cape_motion.settled
+        robe_settled = self.prince_robe is None or self.prince_robe.settled
+        prince_settled = self.prince_posture is None or self.prince_posture.settled
+        if self.sleeping and cape_settled and robe_settled and prince_settled and not reacting and not gravity_changed and all((a-b).length() < .001 for a, b in zip(inputs, self._sleep_inputs)):
             # 静置收敛后休眠；新移动、转头、倾角都会唤醒。不依赖墙钟时间。
             return
         self.sleeping = False
@@ -517,7 +602,11 @@ class OracleAppearance:
             shoulder = hand.shoulder(self.upper, self.direction, index)
             hand.step(self.upper, upper.velocity, force+extra, shoulder=shoulder, weight=weight)
             hand.constrain_swing(self.upper, self.direction, index, upper.velocity, weight)
+        if self.cape_motion is not None:
+            self.cape_motion.step(self.upper, self.direction, tuple(h.position for h in self.hands))
         self.step_cloth()
+        if self.prince_robe is not None:
+            self.prince_robe.step(self)
         self.step_waist()
         for p, goal in zip(self.feet, self.foot_goals()):
             p.follow(goal, spring=.075, damping=.80, slack=5.)
@@ -527,6 +616,9 @@ class OracleAppearance:
         if self.cords is not None:
             self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
         self._quiet_ticks = (self._quiet_ticks+1 if not reacting and not gravity_changed and self.maximum_speed < .002
+                              and (self.cape_motion is None or self.cape_motion.settled)
+                              and (self.prince_robe is None or self.prince_robe.settled)
+                              and (self.prince_posture is None or self.prince_posture.settled)
                              and abs(self.sway_velocity) < 1e-6
                              and max((a-b).length() for a, b in zip(inputs, self._sleep_inputs)) < .001
                              else 0) if self._sleep_inputs else 0
@@ -548,4 +640,6 @@ class OracleAppearance:
     @property
     def maximum_speed(self):
         # 腰部尚在缓动时不能提前休眠；17.5 为胸部到脚目标的轴向距离。
-        return max(abs(self.waist_velocity)*17.5, max(p.velocity.length() for p in self.points))
+        return max(abs(self.waist_velocity)*17.5, max(p.velocity.length() for p in self.points),
+                   self.prince_posture.maximum_speed if self.prince_posture is not None else 0.,
+                   self.cape_motion.maximum_speed if self.cape_motion is not None else 0.)

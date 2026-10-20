@@ -47,7 +47,8 @@ class OracleWindowReaction:
         self.attention.step(1/40)
         if active and not self.attention.active:
             self.returning = True
-        scene.eyes.attention_target = float(self.attention.opened) if self.attention.active else None
+        scene.eyes.attention_target = (float(self.attention.opened)
+                                       if self.attention.active and scene.config.character.has_eyes else None)
 
     def desired_look(self, scene, ordinary):
         if self.attention.active:

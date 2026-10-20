@@ -8,11 +8,13 @@ from enum import Enum
 from math import atan2, cos, isfinite, pi, radians, sin, sqrt
 
 from ..shared.geometry import Bounds, Vec2
+from ..interaction.config import InteractionConfig
 from .config import OracleConfig
 from .space import body_margin
 from .motion.navigation import EdgeRegion, FloatNavigator, RoundedRail
 from .graphics.appearance import OracleAppearance
 from .motion.soft_parts import SoftParts
+from .motion.prince import PrincePosture
 from .behavior.controller import Activity, OracleBehavior
 from .behavior.eyes import OracleEyes
 from .effects.halo import OracleHalo
@@ -110,6 +112,7 @@ class MotionPoint:
 class OracleHead(MotionPoint):
     """健康 Oracle 的定长头部连接；积分速度与可见位移分开保存。"""
     drive_velocity: Vec2 = Vec2()
+    neck_extension: float = 0.
     NECK_BASE_OFFSET = 6.
     CONNECTION_LENGTH = 8.
     SETTLE_DISTANCE = .003
@@ -118,7 +121,7 @@ class OracleHead(MotionPoint):
     def step(self, upper, direction, look):
         self.previous_position = self.position
         predicted = self.position+self.drive_velocity
-        anchor = upper.position+direction*self.NECK_BASE_OFFSET
+        anchor = upper.position+direction*(self.NECK_BASE_OFFSET+self.neck_extension)
         self.position = anchor+unit(predicted-anchor, direction)*self.CONNECTION_LENGTH
         correction = self.position-predicted
         # GenericBodyPart.Update -> ConnectToPoint(push=True, adapt=.5,
@@ -366,7 +369,9 @@ class OracleScene:
         start = self.world.corridor(self.anchor.side).clamp(base + normal * 64)
         self.body = OracleBody([MotionPoint.at(start), MotionPoint.at(start - self.desired_direction * 9)])
         self.head = OracleHead.at(start+self.desired_direction
-                                  *(OracleHead.NECK_BASE_OFFSET+OracleHead.CONNECTION_LENGTH), radius=5)
+                                  *(OracleHead.NECK_BASE_OFFSET+OracleHead.CONNECTION_LENGTH
+                                    +self.config.character.neck_extension), radius=5)
+        self.head.neck_extension = self.config.character.neck_extension
         tip = start - self.desired_direction * 30 * self.config.arm_scale
         corridor = self.arm_region if self.sliding_base else self.world.corridor(self.anchor.side, False)
         self.arm = FixedOracleArm(base, tip, normal, corridor, self.config.arm_scale)
@@ -378,10 +383,16 @@ class OracleScene:
         self.look_target = None
         self.look_direction = Vec2()
         self.previous_look_direction = Vec2()
-        self.behavior = OracleBehavior()
-        self.eyes = OracleEyes()
+        self.prince_posture = self._new_prince_posture() if self.config.body_appearance == 'prince' else None
+        if self.prince_posture is not None:
+            self.prince_posture.reset_head(self.head)
+        self.behavior = OracleBehavior(daily_activity=self.config.daily_activity,
+                                       drift=self.config.drift, tick_rate=self.TICK_RATE)
+        self.eyes = OracleEyes(enabled=self.config.character.has_eyes)
         self.window_reaction = OracleWindowReaction()
-        self.mouse_reaction = OracleMouseReaction(previous_mouse_reaction.config) if previous_mouse_reaction else OracleMouseReaction()
+        self.mouse_reaction = OracleMouseReaction(
+            previous_mouse_reaction.config if previous_mouse_reaction else InteractionConfig(),
+            avoidance_config=self.config.mouse_avoidance)
         if previous_mouse_reaction is not None:
             self.mouse_reaction.attention.random.setstate(previous_mouse_reaction.attention.random.getstate())
             self.mouse_reaction.avoidance.random.setstate(previous_mouse_reaction.avoidance.random.getstate())
@@ -680,7 +691,39 @@ class OracleScene:
                 and self.arm.settled
                 and (self.navigator is None or (self.navigator.done and abs(self.navigator.base.velocity) < .01)))
 
+    def _new_prince_posture(self):
+        return PrincePosture(self.body.chunks[0].position, self.body.direction, self.look_direction,
+                             OracleHead.NECK_BASE_OFFSET+self.head.neck_extension+OracleHead.CONNECTION_LENGTH)
+
+    def sync_character(self):
+        """切换固定角色时立即撤掉不适用的动作，保留通用移动和珍珠任务"""
+        extension = self.config.character.neck_extension
+        if extension != self.head.neck_extension:
+            offset = self.body.direction*(extension-self.head.neck_extension)
+            self.head.position += offset
+            self.head.previous_position += offset
+            self.head.neck_extension = extension
+        prince = self.config.body_appearance == 'prince'
+        if prince != (self.prince_posture is not None):
+            # 抓取句柄属于旧身体轴，切换角色时先结束它，避免继续访问已移除的节点
+            if getattr(self, 'drag', None) is not None:
+                self.drag.release(cancel=True)
+            self.prince_posture = self._new_prince_posture() if prince else None
+            if prince:
+                self.prince_posture.reset_head(self.head)
+            else:
+                direction = self.body.direction
+                root = self.body.chunks[0].position+direction*(OracleHead.NECK_BASE_OFFSET+extension)
+                self.head.position = self.head.previous_position = (
+                    root+unit(direction+self.look_direction*.5, direction)*OracleHead.CONNECTION_LENGTH)
+                self.head.velocity = self.head.drive_velocity = Vec2()
+        self.eyes.set_enabled(self.config.character.has_eyes)
+        if not self.config.character.has_hands and (self.drag_reactions.active
+                or self.drag_reactions.gesturing or self.projection.busy):
+            self.drag_reactions.end(self, cancel=True)
+
     def step(self):
+        self.sync_character()
         self.window_reaction.step(self)
         self.mouse_reaction.step(self)
         if self.drag.controlling:
@@ -770,7 +813,11 @@ class OracleScene:
         desired_look = self.window_reaction.desired_look(self, desired_look)
         desired_look = self.mouse_reaction.desired_look(self, desired_look)
         self.look_direction = self.look_direction.lerp(desired_look, .12)
-        self.head.step(upper, self.body.direction, self.look_direction)
+        if self.prince_posture is not None:
+            self.prince_posture.step(self.head, upper.position, self.body.direction, self.look_direction,
+                                     grab=self.drag.prince_grab(), gravity=self.pose.gravity_scale)
+        else:
+            self.head.step(upper, self.body.direction, self.look_direction)
         if self.pearl_orbits is not None:
             self.pearl_orbits.step(pearl_center, self.orbit_center)
         self.arm.step(upper.position - self.body.direction * self.arm.lengths[3],

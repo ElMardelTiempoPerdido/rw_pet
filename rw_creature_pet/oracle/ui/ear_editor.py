@@ -1,7 +1,7 @@
 """设置与预览复用的耳机部件编辑器"""
 from dataclasses import replace
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtWidgets import QFileDialog, QLabel
+from PySide6.QtWidgets import QFileDialog
 
 from ...i18n import tr
 from ...shared.messages import Message
@@ -24,14 +24,12 @@ class EarPartEditor(FaceDecalEditor):
         layout.removeWidget(self.message)
         layout.addWidget(self.message, 8, 0, 1, 5)
         self.kind = WheelSafeComboBox()
+        self.kind.setFixedWidth(100)
         self.tone = WheelSafeComboBox()
         for widget, options in ((self.kind, SHAPE_LABELS), (self.tone, TONE_LABELS)):
             for key, label in options:
                 widget.addItem(label, key)
-        layout.addWidget(QLabel('形状'), 4, 0)
-        layout.addWidget(self.kind, 4, 1, 1, 2)
-        layout.addWidget(QLabel('配色'), 4, 3)
-        layout.addWidget(self.tone, 4, 4)
+        self.parameter_row(4, ('形状', self.kind), ('配色', self.tone))
         self.width_input, self.height_input, self.rotation_input = (
             WheelSafeDoubleSpinBox() for _ in range(3))
         for control in (self.width_input, self.height_input, self.rotation_input):
@@ -43,12 +41,8 @@ class EarPartEditor(FaceDecalEditor):
         self.rotation_input.setRange(-180., 180.)
         self.rotation_input.setSingleStep(5.)
         self.rotation_input.setSuffix('°')
-        layout.addWidget(QLabel('宽度'), 5, 0, 1, 2)
-        layout.addWidget(self.width_input, 5, 2)
-        layout.addWidget(QLabel('高度'), 5, 3)
-        layout.addWidget(self.height_input, 5, 4)
-        layout.addWidget(QLabel('旋转'), 6, 0, 1, 2)
-        layout.addWidget(self.rotation_input, 6, 2)
+        self.parameter_row(5, ('宽度', self.width_input), ('高度', self.height_input))
+        self.parameter_row(6, ('旋转', self.rotation_input))
         # note = QLabel('以耳侧中心为原点，X 向外、Y 向下；左右镜像。直线的宽度为线宽，高度为长度')
         # note.setWordWrap(True)
         # layout.addWidget(note, 7, 0, 1, 5)

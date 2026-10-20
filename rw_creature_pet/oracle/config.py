@@ -1,11 +1,17 @@
 """Oracle 调试配置：以完好 Moon / DM 为基础的 Bell 外观。"""
 from ..shared.messages import Message
+from .characters import CHARACTERS, PRINCE_COLORS, PRINCE_COLOR_NAMES
 from .space import ALL_EDGES, EDGE_FRACTION_MIN, EDGE_FRACTION_MAX, SpaceAssessment
 from .face_config import FaceDecal
 from .ear_config import EAR_PART_FIELDS, EarPart
 from .eye_config import EYE_FIELDS, EyeAppearance
 from .outfit_config import OutfitSettings
 from .soft_part_config import SOFT_PART_FIELDS, SoftPart
+from .cape_config import Cape
+from .clothing_config import CLOTHING_DECAL_FIELDS, ClothingDecal
+from .behavior_config import DailyActivityConfig, ReadingConfig
+from .drift_config import DriftConfig
+from .mouse_avoidance_config import MouseAvoidanceConfig
 from dataclasses import dataclass, fields, replace
 from math import isfinite
 from pathlib import Path
@@ -18,21 +24,21 @@ INNER_COLLAR_WIDTH_MAX = 24.  # 完整宽度，允许用宽高领表现围巾轮
 
 # 显示长度 = 存储比例 × 可变段长度 + 固定段长度；与头部椭圆、衣袍中央理想轮廓一致
 # 衣袍中央顶端为 5×0.65，下摆为 -18×1.35，前 45% 的领口区域不伸缩
-_ROBE_LENGTH_ANCHOR = (5-23*.45)*(1+.35*(2*.45-1))
+ROBE_LENGTH_ANCHOR = (5-23*.45)*(1+.35*(2*.45-1))
 CUSTOM_LENGTH_UNITS = {
     'head_length': (100/11+1., 0.),
-    'robe_length': (_ROBE_LENGTH_ANCHOR+18*1.35, 5*.65-_ROBE_LENGTH_ANCHOR),
+    'robe_length': (ROBE_LENGTH_ANCHOR+18*1.35, 5*.65-ROBE_LENGTH_ANCHOR),
 }
 
 # 调试窗口与桌面设置共用同一份配色名称
 COLOR_LABELS = {
-    'skin': '皮肤 / 头 / 手脚', 'eyes': '眼睛', 'head_shell': '头部附件底色',
-    'head_highlight': '头部附件高光', 'robe_top': '衣袍上部 / 袖子',
-    'robe_bottom': '衣袍下部', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
+    'skin': '皮肤', 'eyes': '眼睛', 'head_shell': '耳机底色',
+    'head_highlight': '耳机高光', 'robe_top': '衣袍',
+    'robe_bottom': '衣袍渐变色', 'arm': '机械臂主体', 'arm_highlight': '机械臂高光',
     'joints': '关节颜色', 'third_eye': '额头标记',
-    'inner_robe': '高领内搭', 'collar_trim': '领边装饰', 'beads': '念珠主体',
-    'pearl': '珍珠共有色', 'pearl_primary': '珍珠主色', 'pearl_secondary': '珍珠辅色',
-    'pearl_glyph': '投影（珍珠/光环）',
+    'inner_robe': '内搭', 'collar_trim': '衣袍领边', 'beads': '念珠',
+    'pearl': '普通珍珠色', 'pearl_primary': '彩珍珠主色', 'pearl_secondary': '彩珍珠辅色',
+    'pearl_glyph': '投影',
 }
 
 # 自定义模板的双眼单独编辑，标记和念珠暂不使用公共调色项
@@ -120,6 +126,8 @@ class CustomAppearance:
     sleeve_root_width: float = 6.
     sleeve_cuff_width: float = 10.
     robe_length: float = 1.
+    robe_flare: float = 1.  # 相对原版的横向展开量，不随衣袍长度变化
+    robe_hem_curve: float = 1.  # 相对原版底边弧度，0 为平底；不改变中央长度
     sleeve_cuff_radius: float = 2.
     neck_width: float = 3.
     chest_width: float = 12.
@@ -149,6 +157,10 @@ class CustomAppearance:
     ear_part_3: EarPart = EarPart(kind='ellipse', width=2., height=2., offset_y=7.)
     soft_part_1: SoftPart = SoftPart(offset_x=-3.)
     soft_part_2: SoftPart = SoftPart(offset_x=3., length=22.)
+    cape: Cape = Cape()
+    clothing_decal_1: ClothingDecal = ClothingDecal()
+    clothing_decal_2: ClothingDecal = ClothingDecal(part='left_sleeve')
+    clothing_decal_3: ClothingDecal = ClothingDecal(part='right_sleeve')
 
     def __post_init__(self):
         for name in ('inner_robe_enabled', 'inner_collar_enabled', 'neckline_trim_enabled'):
@@ -162,10 +174,15 @@ class CustomAppearance:
             raise ValueError('眼睛必须为眼睛外观配置')
         if any(not isinstance(getattr(self, name), SoftPart) for name in SOFT_PART_FIELDS):
             raise ValueError('柔性部件必须为部件配置')
+        if not isinstance(self.cape, Cape):
+            raise ValueError('斗篷必须为斗篷配置')
+        if any(not isinstance(getattr(self, name), ClothingDecal) for name in CLOTHING_DECAL_FIELDS):
+            raise ValueError('服装贴图必须为服装贴图配置')
         if self.neckline_shape not in ('arc', 'v'):
             raise ValueError('领口形状必须为 arc / v')
         for name, low, high in (('head_length', .7, 1.5), ('sleeve_root_width', 2., 12.),
                                 ('sleeve_cuff_width', 2., 16.), ('robe_length', .7, 1.5),
+                                ('robe_flare', 0., 2.), ('robe_hem_curve', 0., 2.),
                                 ('sleeve_cuff_radius', 0., 4.), ('neck_width', 1., 8.),
                                 ('chest_width', 8., 18.), ('chest_height', 4., 10.),
                                 ('shoulder_width', 4., 18.),
@@ -191,6 +208,9 @@ class CustomAppearance:
             data[name] = FaceDecal(**{'offset_y': y, **data.get(name, {})})
         from dataclasses import asdict
         defaults = cls()
+        data['cape'] = Cape(**data.get('cape', {}))
+        for name in CLOTHING_DECAL_FIELDS:
+            data[name] = ClothingDecal(**{**asdict(getattr(defaults, name)), **data.get(name, {})})
         for name in SOFT_PART_FIELDS:
             data[name] = SoftPart(**{**asdict(getattr(defaults, name)), **data.get(name, {})})
         for name in EAR_PART_FIELDS:
@@ -199,7 +219,7 @@ class CustomAppearance:
 
     def resolve_image_paths(self, base):
         decals = {}
-        for name in ('forehead', 'face', *EAR_PART_FIELDS, *SOFT_PART_FIELDS):
+        for name in ('forehead', 'face', *EAR_PART_FIELDS, *SOFT_PART_FIELDS, *CLOTHING_DECAL_FIELDS):
             decal = getattr(self, name)
             if decal.image_path:
                 path = Path(decal.image_path).expanduser()
@@ -251,9 +271,10 @@ class OracleConfig:
     coarse_pixels_4x: bool = False  # 4× 改用 1× 像素画布；默认使用 2×，3× 始终使用 1×
     outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
     outfit_settings: OutfitSettings = OutfitSettings()
-    body_appearance: str = 'bell'  # Bell 与自定义模板使用独立配色和绘制入口
+    body_appearance: str = 'bell'  # 固定角色与自定义模板使用独立配色和绘制入口
     custom_appearance: CustomAppearance = CustomAppearance()
     custom_colors: OracleColors = OracleColors()
+    prince_colors: OracleColors = OracleColors(**PRINCE_COLORS)
     hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
     glow_color: str = '#ffffff'
@@ -261,19 +282,28 @@ class OracleConfig:
     glow_opacity: float = .4  # 仅调节柔光合成强度；0 隐藏，1 为完整强度。
     drag_reactions: DragReactionConfig = DragReactionConfig()
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
+    daily_activity: DailyActivityConfig = DailyActivityConfig()
+    reading: ReadingConfig = ReadingConfig()
+    drift: DriftConfig = DriftConfig()
+    mouse_avoidance: MouseAvoidanceConfig = MouseAvoidanceConfig()
 
     def __post_init__(self):
+        if not isinstance(self.drift, DriftConfig) or not isinstance(self.mouse_avoidance, MouseAvoidanceConfig):
+            raise ValueError('漫游或鼠标躲避配置无效')
+        if not isinstance(self.daily_activity, DailyActivityConfig) or not isinstance(self.reading, ReadingConfig):
+            raise ValueError('日常活动或阅读配置无效')
         if type(self.coarse_pixels_4x) is not bool:
             raise ValueError('oracle.coarse_pixels_4x 必须为布尔值')
         if self.outfit not in ('normal', 'maid'):
             raise ValueError('oracle.outfit 必须为 normal / maid')
         if not isinstance(self.outfit_settings, OutfitSettings):
             raise ValueError('附加外观配置无效')
-        if self.body_appearance not in ('bell', 'custom'):
-            raise ValueError('主体外观必须为 bell / custom')
+        if self.body_appearance not in CHARACTERS:
+            raise ValueError('主体外观必须为 bell / custom / prince')
         if not isinstance(self.custom_appearance, CustomAppearance):
             raise ValueError('自定义外观必须为尺寸配置')
-        if not isinstance(self.colors, OracleColors) or not isinstance(self.custom_colors, OracleColors):
+        if any(not isinstance(getattr(self, name), OracleColors)
+               for name in ('colors', 'custom_colors', 'prince_colors')):
             raise ValueError('外观配色必须为颜色配置')
         if type(self.hide_cords) is not bool:
             raise ValueError('oracle.hide_cords 必须为布尔值')
@@ -361,12 +391,26 @@ class OracleConfig:
             raise ValueError('珍珠跟随矩形的宽和高至少为 160 逻辑单位')
 
     @property
+    def character(self):
+        return CHARACTERS[self.body_appearance]
+
+    @property
+    def active_outfit(self):
+        return self.outfit if self.character.outfits else 'normal'
+
+    @property
+    def editable_color_names(self):
+        if self.body_appearance == 'prince':
+            return PRINCE_COLOR_NAMES
+        return CUSTOM_COLOR_NAMES if self.body_appearance == 'custom' else tuple(COLOR_LABELS)
+
+    @property
     def active_custom_appearance(self):
         return self.custom_appearance if self.body_appearance == 'custom' else None
 
     @property
     def active_colors(self):
-        return self.custom_colors if self.body_appearance == 'custom' else self.colors
+        return getattr(self, self.character.palette)
 
     @classmethod
     def from_mapping(cls, data):
@@ -376,8 +420,13 @@ class OracleConfig:
         # 旧 TOML 仅有共用配色时，将它作为两套配色的初始值
         data['custom_colors'] = OracleColors(**data.get('custom_colors', data.get('colors', {})))
         data['colors'] = OracleColors(**data.get('colors', {}))
+        data['prince_colors'] = OracleColors(**{**PRINCE_COLORS, **data.get('prince_colors', {})})
         data['custom_appearance'] = CustomAppearance.from_mapping(data.get('custom_appearance', {}),
                                                                  eye_color=data['custom_colors'].eyes)
         data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))
         data['outfit_settings'] = OutfitSettings.from_mapping(data.get('outfit_settings', {}))
+        data['daily_activity'] = DailyActivityConfig(**data.get('daily_activity', {}))
+        data['reading'] = ReadingConfig(**data.get('reading', {}))
+        data['drift'] = DriftConfig(**data.get('drift', {}))
+        data['mouse_avoidance'] = MouseAvoidanceConfig(**data.get('mouse_avoidance', {}))
         return cls(**data)

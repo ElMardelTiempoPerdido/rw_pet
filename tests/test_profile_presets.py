@@ -13,6 +13,9 @@ from PIL import Image
 from rw_creature_pet.config import AppConfig, DesktopConfig
 from rw_creature_pet.interaction.config import InteractionConfig
 from rw_creature_pet.oracle.config import CustomAppearance, DragReactionConfig, OracleColors
+from rw_creature_pet.oracle.behavior_config import DailyActivityConfig, ReadingConfig
+from rw_creature_pet.oracle.drift_config import DriftConfig
+from rw_creature_pet.oracle.mouse_avoidance_config import MouseAvoidanceConfig
 from rw_creature_pet.oracle.face_config import FaceDecal
 from rw_creature_pet.presets.appearance import load_appearance
 from rw_creature_pet.presets.common import get_value
@@ -35,9 +38,15 @@ class ProfilePresetTests(unittest.TestCase):
             hover_probability=.345678, hover_avoidance_enabled=False))
         self.config = replace(self.config, oracle=replace(self.config.oracle,
             body_appearance='custom', outfit='maid', custom_colors=OracleColors(skin='#123456'),
-            custom_appearance=CustomAppearance(forehead=FaceDecal(True, str(self.png), 'face.png')),
+            custom_appearance=CustomAppearance(forehead=FaceDecal(True, str(self.png), 'face.png'),
+                                              robe_flare=1.4, robe_hem_curve=.6),
             base_speed=3.123456, pearl_follow_width=432.123, pearl_follow_height=321.123,
             pearl_matrix_count=0, pearl_matrix_enabled=False, float_speed=1.3,
+            daily_activity=DailyActivityConfig(idle_min_seconds=1.234567, move_weight=0,
+                                               cross_edge_cooldown_seconds=0, move_lean_degrees=9.876543),
+            reading=ReadingConfig(start_probability=.123456),
+            drift=DriftConfig(cooldown_seconds=0, long_bout_probability=.123456, short_pause_weight=0),
+            mouse_avoidance=MouseAvoidanceConfig(probability=0, lean_sample_power=3.456789),
             drag_reactions=DragReactionConfig(voice_probability=0., alternating_probability=.654321)))
 
     def rewrite(self, preset, change):
@@ -68,6 +77,8 @@ class ProfilePresetTests(unittest.TestCase):
         self.assertEqual(actual.oracle.colors, target.oracle.colors)
         self.assertEqual(actual.oracle.custom_colors, self.config.oracle.custom_colors)
         self.assertEqual(actual.oracle.outfit, 'maid')
+        self.assertEqual((actual.oracle.custom_appearance.robe_flare, actual.oracle.custom_appearance.robe_hem_curve),
+                         (1.4, .6))
 
     def test_reference_uses_bundled_snapshot_even_with_newer_same_id_in_appearance_library(self):
         appearance = self.appearances.export(self.config, '共享外观')
@@ -146,6 +157,25 @@ class ProfilePresetTests(unittest.TestCase):
                 self.rewrite(preset, lambda data: data['config']['oracle'].update({key: value}))
                 with self.assertRaises(ValueError):
                     load_profile(preset.path)
+
+    def test_legacy_activity_defaults_and_imported_custom_values_do_not_leak_between_roles(self):
+        preset = self.library.export(self.config, '活动参数')
+        imported = ProfileLibrary(self.root/'imported').import_file(preset.path)
+        actual = apply_profile(AppConfig(), imported, self.root/'cache')
+        self.assertEqual(actual.oracle.daily_activity, self.config.oracle.daily_activity)
+        self.assertEqual(actual.oracle.reading, self.config.oracle.reading)
+        self.assertEqual(actual.oracle.drift, self.config.oracle.drift)
+        self.assertEqual(actual.oracle.mouse_avoidance, self.config.oracle.mouse_avoidance)
+        self.rewrite(preset, lambda data: [data['config']['oracle'].pop(key)
+                                         for key in ('daily_activity', 'reading', 'drift', 'mouse_avoidance')])
+        old_bytes = preset.path.read_bytes()
+        actual = apply_profile(self.config, load_profile(preset.path), self.root/'cache')
+        self.assertEqual(actual.oracle.daily_activity, DailyActivityConfig())
+        self.assertEqual(actual.oracle.reading, ReadingConfig())
+        self.assertEqual(actual.oracle.drift, DriftConfig())
+        self.assertEqual(actual.oracle.mouse_avoidance, MouseAvoidanceConfig())
+        self.assertEqual(actual.oracle.float_speed, 1.3)
+        self.assertEqual(preset.path.read_bytes(), old_bytes)
 
     def test_duplicate_profile_versions_and_invalid_newer_snapshot(self):
         first = self.library.export(self.config, '重复')

@@ -2,7 +2,7 @@
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QCheckBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
                                QPushButton, QSizePolicy, QVBoxLayout, QWidget)
@@ -13,6 +13,7 @@ from ..graphics.face_assets import face_image, import_face_png, read_face_png
 from ..soft_part_config import SOFT_PART_RANGES, SoftPart
 from .inputs import ColorButton, WheelSafeComboBox, WheelSafeDoubleSpinBox
 from .settings_style import NOTE_STYLE, parameter_group_background
+from .form_layout import ContentForm
 
 
 SOFT_PART_LABELS = (('soft_part_1', '启用柔性部件 1'), ('soft_part_2', '启用柔性部件 2'))
@@ -32,11 +33,10 @@ class SoftPartEditor(QWidget):
         super().__init__()
         self.directory = Path(directory)
         self._value, self._error = None, ''
-        self._layout_refresh_pending = False
         self.parameter_controls = {}
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         parameter_group_background(self)
-        form = QFormLayout(self)
+        form = ContentForm(self)
         form.setContentsMargins(12, 12, 12, 12)
         form.setVerticalSpacing(14)
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
@@ -49,6 +49,8 @@ class SoftPartEditor(QWidget):
         def combo(column, label, name):
             control = self.parameter_controls[name] = WheelSafeComboBox()
             control.setSizeAdjustPolicy(WheelSafeComboBox.SizeAdjustPolicy.AdjustToContents)
+            if name == 'kind':
+                control.setFixedWidth(100)
             for key, text in CHOICES[name]:
                 control.addItem(text, key)
             column.addRow(label, control)
@@ -114,6 +116,7 @@ class SoftPartEditor(QWidget):
         self.message = QLabel()
         self.message.setTextFormat(Qt.TextFormat.PlainText)
         self.message.setWordWrap(True)
+        self.message.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.message.setStyleSheet('color: #ad7770;')
         png.addWidget(self.message)
         form.addRow(self.png_panel)
@@ -184,30 +187,6 @@ class SoftPartEditor(QWidget):
             error = '请导入柔性部件 PNG、选择几何形状，或关闭此部件'
         self.message.setText(tr(error))
         self.message.setVisible(bool(error))
-        self._queue_layout_refresh()
-
-    def _queue_layout_refresh(self):
-        if not self._layout_refresh_pending:
-            self._layout_refresh_pending = True
-            QTimer.singleShot(0, self, self._refresh_layout)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if event.size().height() < self.heightForWidth(event.size().width()):
-            self._queue_layout_refresh()
-
-    def _refresh_layout(self):
-        # 等子控件完成显隐和换行计算后，再清除表单的旧高度缓存
-        # 只刷新布局，不固定高度，收起 PNG 区域或切换语言时仍按内容调整
-        self._layout_refresh_pending = False
-        self.layout().invalidate()
-        self.updateGeometry()
-        parent = self.parentWidget()
-        if parent is not None and parent.layout() is not None:
-            parent.layout().invalidate()
-            parent.layout().activate()
-            parent.updateGeometry()
-
     def choose_file(self):
         source, _ = QFileDialog.getOpenFileName(self, tr('选择柔性部件 PNG'), '', 'PNG (*.png)',
                                                options=QFileDialog.Option.DontUseNativeDialog)

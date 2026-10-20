@@ -18,6 +18,7 @@ from ...interaction.windows import desktop_window_tracker
 from ...overseer.ui.desktop import OverseerDesktopGroup
 from ...overseer.events import EventPhase
 from ..audio.assets import make_bell_voice_player
+from ..audio.playback import sync_oracle_voice
 from ..interaction.input import PuppetHitMap
 from ...shared.geometry import Vec2
 from ..scene import OracleScene, RailSide
@@ -252,10 +253,13 @@ class OracleDesktopWindow(QWidget):
         self.timer.start(16)
 
     def create_tray(self):
+        from .character_menu import CharacterMenu
         self.tray = QSystemTrayIcon(self)
         icon_path = PACKAGE_ROOT/'ico'/'bell_icon_16.png'
         self.tray.setIcon(QIcon(str(icon_path)))
         self.menu = QMenu(self)
+        self.character_menu = CharacterMenu(self)
+        self.menu.addMenu(self.character_menu)
         self.pause_action = self.menu.addAction('暂停桌宠')
         self.pause_action.setCheckable(True)
         self.pause_action.toggled.connect(self.set_paused)
@@ -302,6 +306,7 @@ class OracleDesktopWindow(QWidget):
                                (self.exit_action, '退出')):
             action.setText(tr(source))
         self.sizes_menu.setTitle(tr('桌宠显示大小'))
+        self.character_menu.setTitle(tr('切换角色'))
         for code, action in self.language_actions.items():
             action.setChecked(code == language_manager().language)
         actual = self.motion.viewport.physical_scale if self.motion else self.requested_scale
@@ -436,7 +441,7 @@ class OracleDesktopWindow(QWidget):
                 pass
             self.motion.scene.drag.set_enabled(self.drag_action.isChecked())
             self.motion.scene.mouse_reaction.configure(self.motion.scene, self.config.interaction)
-            self.voice_player.sync(self.motion.scene.drag_reactions.voice, paused=self.clock.paused)
+            sync_oracle_voice(self.voice_player, self.motion.scene, paused=self.clock.paused)
             self._signature = viewport
             self.clock.accumulator = 0.
             self.last_time = perf_counter()
@@ -532,22 +537,28 @@ class OracleDesktopWindow(QWidget):
             interaction=replace(self.config.interaction, drag_enabled=self.drag_action.isChecked()),
             audio=AudioConfig(self.voice_player.enabled, self.voice_player.volume))
 
-    def open_settings(self):
+    def ensure_settings_dialog(self):
         screen = self.ensure_screen()
         workarea = screen.availableGeometry() if screen is not None else None
         if self.settings_dialog is None:
             from ..assets import OracleAssets
             from .settings import OracleSettingsDialog
+            from .character_menu import runtime_character
             from ...settings_store import SettingsStore, absolute_paths
             if self.config_store is None:
                 self.config_store = SettingsStore()
             config = absolute_paths(self.current_settings(), self.config_path)
             assets = OracleAssets(self.renderer, self.asset_message, self.voice_player.clips, self.voice_player.asset_error)
-            dialog = OracleSettingsDialog(config, self.config_store, assets=assets, commit=self.apply_settings)
+            dialog = OracleSettingsDialog(config, self.config_store, assets=assets, commit=self.apply_settings,
+                                          initialization=runtime_character(config, self.config_store))
             self.settings_dialog = dialog
             dialog.finished.connect(self.settings_closed)
             if workarea is not None and not workarea.isEmpty():
                 dialog.fit_workarea(workarea)
+        return self.settings_dialog
+
+    def open_settings(self):
+        self.ensure_settings_dialog()
         self.settings_dialog.showNormal()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
@@ -602,7 +613,7 @@ class OracleDesktopWindow(QWidget):
         visual = {name: getattr(config.oracle, name)
                   for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit',
                                'body_appearance', 'custom_appearance', 'colors', 'custom_colors', 'coarse_pixels_4x',
-                               'outfit_settings')}
+                               'outfit_settings', 'prince_colors')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
         if viewport is not None and (screen_changed or config.oracle != previous_with_visual
@@ -632,6 +643,7 @@ class OracleDesktopWindow(QWidget):
                 self.overseers.group.cancel()
         if self.motion is not None:
             self.motion.scene.config = replace(self.motion.scene.config, **visual)
+            self.motion.scene.sync_character()
             self.motion.scene.appearance.sync_shape(self.motion.scene)
             self.motion.scene.appearance.sync_cords(self.motion.scene)
             # 暂停时也立即移除已关闭/切换角色后的附件，下一次重绘负责清理旧范围
@@ -809,8 +821,8 @@ class OracleDesktopWindow(QWidget):
         if self.motion is not None:
             self.clock.advance(now-self.last_time, self.step_scene)
         self.last_time = now
-        channel = self.motion.scene.drag_reactions.voice if self.motion is not None else None
-        self.voice_player.sync(channel, paused=self.clock.paused or self._closing)
+        scene = self.motion.scene if self.motion is not None else None
+        sync_oracle_voice(self.voice_player, scene, paused=self.clock.paused or self._closing)
         self.sync_toolbar()
         if self.motion is None or self.clock.paused or self.debug_window is not None or not self._screen_valid:
             return

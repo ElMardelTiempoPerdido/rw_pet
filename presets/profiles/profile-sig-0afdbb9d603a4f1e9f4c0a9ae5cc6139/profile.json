@@ -3,7 +3,7 @@
   "version": 1,
   "id": "c667448b-ba22-4532-a392-5682ce8aa492",
   "name": "sig",
-  "updated_at": "2026-10-15T10:51:26.158148+00:00",
+  "updated_at": "2026-10-18T10:40:16.764062+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -23,7 +23,7 @@
         "alternating_probability": 0.47,
         "enabled": true,
         "eye_open_probability": 0.65,
-        "flutter_probability": 0.85,
+        "flutter_probability": 0.15,
         "gesture_probability": 0.9,
         "voice_probability": 0.55
       },
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "35e16871-63e7-483e-abad-2eccc27ae608",
-    "path": "appearance/appearance.json"
+    "path": "appearance-10f75228924c4409b31c217c6f9457af/appearance.json"
   }
 }

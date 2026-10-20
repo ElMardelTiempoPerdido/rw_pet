@@ -3,7 +3,7 @@
   "version": 1,
   "id": "67cbd80d-d9db-4f4f-8f23-7985cc6a74b0",
   "name": "pebbles",
-  "updated_at": "2026-10-15T10:51:35.350864+00:00",
+  "updated_at": "2026-10-18T10:40:07.377662+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "36743694-3954-44ca-b3a3-f35f0268ccf1",
-    "path": "appearance/appearance.json"
+    "path": "appearance-da869ad7d9ae4046ade903d0d65e68b5/appearance.json"
   }
 }

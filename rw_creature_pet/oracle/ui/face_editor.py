@@ -4,12 +4,12 @@ from pathlib import Path
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QCheckBox, QFileDialog, QGridLayout, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QCheckBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from ...i18n import tr
 from ...shared.messages import Message
-from ..face_config import FACE_OFFSET_LIMIT, FaceDecal
-from ..graphics.face_assets import face_image, import_face_png, read_face_png
+from ..face_config import FaceDecal
+from ..graphics.face_assets import decal_image, image_size_limit, import_face_png, read_face_png
 from .settings_style import parameter_group_background
 from .inputs import WheelSafeDoubleSpinBox
 
@@ -45,16 +45,13 @@ class FaceDecalEditor(QWidget):
         layout.addWidget(self.file_label, 1, 1, 1, 4)
         self.x_input, self.y_input = WheelSafeDoubleSpinBox(), WheelSafeDoubleSpinBox()
         for control in (self.x_input, self.y_input):
-            control.setRange(-FACE_OFFSET_LIMIT, FACE_OFFSET_LIMIT)
+            control.setRange(-value.OFFSET_LIMIT, value.OFFSET_LIMIT)
             control.setDecimals(2)
             control.setSingleStep(.5)
             control.setSuffix(' px')
             control.setKeyboardTracking(True)
             control.setFixedWidth(100)
-        layout.addWidget(QLabel('X 偏移'), 2, 0, 1, 2)
-        layout.addWidget(self.x_input, 2, 2)
-        layout.addWidget(QLabel('Y 偏移'), 2, 3)
-        layout.addWidget(self.y_input, 2, 4)
+        self.parameter_row(2, ('X 偏移', self.x_input), ('Y 偏移', self.y_input))
         layout.setColumnStretch(1, 1)
         self.message = QLabel()
         self.message.setWordWrap(True)
@@ -68,6 +65,27 @@ class FaceDecalEditor(QWidget):
         self.clear_button.clicked.connect(lambda: self.setValue(replace(
             self._value, enabled=False, image_path='', image_name='')))
         self.setValue(value)
+
+    def parameter_row(self, row, *fields):
+        """独立的等宽双列，避免 PNG 操作行的五列布局影响参数对齐"""
+        panel = QWidget(self)
+        columns = QHBoxLayout(panel)
+        columns.setContentsMargins(0, 0, 0, 0)
+        columns.setSpacing(16)
+        for index in range(2):
+            cell = QWidget(panel)
+            items = QHBoxLayout(cell)
+            items.setContentsMargins(0, 0, 0, 0)
+            items.setSpacing(16)
+            if index < len(fields):
+                title, control = fields[index]
+                label = QLabel(title)
+                label.setWordWrap(True)
+                label.setBuddy(control)
+                items.addWidget(label, 1)
+                items.addWidget(control)
+            columns.addWidget(cell, 1)
+        self.layout().addWidget(panel, row, 0, 1, 5)
 
     @property
     def dynamic_text_widgets(self):
@@ -101,8 +119,12 @@ class FaceDecalEditor(QWidget):
 
     def refresh(self):
         value = self._value
-        image = face_image(value.image_path)
-        self.thumbnail.setPixmap(QPixmap.fromImage(image) if not image.isNull() else QPixmap())
+        image = decal_image(value)
+        thumbnail = QPixmap.fromImage(image) if not image.isNull() else QPixmap()
+        if thumbnail.width() > 38 or thumbnail.height() > 38:
+            thumbnail = thumbnail.scaled(38, 38, Qt.AspectRatioMode.KeepAspectRatio,
+                                         Qt.TransformationMode.FastTransformation)
+        self.thumbnail.setPixmap(thumbnail)
         self.clear_button.setEnabled(bool(value.image_path))
         self.x_input.setEnabled(bool(value.image_path))
         self.y_input.setEnabled(bool(value.image_path))
@@ -138,4 +160,4 @@ class FaceDecalEditor(QWidget):
         if self._value.enabled:
             if not self._value.image_path:
                 raise ValueError('请导入面部 PNG，或关闭尚未配置的贴图')
-            read_face_png(self._value.image_path)
+            read_face_png(self._value.image_path, image_size_limit(self._value))

@@ -3,7 +3,7 @@
   "version": 1,
   "id": "797805d8-a9eb-4729-983e-32d7c0923f6f",
   "name": "bell",
-  "updated_at": "2026-10-15T16:35:44.655251+00:00",
+  "updated_at": "2026-10-18T10:39:39.815392+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -14,8 +14,8 @@
     },
     "oracle": {
       "antigravity_duration_seconds": 300.0,
-      "antigravity_probability": 0.08,
-      "base_speed": 2.8,
+      "antigravity_probability": 0.4,
+      "base_speed": 3.5,
       "cross_edge_probability": 0.05,
       "drag_projection_cooldown_seconds": 30.0,
       "drag_projection_probability": 0.5,
@@ -27,8 +27,8 @@
         "gesture_probability": 0.9,
         "voice_probability": 0.55
       },
-      "drift_speed": 1.0,
-      "float_speed": 1.6,
+      "drift_speed": 1.6,
+      "float_speed": 2.0,
       "halo_arc_max_count": 10,
       "halo_scale": 0.9,
       "pearl_bubble_max_size": 12.0,
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "6375c097-9801-4f03-9ca3-ea09025c2c29",
-    "path": "appearance/appearance.json"
+    "path": "appearance-e4b163c0a9e74affa6eb08d5d6b2cc9e/appearance.json"
   }
 }

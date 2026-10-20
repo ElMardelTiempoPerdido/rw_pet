@@ -3,7 +3,7 @@
   "version": 1,
   "id": "6acc3887-c4cf-44f1-a826-38ce4b4123ed",
   "name": "moon",
-  "updated_at": "2026-10-15T10:50:50.824491+00:00",
+  "updated_at": "2026-10-18T10:39:47.154174+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
-    "path": "appearance/appearance.json"
+    "path": "appearance-6a7c94aafcde43f093ea7e07b657741b/appearance.json"
   }
 }

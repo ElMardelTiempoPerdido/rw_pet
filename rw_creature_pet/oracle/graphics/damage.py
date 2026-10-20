@@ -1,7 +1,8 @@
 """透明桌面的保守外形包围盒，包含前后物理帧，供缓存与清除旧像素使用。"""
 from PySide6.QtCore import QRectF
 from ..ear_config import ear_radius
-from .outfit_definition import outfit_padding
+from ..motion.cape import max_deflection
+from .outfits import outfit_padding
 
 
 def point_bounds(points, padding):
@@ -28,7 +29,17 @@ def body_bounds(scene):
     arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
                         for v in (p.previous_position, p.position)),
                        32.+max(scene.arm.lengths)/4)
-    return soft.united(arm)
+    return soft.united(arm).united(cape_bounds(scene))
+
+
+def cape_bounds(scene):
+    shape = scene.config.active_custom_appearance
+    if shape is None or not shape.cape.enabled:
+        return QRectF()
+    upper = scene.body.chunks[0]
+    # 单独容纳最长斗篷，旋转/倒立时同样覆盖；袖子端点仍在原有人偶范围内
+    radius = shape.cape.length+shape.chest_height+shape.sleeve_cuff_width+2+max_deflection(shape.cape.length)
+    return point_bounds((upper.previous_position, upper.position), radius)
 
 
 def soft_part_bounds(part, alpha=None):

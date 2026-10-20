@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QDialog, QFileDialog, QHBoxLayout, QLabel, QPushB
                                QSizePolicy, QVBoxLayout, QWidget)
 
 from ...i18n import tr
+from ...presets.catalog import same_preset, selection_options
 from ...shared.messages import Message
 from .inputs import WheelSafeComboBox
 from .settings_style import NOTE_STYLE
@@ -76,17 +77,19 @@ class PresetPanel(QWidget):
     def dynamic_text_widgets(self):
         return (self.selector, self.warning, self.status)
 
-    def refresh(self, selected_id=None):
+    def refresh(self, selected_id=None, *, report=None):
         try:
-            self.report = self.library.scan()
+            self.report = report if report is not None else self.library.scan()
         except (OSError, ValueError) as exc:
             self.set_message(Message(self.texts['read_error'], error=exc))
             return False
         self.selector.clear()
-        for preset in self.report.presets:
+        loaded = self.loaded if selected_id is None and not self.owner_name else None
+        for preset, retained in selection_options(self.report.presets, loaded):
             self.selector.addItem(preset.name, preset)
             index = self.selector.count()-1
             self.selector.setItemData(index, str(preset.path), Qt.ItemDataRole.ToolTipRole)
+            self.selector.setItemData(index, retained, Qt.ItemDataRole.UserRole+1)
             if preset.id == selected_id:
                 self.selector.setCurrentIndex(index)
         if selected_id is None:
@@ -101,7 +104,7 @@ class PresetPanel(QWidget):
             return
         for index in range(self.selector.count()):
             item = self.selector.itemData(index)
-            if item.path == self.loaded.path and item.revision == self.loaded.revision:
+            if same_preset(item, self.loaded):
                 self.selector.setCurrentIndex(index)
                 return
         self.selector.addItem(self.loaded.name+tr('（已载入版本）'), self.loaded)

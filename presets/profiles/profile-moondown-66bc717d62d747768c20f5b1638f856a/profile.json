@@ -3,7 +3,7 @@
   "version": 1,
   "id": "2466730e-c7e8-431b-a807-4f49f0b3b878",
   "name": "moondown",
-  "updated_at": "2026-10-15T10:52:03.766200+00:00",
+  "updated_at": "2026-10-18T10:39:59.883058+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -47,7 +47,7 @@
     }
   },
   "appearance": {
-    "id": "d8380559-81a2-43cf-a1d7-7cc6649df4e1",
-    "path": "appearance/appearance.json"
+    "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
+    "path": "appearance-440022f2e2f74e1188ebb23265bf765d/appearance.json"
   }
 }

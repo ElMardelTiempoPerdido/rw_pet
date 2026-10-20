@@ -3,7 +3,7 @@
   "version": 1,
   "id": "e110a7a8-4780-42dd-9a40-4798120d5146",
   "name": "sunny",
-  "updated_at": "2026-10-15T10:44:51.689327+00:00",
+  "updated_at": "2026-10-18T10:40:35.308560+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "6c2b4490-bcba-4537-b6f2-83d4af7aec5f",
-    "path": "appearance/appearance.json"
+    "path": "appearance-250450ef0cca4186bd53d2c36f167299/appearance.json"
   }
 }

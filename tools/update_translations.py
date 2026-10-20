@@ -12,8 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT/'rw_creature_pet'
 CATALOG = PACKAGE/'translations/en.ts'
 FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py', 'oracle/ui/space.py',
+         'oracle/ui/character_menu.py',
          'oracle/ui/behavior_settings.py',
+         'oracle/ui/daily_activity_settings.py', 'oracle/behavior_config.py',
+         'oracle/ui/drift_settings.py', 'oracle/drift_config.py',
+         'oracle/ui/mouse_settings.py', 'oracle/mouse_avoidance_config.py',
          'oracle/ui/outfit_settings.py', 'oracle/outfit_config.py',
+         'oracle/ui/cape_settings.py', 'oracle/cape_config.py',
          'oracle/ui/appearance_presets.py', 'presets/appearance.py', 'presets/library.py',
          'oracle/ui/preset_panel.py', 'oracle/ui/profile_presets.py', 'presets/common.py',
          'presets/profile.py', 'presets/profile_library.py', 'presets/startup.py',
@@ -23,6 +28,7 @@ FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py'
          'oracle/ui/ear_editor.py', 'oracle/ear_config.py',
          'oracle/ui/eye_editor.py', 'oracle/eye_config.py',
          'oracle/ui/soft_part_editor.py', 'oracle/soft_part_config.py',
+         'oracle/ui/clothing_editor.py', 'oracle/clothing_config.py',
          'oracle/graphics/face_assets.py',
          'config.py', 'oracle/config.py', 'overseer/config.py', 'interaction/config.py',
          'settings_store.py', 'shared/atlas.py', 'ui_config.py', 'overseer/events.py')

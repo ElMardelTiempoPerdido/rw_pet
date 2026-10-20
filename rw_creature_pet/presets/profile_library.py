@@ -4,10 +4,11 @@ from pathlib import Path
 from uuid import uuid4
 
 from .appearance import MANIFEST as APPEARANCE_MANIFEST
-from .common import (default_library_directory, publish_package, scan_library,
+from .common import (default_library_directory, publish_package,
                      update_package, validate_metadata, write_document)
 from .library import write_appearance
 from .profile import FORMAT, MANIFEST, VERSION, load_profile, profile_mapping
+from .catalog import cached_scan
 
 
 def default_profile_directory():
@@ -19,7 +20,7 @@ class ProfileLibrary:
         self.directory = Path(directory) if directory is not None else default_profile_directory()
 
     def scan(self):
-        return scan_library(self.directory, MANIFEST, load_profile)
+        return cached_scan(self.directory, MANIFEST, load_profile)
 
     def export(self, config, name, *, preset_id=None, appearance_source=None):
         name = name.strip()

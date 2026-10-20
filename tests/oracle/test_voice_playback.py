@@ -1,6 +1,7 @@
 """调试/桌面窗口确实消费拖动请求，且生命周期不会留下异步播放。"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from dataclasses import replace
 from pathlib import Path
 import tempfile
 from time import perf_counter
@@ -75,6 +76,46 @@ class VoiceWindowTests(unittest.TestCase):
         finally:
             qInstallMessageHandler(previous)
         self.assertFalse([text for text in messages if 'addMetaMethod' in text], messages)
+
+    def test_custom_characters_never_play_and_keep_audio_preferences(self):
+        for window_type in (OracleDesktopWindow, OracleDebugWindow):
+            with self.subTest(window=window_type.__name__), patch(
+                    'rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+                w = (window_type(self.config, renderer=OracleRenderer()) if window_type is OracleDesktopWindow
+                     else window_type(self.config, load_atlas=False))
+                try:
+                    sound = self.attach_sound(w)
+                    scene = w.scene if window_type is OracleDebugWindow else w.motion.scene
+                    advance = w.on_timer if window_type is OracleDebugWindow else w.advance
+                    reactions = scene.drag_reactions
+                    reactions._try_voice()
+                    advance()
+                    self.assertEqual(len(sound.paths), 1)
+                    scene.config = replace(scene.config, body_appearance='custom')
+                    advance()
+                    self.assertIsNone(w.voice_player.current)
+                    self.assertEqual(sound.state, 'idle')
+                    for enabled in (False, True):
+                        w.voice_player.configure(enabled=enabled, volume=1.)
+                        reactions._try_voice()  # 即使强制注入请求，窗口播放入口仍须拦截
+                        advance()
+                        self.assertIsNone(reactions.voice.pending)
+                        self.assertEqual(len(sound.paths), 1)
+                    self.assertTrue(w.voice_player.enabled)
+                    self.grab(scene)
+                    count = reactions.voice.request_count
+                    for _ in range(400):
+                        reactions.step(scene)
+                    self.assertEqual(reactions.voice.request_count, count)
+                    scene.config = replace(scene.config, body_appearance='bell')
+                    advance()
+                    self.assertEqual(len(sound.paths), 1)  # 切回不补播旧请求
+                    reactions._try_voice()
+                    advance()
+                    self.assertEqual(len(sound.paths), 2)
+                finally:
+                    w.close()
+                    self.app.processEvents()
 
     def test_lost_release_cancels_pending_cues_but_finishes_active_clip(self):
         for recovery in ('move', 'watch'):

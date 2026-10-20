@@ -17,6 +17,7 @@ from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.outfit_config import OutfitPartSettings, OutfitSettings
+from rw_creature_pet.oracle.outfit_layout import Anchor, Slot, allowed_slots
 from rw_creature_pet.oracle.graphics.outfit_definition import MAID, outfit_definition
 from rw_creature_pet.oracle.graphics.outfits import adjusted_outfit_image, component_layers, load_outfit_image
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
@@ -78,12 +79,55 @@ class OutfitSettingsTests(unittest.TestCase):
         self.assertEqual(config.outfit_settings.maid.head, OutfitPartSettings())
         self.assertEqual(config.outfit_settings.maid.lace.offset_x, 2.5)
         for part in MAID.components:
-            for field in ('enabled', 'mirror', 'offset_x', 'offset_y', 'hue', 'saturation', 'brightness'):
+            for field in ('enabled', 'anchor', 'layer', 'mirror', 'offset_x', 'offset_y', 'hue', 'saturation', 'brightness'):
                 self.assertEqual(scope_for('oracle.outfit_settings.maid.'+part.id+'.'+field).value, 'appearance')
         for values in ({'enabled': 0}, {'mirror': 'yes'}, {'offset_x': 33}, {'hue': float('nan')},
-                       {'saturation': -101}, {'brightness': True}):
+                       {'saturation': -101}, {'brightness': True}, {'anchor': 'other'}, {'layer': 'other'}):
             with self.assertRaises(ValueError):
                 OutfitPartSettings(**values)
+
+    def test_anchor_layer_selection_save_reset_and_role_isolation(self):
+        d = self.dialog()
+        prefix = 'oracle.outfit_settings.maid.apron.'
+        anchor, layer = (d.controls[prefix+field] for field in ('anchor', 'layer'))
+        def choose(control, value):
+            control.setCurrentIndex(control.findData(value))
+        def available():
+            return tuple(layer.itemData(i) for i in range(layer.count()) if not layer.view().isRowHidden(i))
+        self.assertEqual(available(), allowed_slots(Anchor.GOWN_COLLAR))
+        d.controls[prefix+'offset_x'].setValue(5)
+        choose(layer, Slot.AFTER_CAPE)
+        choose(anchor, Anchor.BODY_COLLAR)
+        self.assertEqual(layer.currentData(), Slot.AFTER_CAPE)
+        choose(anchor, Anchor.HEAD_CROWN)
+        self.assertEqual(available(), allowed_slots(Anchor.HEAD_CROWN))
+        self.assertEqual(layer.currentData(), Slot.FRONT_HEAD)
+        self.assertEqual(d.controls[prefix+'offset_x'].value(), 5)
+        choose(layer, Slot.BEHIND_HEAD)
+        self.assertTrue(d.preset_workflow.flush())
+        saved = self.store.load().oracle.outfit_settings.maid.apron
+        self.assertEqual((saved.anchor, saved.layer), (Anchor.HEAD_CROWN, Slot.BEHIND_HEAD))
+        initial = d.profile_presets.loaded
+        exported = AppearanceLibrary(self.root/'export').export(d.profile_draft(), 'Moved apron')
+        applied = apply_appearance(self.config, exported, self.root/'images')
+        self.assertEqual(applied.oracle.outfit_settings.maid.apron, saved)
+        other = ProfileLibrary().export(self.config, 'Other')
+        d.preset_workflow.activate('profile', other)
+        self.assertEqual((anchor.currentData(), layer.currentData()),
+                         (Anchor.GOWN_COLLAR, Slot.BEFORE_SLEEVES))
+        d.preset_workflow.activate('profile', initial)
+        self.assertEqual((anchor.currentData(), layer.currentData()),
+                         (Anchor.HEAD_CROWN, Slot.BEHIND_HEAD))
+        # 单独恢复层级不会产生跨部位非法配置；恢复锚点后可再恢复原层级
+        d.preset_workflow.reset_parameter(prefix+'layer')
+        self.assertIn(layer.currentData(), allowed_slots(anchor.currentData()))
+        d.preset_workflow.reset_parameter(prefix+'anchor')
+        d.preset_workflow.reset_parameter(prefix+'layer')
+        self.assertEqual((anchor.currentData(), layer.currentData()),
+                         (Anchor.GOWN_COLLAR, Slot.BEFORE_SLEEVES))
+        language_manager().set_language('en')
+        self.assertEqual(anchor.currentText(), 'Gown collar')
+        self.assertEqual(layer.itemText(layer.findData(Slot.AFTER_CAPE)), 'Above cape, below necklace')
 
     def test_offsets_are_logical_pixels_and_mirrored_after_adjusting(self):
         settings = change_part(OutfitSettings(), 'lace', offset_x=-3.5, offset_y=2.5)

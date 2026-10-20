@@ -76,7 +76,13 @@ def import_face_png(source, directory, decal):
     return replace(decal, enabled=True, image_path=str(target.resolve()), image_name=source.name)
 
 
+def decal_image(decal):
+    # 保持既有 32px 调用的缓存键一致，避免默认参数和显式参数各读一次文件
+    limit = image_size_limit(decal)
+    return face_image(decal.image_path) if limit == FACE_IMAGE_MAX_SIZE else face_image(decal.image_path, limit)
+
+
 def decal_key(decal):
     if not decal.enabled or not decal.image_path:
         return None
-    return decal, face_image(decal.image_path).cacheKey()
+    return decal, decal_image(decal).cacheKey()

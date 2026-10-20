@@ -6,7 +6,6 @@ from ..motion.navigation import approach
 
 
 class OraclePose:
-    MOVE_LEAN = 20.
     LOOK_LEAN = 16.
     MAX_SPEED = .6  # 度 / tick；40 Hz 下最多 24 度 / 秒。
     ACCELERATION = .06
@@ -54,7 +53,8 @@ class OraclePose:
             if behavior.state in (Activity.ROAM, Activity.CROSS_EDGE, Activity.APPROACH, Activity.ORBIT):
                 velocity = scene.navigator.velocity if scene.navigator else scene.body.chunks[0].velocity
                 if velocity.length() > .02:
-                    target = max(-1., min(1., velocity.x/scene.config.float_speed))*self.MOVE_LEAN
+                    target = (max(-1., min(1., velocity.x/scene.config.float_speed))
+                              *scene.config.daily_activity.move_lean_degrees)
             if behavior.state in (Activity.NOTICE, Activity.APPROACH, Activity.RECALL, Activity.ORBIT, Activity.OBSERVE):
                 gaze = scene.observed_pearl.position-scene.body.chunks[0].position
                 lean = gaze.x/max(1., gaze.length())*self.LOOK_LEAN

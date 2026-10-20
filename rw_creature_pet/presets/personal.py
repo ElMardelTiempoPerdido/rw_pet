@@ -118,7 +118,7 @@ class PersonalEntry:
             raise ValueError('无效的个人调整类型')
         source = read_link(data.get('source'))
         defaults, overrides = data['defaults'], data.get('overrides', {})
-        allowed = ALL_PATHS if kind == 'profile' else paths_for(FieldScope.APPEARANCE)
+        allowed = set(ALL_PATHS if kind == 'profile' else paths_for(FieldScope.APPEARANCE))
         if any(key not in allowed for key in (*defaults, *overrides)):
             raise ValueError('个人调整包含不属于外观或角色设置的字段')
         config = AppConfig(ui=UiConfig('en'))
@@ -129,7 +129,8 @@ class PersonalEntry:
             datetime.fromisoformat(item['time'])
             read_link(item.get('source'))
             values = item['values']
-            if any(path not in appearance_paths(values['oracle.body_appearance']) for path in values):
+            allowed_history = set(appearance_paths(values['oracle.body_appearance']))
+            if any(path not in allowed_history for path in values):
                 raise ValueError('外观历史中包含非外观字段')
             item['values'] = complete_snapshot(values, 'appearance', config)
         return cls(kind, source, deepcopy(defaults), deepcopy(overrides), history,

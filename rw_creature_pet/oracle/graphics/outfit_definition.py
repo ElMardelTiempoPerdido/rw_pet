@@ -2,21 +2,7 @@
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from functools import lru_cache
-from math import hypot
-
-
-class Anchor(StrEnum):
-    HEAD_CROWN = 'head_crown'
-    BODY_COLLAR = 'body_collar'
-    GOWN_COLLAR = 'gown_collar'
-
-
-class Slot(StrEnum):
-    BEHIND_HEAD = 'behind_head'
-    FRONT_HEAD = 'front_head'
-    BEFORE_SLEEVES = 'before_sleeves'
-    AFTER_SLEEVES = 'after_sleeves'
-    FRONT = 'front'
+from ..outfit_layout import Anchor, MAID_PLACEMENTS, Slot, allowed_slots
 
 
 class Clip(StrEnum):
@@ -56,9 +42,9 @@ class OutfitComponent:
         if any(d <= 0 for d in densities) or len(set(densities)) != len(densities):
             raise ValueError('Outfit image densities must be positive and unique')
         head_slot = self.slot in (Slot.BEHIND_HEAD, Slot.FRONT_HEAD)
-        if head_slot != (self.anchor == Anchor.HEAD_CROWN):
+        if self.slot not in allowed_slots(self.anchor):
             raise ValueError('Head components must use a head slot and the head anchor')
-        if self.clip != Clip.NONE and self.slot not in (Slot.BEFORE_SLEEVES, Slot.AFTER_SLEEVES):
+        if self.clip != Clip.NONE and head_slot:
             raise ValueError('Clothing clips require a body slot')
         if head_slot and self.sampling != Sampling.LOCAL:
             raise ValueError('Head components are rasterized with the head')
@@ -67,6 +53,10 @@ class OutfitComponent:
 
     def variant(self, density):
         return min(self.variants, key=lambda value: abs(value.density-density))
+
+    @property
+    def region(self):
+        return Anchor(self.anchor).region
 
 
 @dataclass(frozen=True)
@@ -94,21 +84,21 @@ def _maid_variants(part, offsets):
                  for density, offset in zip((1., 1.5, 2.), offsets))
 
 
+def _maid_component(part, offsets, **values):
+    anchor, slot = MAID_PLACEMENTS[part]
+    return OutfitComponent(part, anchor, slot, _maid_variants(part, offsets), **values)
+
+
 NORMAL = OutfitDefinition('normal')
 MAID = OutfitDefinition('maid', (
-    OutfitComponent('head', Anchor.HEAD_CROWN, Slot.BEHIND_HEAD,
-                    _maid_variants('head', ((0., -3.), (0., -4.), (0., -5.)))),
-    OutfitComponent('lace', Anchor.BODY_COLLAR, Slot.AFTER_SLEEVES,
-                    _maid_variants('lace', ((-1., 0.), (-2., 1.), (-2., 1.))),
+    _maid_component('head', ((0., -3.), (0., -4.), (0., -5.))),
+    _maid_component('lace', ((-1., 0.), (-2., 1.), (-2., 1.)),
                     image_origin=(1., 0.), mirror=True),
-    OutfitComponent('apron', Anchor.GOWN_COLLAR, Slot.BEFORE_SLEEVES,
-                    _maid_variants('apron', ((0., 1.), (0., 3.), (0., 4.))),
+    _maid_component('apron', ((0., 1.), (0., 3.), (0., 4.)),
                     clip=Clip.CLOTHING, sampling=Sampling.ALIGNED),
-    OutfitComponent('ribbon_up', Anchor.HEAD_CROWN, Slot.FRONT_HEAD,
-                    _maid_variants('ribbon_up', ((0., -1.), (1., -2.), (2., -2.))),
+    _maid_component('ribbon_up', ((0., -1.), (1., -2.), (2., -2.)),
                     image_origin=(0., 0.)),
-    OutfitComponent('ribbon_down', Anchor.GOWN_COLLAR, Slot.FRONT,
-                    _maid_variants('ribbon_down', ((0., 7.), (0., 12.), (0., 14.))),
+    _maid_component('ribbon_down', ((0., 7.), (0., 12.), (0., 14.)),
                     sampling=Sampling.ALIGNED),
 ), collar_under_sleeves=True, palms_over_decorations=False)
 
@@ -129,12 +119,11 @@ def adjusted_definition(definition, adjustments):
         if values is None:
             parts.append(part)
         elif values.enabled:
-            parts.append(replace(part, mirror=values.mirror, offset=(values.offset_x, values.offset_y),
+            head = values.anchor.region == 'head'
+            sampling = (Sampling.LOCAL if head else Sampling.ALIGNED
+                        if values.layer == Slot.FRONT else part.sampling)
+            parts.append(replace(part, anchor=values.anchor, slot=values.layer,
+                                 clip=Clip.NONE if head else part.clip, sampling=sampling,
+                                 mirror=values.mirror, offset=(values.offset_x, values.offset_y),
                                  color_adjustment=(values.hue, values.saturation, values.brightness)))
     return replace(definition, components=tuple(parts))
-
-
-def outfit_padding(config):
-    """在原有附件余量上增加位移半径，包含旋转和镜像后的外形"""
-    definition = outfit_definition(config.outfit, config.outfit_settings)
-    return max((hypot(*part.offset) for part in definition.components), default=0.)

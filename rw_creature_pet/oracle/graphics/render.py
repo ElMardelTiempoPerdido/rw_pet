@@ -24,6 +24,8 @@ from .upper_body import BELL_UPPER_BODY, upper_body_shape
 from .outfit_definition import Slot, outfit_definition
 from .outfit_render import OutfitRenderer
 from .soft_parts import SoftPartsRenderer
+from .cape import draw_cape
+from .clothing_decals import clothing_key, draw_clothing_decals
 from .outfits import head_outfit_radius, outfit_raster_key
 
 
@@ -182,6 +184,7 @@ class OracleRenderer(OutfitRenderer):
         self._frame_key = None
         self._frame = None
         self._body_key = None
+        self._cape_key = None
         self._body_pose = ()
         self._arc_key = None
         self._body_origin = Vec2()
@@ -513,11 +516,13 @@ class OracleRenderer(OutfitRenderer):
             cuts.closeSubpath()
         return outline.subtracted(cuts)
 
-    def draw_sleeve(self, painter, edges, shape=None):
+    def draw_sleeve(self, painter, edges, shape=None, *, scene=None, index=0):
         painter.save()
         painter.setClipPath(self.sleeve_path(edges, shape), Qt.ClipOperation.IntersectClip)
         c = self.colors
         self.transverse_strip(painter, edges, mixed(c.robe_top, c.robe_bottom, .4**2), c.robe_top)
+        if scene is not None:
+            draw_clothing_decals(self, painter, scene, 'left_sleeve' if index == 0 else 'right_sleeve', edges)
         painter.restore()
 
     def draw_hand(self, painter, end):
@@ -530,6 +535,8 @@ class OracleRenderer(OutfitRenderer):
         self.sprite(painter, 'haloGlyph-1', end, width, height, self.colors.skin)
 
     def draw_limbs(self, painter, scene, alpha, upper, lower, direction, hands):
+        if hands and not scene.config.character.has_hands:
+            return
         c = self.colors
         side = perpendicular(direction)
         points = scene.appearance.hands if hands else scene.appearance.feet
@@ -540,7 +547,8 @@ class OracleRenderer(OutfitRenderer):
                 # 对应 Gown.Color(0.4) / Color(0)，从现有衣袍配色取色。
                 # 原版顺序是先手掌再袖子，袖口自然覆盖靠手腕的一部分。
                 shape = scene.config.active_custom_appearance
-                self.draw_sleeve(painter, self.body_sleeve_edges(scene, alpha, upper, direction, index), shape)
+                self.draw_sleeve(painter, self.body_sleeve_edges(scene, alpha, upper, direction, index), shape,
+                                 scene=scene, index=index)
             else:
                 knee = lower.lerp(end, .5)+side*(4*sign)
                 self.ribbon(painter, lower, lower.lerp(knee, .9), end.lerp(knee, .9),
@@ -709,17 +717,10 @@ class OracleRenderer(OutfitRenderer):
         origin = top+axis*(collar.x*axis.x+collar.y*axis.y)
         return origin, axis
 
-    def draw_gown(self, painter, scene, alpha):
-        c, n = self.colors, scene.appearance.CLOTH_DIVS
-        color_key = (c.robe_top, c.robe_bottom, n)
-        if color_key != self._gown_colors_key:
-            self._gown_colors = tuple(mixed(c.robe_top, c.robe_bottom, (y/(n-1))**2) for y in range(n))
-            self._gown_colors_key = color_key
+    def gown_geometry(self, scene, alpha):
+        """衣料和前景附件共用的当前衣袍轮廓，不产生绘制指令"""
+        n = scene.appearance.CLOTH_DIVS
         cloth = [p.sample(alpha) for p in scene.appearance.cloth]
-        vertices = [point(p) for p in cloth]
-        painter.save()
-        # 外轮廓单独抗锯齿。内部三角形关闭边缘抗锯齿，避免重复混合透出
-        # 背景，造成静止时也能看到整片三角形接缝的伪“网格纹理”。
         outline = (cloth[:n] + [cloth[y*n+n-1] for y in range(1, n)]
                    + list(reversed(cloth[(n-1)*n:(n-1)*n+n-1])))
         outline += [cloth[y*n] for y in range(n-2, 0, -1)]
@@ -727,17 +728,35 @@ class OracleRenderer(OutfitRenderer):
         outer.addPolygon(QPolygonF([point(p) for p in outline]))
         outer.closeSubpath()
         shape = scene.config.active_custom_appearance
-        if shape is None:
+        if scene.config.body_appearance == 'prince':
+            opening, trim = QPainterPath(), QPainterPath()
+        elif shape is None:
             opening = self.neck_opening(cloth, n, self.GOWN_NECK_HALF, self.GOWN_NECK_DEPTH)
             trim = self.neck_opening(cloth, n, self.GOWN_TRIM_HALF, self.GOWN_TRIM_DEPTH,
                                      clip_to_gown=False).subtracted(opening)
         else:
             opening, trim = neckline_paths(cloth, scene.appearance._cloth_local, n, shape)
+        return cloth, outline, opening, trim, outer
+
+    def draw_gown(self, painter, scene, alpha, *, hem_color=None):
+        c, n = self.colors, scene.appearance.CLOTH_DIVS
+        color_key = (c.robe_top, c.robe_bottom, n, hem_color)
+        if color_key != self._gown_colors_key:
+            self._gown_colors = tuple(mixed(c.robe_top, c.robe_bottom, (y/(n-1))**2) for y in range(n))
+            if hem_color is not None:
+                weights = [max(0., (y/(n-1)-.5)*2) for y in range(n)]
+                self._gown_colors = tuple(mixed(color, hem_color, t*t*(3-2*t))
+                                          for color, t in zip(self._gown_colors, weights))
+            self._gown_colors_key = color_key
+        cloth, outline, opening, trim, outer = self.gown_geometry(scene, alpha)
+        vertices = [point(p) for p in cloth]
+        painter.save()
+        # 外轮廓单独抗锯齿，内部网格关闭边缘抗锯齿，避免三角形接缝
         # 同时裁掉轮廓底色和内部网格，内搭才会从真实开口露出。
         painter.setClipPath(outer.subtracted(opening), Qt.ClipOperation.IntersectClip)
         gradient = QLinearGradient(point(cloth[n//2]), point(cloth[-n+n//2]))
         gradient.setColorAt(0, QColor(c.robe_top))
-        gradient.setColorAt(1, QColor(c.robe_bottom))
+        gradient.setColorAt(1, self._gown_colors[-1])
         painter.setBrush(gradient)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPolygon(QPolygonF([point(p) for p in outline]))
@@ -755,6 +774,7 @@ class OracleRenderer(OutfitRenderer):
                 i, j = y*n+x, (y+1)*n+x
                 painter.drawPolygon(QPolygonF([vertices[i], vertices[i+1], vertices[j+1]]))
                 painter.drawPolygon(QPolygonF([vertices[i], vertices[j+1], vertices[j]]))
+        draw_clothing_decals(self, painter, scene, 'robe', cloth)
         painter.restore()
         return opening, trim, outer
 
@@ -819,8 +839,9 @@ class OracleRenderer(OutfitRenderer):
         painter.restore()
 
     def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False,
-                  raster_scale=1., outfit='normal', near_phone=None, shape=None, outfit_settings=None):
-        head_direction = unit(head-upper, direction)
+                  raster_scale=1., outfit='normal', near_phone=None, shape=None, outfit_settings=None,
+                  body_appearance=None, head_direction=None):
+        head_direction = unit(head-upper, direction) if head_direction is None else head_direction
         side_axis = perpendicular(head_direction)
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
         gy = max(-1., min(1., look.x*head_direction.x+look.y*head_direction.y))
@@ -830,7 +851,7 @@ class OracleRenderer(OutfitRenderer):
         gx, gy, angle = round(gx, 6), round(gy, 6), stable_pixel_angle(angle)
         openness = max(0., min(1., openness))
         density = pixel_density('adaptive', raster_scale)
-        style = style_for(shape)
+        style = style_for(shape, body_appearance)
         phone_widths, phone_cosmetic, mark_pixels = style.head_options(self, density)
         # 场景传入固定步更新后的滞回状态；独立静态预览按当前视线决定层级。
         near_phone = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
@@ -934,6 +955,9 @@ class OracleRenderer(OutfitRenderer):
             foreshortening = max(0., min(1., (sign*gx-.5)*2))
             width = self.OPEN_EYE_WIDTH-foreshortening
             opened = settings.openness(openness) if settings is not None else openness
+            if settings is not None and settings.height_mode == 'lower':
+                # 头部局部坐标下移；随睁眼动画回到原位，完全睁眼时保持原有位置
+                eye += Vec2(0, 1-opened)
             height = 1+(self.OPEN_EYE_HEIGHT-1)*opened
             painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
 
@@ -1001,9 +1025,9 @@ class OracleRenderer(OutfitRenderer):
         eye_alpha = pearl_alpha = soft_alpha = alpha
         if app.sleeping:
             alpha = 1.
-        outfit_scale = outfit_raster_key(outfit_definition(scene.config.outfit, scene.config.outfit_settings), density)
-        key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale,
-               scene.config.active_custom_appearance)
+        outfit_scale = outfit_raster_key(outfit_definition(scene.config.active_outfit, scene.config.outfit_settings), density)
+        key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale, scene.config.body_appearance,
+               scene.config.active_custom_appearance, clothing_key(scene.config.active_custom_appearance))
         if key != self._frame_key:
             commands = PaintCommands()
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
@@ -1346,12 +1370,15 @@ class OracleRenderer(OutfitRenderer):
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
                        scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
                        raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
-                       outfit=scene.config.outfit, near_phone=app.near_phone,
-                       shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings)
+                       outfit=scene.config.active_outfit, near_phone=app.near_phone,
+                       shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings,
+                       body_appearance=scene.config.body_appearance,
+                       head_direction=(scene.prince_posture.frame(upper, direction, alpha).head_direction
+                                       if scene.prince_posture is not None else None))
 
     def draw_geometry(self, painter, scene, alpha=1., *, cords=True, cache_body=False, pearl=True,
                       include_head=True, halo=True, arm=True, raster_scale=None, include_front_outfit=True):
-        style = style_for(scene.config.active_custom_appearance)
+        style = style_for(scene.config.active_custom_appearance, scene.config.body_appearance)
         if halo:
             self.draw_halo(painter, scene, alpha)
         if pearl:
@@ -1368,18 +1395,28 @@ class OracleRenderer(OutfitRenderer):
         if cords and not scene.config.hide_cords and app.cords is not None:
             self.draw_cords(painter, scene, alpha)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
-        definition = outfit_definition(scene.config.outfit, scene.config.outfit_settings)
+        definition = outfit_definition(scene.config.active_outfit, scene.config.outfit_settings)
         outfit_density = painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
+        shape = scene.config.active_custom_appearance
+        palms_in_front = definition.palms_over_decorations and not (shape and shape.cape.enabled)
+        # Prince 下摆独立于上身几何缓存，尾端仍回摆时不会冻结，也不重建上身网格
+        style.draw_body_back(self, painter, scene, alpha)
         if cache_body:
             # 匀速平移时不重建衣袍/袖子网格。只容忍 0.001 的亚像素变化；
             # 参考姿态不跟随容差更新，累计形变仍使缓存失效。
             pose = [direction.x, direction.y, waist_direction.x, waist_direction.y, look.x, look.y]
+            if scene.prince_posture is not None:
+                frame = scene.prince_posture.frame(upper, direction, alpha)
+                pose.extend((frame.facing, frame.head_facing))
+                pose.extend(value for p in frame.points for value in (p.x-upper.x, p.y-upper.y))
             for p in (app.head, *app.hands, *app.feet, *app.cloth):
                 v = p.sample(alpha)
                 pose.extend((v.x-upper.x, v.y-upper.y))
-            key = (app, self.colors, self.atlas, scene.config.active_custom_appearance)
+            key = (app, self.colors, self.atlas, scene.config.body_appearance, scene.config.active_custom_appearance,
+                   clothing_key(scene.config.active_custom_appearance))
+            tolerance = 1e-9 if scene.prince_posture is not None else .001
             if (key != self._body_key or len(pose) != len(self._body_pose)
-                    or any(abs(a-b) > .001 for a, b in zip(pose, self._body_pose))):
+                    or any(abs(a-b) > tolerance for a, b in zip(pose, self._body_pose))):
                 self._body_frame = PaintCommands()
                 self._sleeve_frame, self._collar_frame = PaintCommands(), PaintCommands()
                 self._body_garment_paths = style.draw_body(
@@ -1389,6 +1426,16 @@ class OracleRenderer(OutfitRenderer):
                 self.draw_body_front(self._body_front_frame, scene, alpha, upper, lower, direction, head, look,
                                      include_head=False)
                 self._body_key, self._body_pose, self._body_origin = key, pose, upper
+            # 斗篷回摆独立刷新，不因下摆尚未停稳而重建衣袍和袖子网格
+            cape_key = (self._body_frame, app.cape_motion.sample(alpha) if app.cape_motion is not None else None)
+            if cape_key != self._cape_key:
+                self._cape_frame = PaintCommands()
+                self._cape_frame.save()
+                origin = self._body_origin-upper
+                self._cape_frame.translate(origin.x, origin.y)
+                draw_cape(self, self._cape_frame, scene, alpha, upper, direction)
+                self._cape_frame.restore()
+                self._cape_key = cape_key
             offset = upper-self._body_origin
             painter.save()
             painter.translate(offset.x, offset.y)
@@ -1404,9 +1451,13 @@ class OracleRenderer(OutfitRenderer):
             self.draw_body_outfit(painter, scene, alpha, upper, lower, direction, head,
                                   *self._body_garment_paths, outfit_density, Slot.AFTER_SLEEVES,
                                   offset=offset, cache_key=self._body_frame)
+            self._cape_frame.replay(painter)
+            self.draw_body_outfit(painter, scene, alpha, upper, lower, direction, head,
+                                  *self._body_garment_paths, outfit_density, Slot.AFTER_CAPE,
+                                  offset=offset, cache_key=self._body_frame)
             painter.restore()
             style.draw_body_decorations(self, painter, scene, alpha)
-            if definition.palms_over_decorations:
+            if palms_in_front:
                 painter.save()
                 painter.translate(offset.x, offset.y)
                 self._body_front_frame.replay(painter)
@@ -1424,14 +1475,20 @@ class OracleRenderer(OutfitRenderer):
                 collar.replay(painter)
             self.draw_body_outfit(painter, scene, alpha, upper, lower, direction, head,
                                   *paths, outfit_density, Slot.AFTER_SLEEVES)
+            draw_cape(self, painter, scene, alpha, upper, direction)
+            self.draw_body_outfit(painter, scene, alpha, upper, lower, direction, head,
+                                  *paths, outfit_density, Slot.AFTER_CAPE)
             style.draw_body_decorations(self, painter, scene, alpha)
-            if definition.palms_over_decorations:
+            if palms_in_front:
                 self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
                            raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
-                           outfit=scene.config.outfit, near_phone=app.near_phone,
-                           shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings)
+                           outfit=scene.config.active_outfit, near_phone=app.near_phone,
+                           shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings,
+                            body_appearance=scene.config.body_appearance,
+                            head_direction=(scene.prince_posture.frame(upper, direction, alpha).head_direction
+                                            if scene.prince_posture is not None else None))
         if include_front_outfit:
             self.draw_front_outfit(painter, scene, alpha, raster_scale=raster_scale)
 
@@ -1478,9 +1535,9 @@ class OracleRenderer(OutfitRenderer):
             painter.restore()
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
-                           raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.outfit,
+                           raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.active_outfit,
                            near_phone=scene.appearance.near_phone, shape=scene.config.active_custom_appearance,
-                           outfit_settings=scene.config.outfit_settings)
+                           outfit_settings=scene.config.outfit_settings, body_appearance=scene.config.body_appearance)
 
     def draw_skeleton(self, painter, scene, alpha):
         pen = QPen(QColor('#8befcc'), 1, Qt.PenStyle.DashLine)

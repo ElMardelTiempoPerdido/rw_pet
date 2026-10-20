@@ -4,6 +4,8 @@ from math import cos, pi, sin
 from random import Random
 
 from ...shared.geometry import Vec2
+from ..behavior_config import DailyActivityConfig
+from ..drift_config import DriftConfig
 from ..effects.projection_placement import ProjectionArmObstacles
 
 
@@ -23,18 +25,7 @@ class Activity(str, Enum):
 
 
 class OracleBehavior:
-    IDLE_TICKS = (120, 240)
-    LONG_IDLE_TICKS = (300, 720)
-    CROSS_EDGE_COOLDOWN = 2400  # 到达邻边后至少 60 秒，防止连续绕行。
-    DRIFT_COOLDOWN = 4800  # 退出漫游后至少 120 秒才允许再次自主触发。
     DRIFT_OBSERVE_TICKS = (800, 1600)  # 失重期间，每轮观察结束后再等 20～40 秒。
-    DRIFT_CROSS_CHECK_TICKS = 800  # 只在选下一段路线时抽取，至少间隔 20 秒。
-    DRIFT_ENTRY_TICKS = (100, 200)  # 初次失重后等待 2.5～5 秒。
-    DRIFT_RESUME_TICKS = (20, 120)  # 观察/跨边之后等待 0.5～3 秒。
-    # 短暂犹豫、普通停留、偶尔长歇；长歇后下一次从前两档选择。
-    DRIFT_PAUSE_BANDS = ((14, 48), (72, 220), (280, 560))
-    DRIFT_PAUSE_WEIGHTS = (.50, .35, .15)
-    DRIFT_BOUT_BANDS = ((160, 400), (480, 960))  # 一轮连续漂浮约 4～10 / 12～24 秒。
     NOTICE_TICKS = (36, 60)
     OBSERVE_TICKS = (1600, 2400)  # 到位后保持阅读 40～60 秒，40 Hz。
     PLAYBACK_TICKS = (3600, 4800)  # 触发播放时，以 90～120 秒替代普通阅读时长。
@@ -42,12 +33,29 @@ class OracleBehavior:
     OBSERVE_DISTANCE = 50.
     RECALL_DISTANCE = 38.
     RECALL_RETRIES = 2  # 到位时机械臂仍遮挡则有限次换位，避免反复左右重选。
-    ROAM_DISTANCE = (60., 160.)
     MAX_LOCAL_APPROACH = 200.
-    MEDITATE_SHARE = .12  # 排除跨边、反重力分支后，从停留份额中分配。
-    MEDITATE_TICKS = (1200, 2400)  # 身体和视线停稳后，闭眼停留 30～60 秒。
 
-    def __init__(self, seed=620):
+    def __init__(self, seed=620, *, daily_activity=DailyActivityConfig(), drift=DriftConfig(), tick_rate=40):
+        # 每个实例独立换算，切换角色不能改变其他场景的活动节奏
+        def ticks(minimum, maximum):
+            return round(minimum*tick_rate), round(maximum*tick_rate)
+        self.IDLE_TICKS = ticks(daily_activity.idle_min_seconds, daily_activity.idle_max_seconds)
+        self.LONG_IDLE_TICKS = ticks(daily_activity.long_idle_min_seconds, daily_activity.long_idle_max_seconds)
+        self.MEDITATE_TICKS = ticks(daily_activity.meditate_min_seconds, daily_activity.meditate_max_seconds)
+        self.ROAM_DISTANCE = (daily_activity.move_min_distance, daily_activity.move_max_distance)
+        self.CROSS_EDGE_COOLDOWN = round(daily_activity.cross_edge_cooldown_seconds*tick_rate)
+        self.DRIFT_CROSS_CHECK_TICKS = round(daily_activity.cross_edge_check_seconds*tick_rate)
+        self.drift_config = drift
+        self.DRIFT_COOLDOWN = round(drift.cooldown_seconds*tick_rate)
+        self.DRIFT_ENTRY_TICKS = ticks(drift.entry_min_seconds, drift.entry_max_seconds)
+        self.DRIFT_RESUME_TICKS = ticks(drift.resume_min_seconds, drift.resume_max_seconds)
+        self.DRIFT_PAUSE_BANDS = tuple(ticks(getattr(drift, name+'_min_seconds'), getattr(drift, name+'_max_seconds'))
+                                     for name in ('short_pause', 'normal_pause', 'long_pause'))
+        self.DRIFT_PAUSE_WEIGHTS = tuple(getattr(drift, name+'_weight')/100
+                                        for name in ('short_pause', 'normal_pause', 'long_pause'))
+        self.DRIFT_BOUT_BANDS = (ticks(drift.bout_min_seconds, drift.bout_max_seconds),
+                                ticks(drift.long_bout_min_seconds, drift.long_bout_max_seconds))
+        self.DRIFT_DISTANCE = (drift.move_min_distance, drift.move_max_distance)
         self.random = Random(seed)
         self.pace_random = Random(seed+1)  # 调整速度不消耗活动选择的随机流。
         self.detail_random = Random(seed+2)
@@ -82,6 +90,7 @@ class OracleBehavior:
         self.drift_join_checked = False
         self.drift_pause_ticks = 0
         self.drift_last_pause = 0
+        self.drift_last_pause_band = None
         self.drift_bout_until = 0
         self.orbit_sign = 1
         self.meditation_ticks = 0
@@ -244,11 +253,15 @@ class OracleBehavior:
         if value < drift:
             return Activity.DRIFT if self.movement_enabled and self.drift_cooldown == 0 else Activity.IDLE
         value = (value-drift)/max(1e-9, 1-drift)
-        if value < self.MEDITATE_SHARE:
+        daily = scene.config.daily_activity
+        ordinary = 1-scene.config.reading.start_probability
+        total = daily.idle_weight+daily.move_weight+daily.meditate_weight
+        # 沿用一次抽样和原有区间顺序，默认值仍对应 12% / 28% / 35% / 25%
+        if value < ordinary*daily.meditate_weight/total:
             return Activity.MEDITATE
-        if value < .40:
+        if value < ordinary*(daily.meditate_weight+daily.idle_weight)/total:
             return Activity.IDLE
-        if value < .75:
+        if value < ordinary:
             return Activity.ROAM if self.movement_enabled else Activity.IDLE
         return Activity.NOTICE
 
@@ -330,7 +343,8 @@ class OracleBehavior:
     def travel_speed(self, scene, activity, distance=0.):
         """每段行动只选一次节奏；导航负责平滑加减速、过角和支撑限速。"""
         if activity == Activity.DRIFT:
-            return scene.config.drift_speed*self.pace_random.uniform(.8, 1.2)
+            return scene.config.drift_speed*self.pace_random.uniform(
+                self.drift_config.speed_min_factor, self.drift_config.speed_max_factor)
         if activity == Activity.ORBIT:
             return scene.config.float_speed*.53*self.pace_random.uniform(.9, 1.1)
         if activity == Activity.APPROACH:
@@ -356,10 +370,12 @@ class OracleBehavior:
         self.drift_join_checked = False
         self.drift_pause_ticks = 0
         self.drift_last_pause = 0
+        self.drift_last_pause_band = None
         self.drift_bout_until = 0
         self.drift_cooldown = self.DRIFT_COOLDOWN
         ticks = scene.config.antigravity_duration_seconds*scene.TICK_RATE
-        self.drift_duration = self.random.randint(round(ticks*.9), round(ticks*1.1))
+        variation = self.drift_config.duration_variation
+        self.drift_duration = self.random.randint(round(ticks*(1-variation)), round(ticks*(1+variation)))
         self.drift_next_observation = self.random.randint(480, 960)
         self.enter(Activity.DRIFT)
 
@@ -407,9 +423,10 @@ class OracleBehavior:
 
     def sample_drift_pause(self):
         weights = list(self.DRIFT_PAUSE_WEIGHTS)
-        if self.drift_last_pause >= self.DRIFT_PAUSE_BANDS[-1][0]:
-            weights[-1] = 0.  # 避免连续两次长歇，让偶尔停久一些更明显。
-        band = self.timing_random.choices(self.DRIFT_PAUSE_BANDS, weights)[0]
+        if self.drift_last_pause_band == 2 and sum(weights[:2]) > 0:
+            weights[-1] = 0.  # 按抽中的档位判断，允许用户设置重叠范围或只启用长歇
+        self.drift_last_pause_band = self.timing_random.choices(range(3), weights)[0]
+        band = self.DRIFT_PAUSE_BANDS[self.drift_last_pause_band]
         self.drift_last_pause = self.timing_random.randint(*band)
         return self.drift_last_pause
 
@@ -424,7 +441,8 @@ class OracleBehavior:
             scene, Activity.APPROACH if observing else Activity.DRIFT))
         self.drift_join_checked = False
         if not observing:
-            band = self.timing_random.choices(self.DRIFT_BOUT_BANDS, (.65, .35))[0]
+            long_probability = self.drift_config.long_bout_probability
+            band = self.timing_random.choices(self.DRIFT_BOUT_BANDS, (1-long_probability, long_probability))[0]
             self.drift_bout_until = self.drift_ticks+self.timing_random.randint(*band)
             # 固定底座无法接续曲线，也应在每段到达后有一次随机停留。
             if not scene.navigator:
@@ -439,7 +457,7 @@ class OracleBehavior:
         sign = 1 if component >= 0 else -1
         for attempt in range(16):
             direction = sign if forward is not None or attempt < 8 else -sign
-            distance = self.random.uniform(60., 100.)
+            distance = self.random.uniform(*self.DRIFT_DISTANCE)
             depth = self.random.uniform(.25, .75)
             candidate = (Vec2(box.left+(box.right-box.left)*depth, start.y+direction*distance) if vertical else
                          Vec2(start.x+direction*distance, box.top+(box.bottom-box.top)*depth))

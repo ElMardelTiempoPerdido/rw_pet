@@ -15,6 +15,8 @@ class OracleDrag:
         self.scene = scene
         self.enabled = enabled
         self.controller = DragController()
+        self.prince_target = None
+        self.prince_reference_direction = None
         self.recovering = False
         self.resume_autonomy = False
         self.home = None
@@ -44,10 +46,15 @@ class OracleDrag:
         def pick(p):
             if not hit_test(p):
                 return None
+            if s.prince_posture is not None:
+                points = s.prince_posture.frame(s.appearance.upper, s.appearance.direction).points
+                index = min(range(len(points)), key=lambda i: (points[i]-p).length())
+                return DragHandle(('prince', index), points[index])
             index = min(range(len(s.body.chunks)), key=lambda i: (s.body.chunks[i].position-p).length())
             return DragHandle(index, s.body.chunks[index].position)
         if not self.controller.press(point, pick):
             return False
+        self.prince_reference_direction = s.body.direction if s.prince_posture is not None else None
         if not self.recovering:
             self.resume_autonomy = s.behavior.enabled
         # end_drift 可能完成跨边收尾，必须在自由模式启用前取消旧导航。
@@ -56,6 +63,7 @@ class OracleDrag:
         s.behavior.release_observation()
         self.recovering = False
         s.arm.corridor = self.free_arm
+        self.prince_target = self.controller.target
         s.drag_reactions.begin(s)
         return True
 
@@ -70,6 +78,8 @@ class OracleDrag:
     def release(self, *, cancel=False):
         if not self.controller.release():
             return
+        self.prince_target = None
+        self.prince_reference_direction = None
         s = self.scene
         self.recovering = True
         s.pose.recover_upright(s)
@@ -87,6 +97,12 @@ class OracleDrag:
             point = center+limited(point-center, self.reach)
         return point
 
+    def prince_grab(self):
+        if (self.active and isinstance(self.controller.handle.key, tuple)
+                and self.controller.handle.key[0] == 'prince'):
+            return self.controller.handle.key[1], self.prince_target
+        return None
+
     def step_body(self):
         s = self.scene
         upper, lower = s.body.chunks
@@ -94,29 +110,44 @@ class OracleDrag:
         for c in s.body.chunks:
             c.previous_position = c.position
         s.eyes.step()
-        selected = self.controller.handle.key if self.active else 0
+        prince = self.prince_grab()
+        selected = self.controller.handle.key if self.active and prince is None else 0
         requested = self.controller.target if self.active else self.home
+        if prince is not None:
+            # 仅导航换算沿用按下时的方向；实际身体仍自由转动、弯曲
+            # 否则下摆的长力臂会把转角反馈给支点位置，静止抓取也会持续摆动
+            ideal = s.prince_posture.goals(upper.position, self.prince_reference_direction)[prince[0]]
+            requested += upper.position-ideal
         desired_upper = requested+(upper.position-s.body.chunks[selected].position)
         if s.navigator:
             # 共用底座的圆角、加速度与换向滞回；它不会瞬移到鼠标所在边。
             s.navigator.base.step(desired_upper, upper.position-direction*s.arm.lengths[3], self.reach+4)
         safe_upper = self.project_upper(desired_upper, direction)
+        if prince is not None:
+            self.prince_target = self.controller.target+safe_upper-desired_upper
         target = safe_upper+(s.body.chunks[selected].position-upper.position)
         if self.active:
             for i, c in enumerate(s.body.chunks):
                 c.velocity = (follow_velocity(c.position, c.velocity, target) if i == selected else
                               c.velocity*.90+Vec2(0, .065 if i == 1 else -.065))
                 c.position = c.position+c.velocity
-            axis = unit(upper.position-lower.position, direction)
-            # 限制单帧转角；没有固定的拖拽侧躺姿态。
-            angle = atan2(direction.x, -direction.y)
-            delta = (atan2(axis.x, -axis.y)-angle+pi) % (2*pi)-pi
-            angle += max(-.075, min(.075, delta))
-            direction = Vec2(sin(angle), -cos(angle))
+            if prince is not None:
+                # 导航骨架保持同一参考系，避免换算方向和支点方向分离后抓取点滑离鼠标
+                # Prince 的实际五段身体仍由独立的柔性物理跟随，不固定其节点姿态
+                direction = self.prince_reference_direction
+                angle = atan2(direction.x, -direction.y)
+            else:
+                axis = unit(upper.position-lower.position, direction)
+                # 限制单帧转角；没有固定的拖拽侧躺姿态。
+                angle = atan2(direction.x, -direction.y)
+                delta = (atan2(axis.x, -axis.y)-angle+pi) % (2*pi)-pi
+                angle += max(-.075, min(.075, delta))
+                direction = Vec2(sin(angle), -cos(angle))
             s.pose.angle = degrees(angle)-s.tilt_degrees
             s.pose.velocity = 0.
             s.pose.target = s.pose.angle
-            s.look_target = self.controller.pointer
+            # Prince 拖动只由抓取力带动身体，不叠加朝鼠标主动弯腰的注视姿态
+            s.look_target = None if prince is not None else self.controller.pointer
         else:
             s.pose.step(s)
             direction = s.desired_direction

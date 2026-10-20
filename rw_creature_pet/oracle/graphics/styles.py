@@ -1,9 +1,14 @@
 """Bell 与自定义模板的绘制入口；共用布料、像素化和缓存，不共用角色装饰"""
 from .face_assets import decal_key
 from .earphones import draw_ear, ear_assets_key
+from . import prince
+from .prince_robe import draw_lower_robe
 
 
 class CommonStyle:
+    def draw_body_back(self, renderer, painter, scene, alpha):
+        pass
+
     def head_assets_key(self, shape):
         return None
 
@@ -51,5 +56,29 @@ BELL_STYLE = BellStyle()
 CUSTOM_STYLE = CustomStyle()
 
 
-def style_for(shape):
+class PrinceStyle(CommonStyle):
+    name = 'prince'
+
+    def draw_body_back(self, renderer, painter, scene, alpha):
+        draw_lower_robe(renderer, painter, scene, alpha)
+
+    def head_options(self, renderer, density):
+        return (1., 1.), False, None
+
+    def draw_head(self, renderer, painter, *args, **kwargs):
+        prince.draw_head(renderer, painter, *args, **kwargs)
+
+    def draw_body(self, renderer, painter, *args, **kwargs):
+        return prince.draw_body(renderer, painter, *args, **kwargs)
+
+    def draw_body_decorations(self, renderer, painter, scene, alpha):
+        pass
+
+
+PRINCE_STYLE = PrinceStyle()
+
+
+def style_for(shape, body=None):
+    if body == 'prince':
+        return PRINCE_STYLE
     return CUSTOM_STYLE if shape is not None else BELL_STYLE

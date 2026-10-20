@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QThread, Qt, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QButtonGroup, QCheckBox, QComboBox, QDialog,
-                               QDialogButtonBox,
+                               QDialogButtonBox, QMessageBox,
                                QDoubleSpinBox,
                                QFileDialog, QFormLayout, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
                                QRadioButton, QScrollArea,
@@ -19,12 +19,16 @@ from ...shared.screens import find_screen, screen_identity, screen_key
 from ...ui_config import UiConfig
 from ...overseer.config import APPEARANCE_COLORS, FILAMENT_COUNT_MIN, FILAMENT_COUNT_MAX, SIZE_RANGE, OverseerSlot
 from ..assets import prepare_oracle_assets
+from ..characters import CHARACTERS, PRINCE_COLOR_NAMES
 from ..config import (COLOR_LABELS, CUSTOM_LENGTH_UNITS, DISPLAY_SCALES,
                       EDGE_NAMES, INNER_COLLAR_WIDTH_MAX, validate_edges)
 from ..space import EDGE_FRACTION_MAX
 from .space import screen_space, selected_screen, space_description
 from .inputs import ColorButton, WheelSafeSpinBox, WheelSafeDoubleSpinBox, WheelSafeComboBox
+from .sections import CollapsibleSection, SectionForm
+from .form_layout import ContentForm
 from .face_editor import FaceDecalEditor
+from .clothing_editor import CLOTHING_LABELS, ClothingDecalEditor
 from .face_preview import FacePreviewDialog
 from .ear_editor import EAR_LABELS, EarPartEditor
 from .eye_editor import EYE_LABELS, EyeEditor
@@ -32,7 +36,10 @@ from .soft_part_editor import SOFT_PART_LABELS, SoftPartEditor
 from .appearance_presets import AppearancePresetPanel
 from .profile_presets import ProfilePresetPanel
 from .behavior_settings import DRAG_PROBABILITIES, build_behavior_settings, sync_behavior_dependencies
+from .drift_settings import DRIFT_PERCENT_FIELDS
+from .mouse_settings import AVOIDANCE_PERCENT_FIELDS
 from .outfit_settings import build_outfit_settings, sync_outfit_dependencies
+from .cape_settings import build_cape_settings, sync_cape_settings
 from .preset_workflow import PresetWorkflow
 from .preset_controls import PersonalControls, AppearanceHistoryControls, bind_parameter_resets
 from ...presets.appearance import apply_appearance, appearance_paths
@@ -48,10 +55,14 @@ PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity
                'oracle.edge_fraction', 'oracle.base_fraction', 'oracle.arm_scale',
                'oracle.cross_edge_probability', 'oracle.antigravity_probability',
                'oracle.pearl_playback_probability', 'oracle.drag_projection_probability',
+               'oracle.reading.start_probability',
                'interaction.hover_probability', 'interaction.hover_open_probability',
                'overseer.appearance_probability', 'overseer.relocation_probability',
                'overseer.observation_probability'}
+PERCENTAGES.update(('oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve'))
 PERCENTAGES.update('oracle.drag_reactions.'+name for name, _ in DRAG_PROBABILITIES)
+PERCENTAGES.update('oracle.drift.'+name for name in DRIFT_PERCENT_FIELDS)
+PERCENTAGES.update('oracle.mouse_avoidance.'+name for name in AVOIDANCE_PERCENT_FIELDS)
 
 DISPLAY_UNITS = {key: (100., 0.) for key in PERCENTAGES}
 DISPLAY_UNITS.update({'oracle.custom_appearance.'+name: units for name, units in CUSTOM_LENGTH_UNITS.items()})
@@ -173,7 +184,7 @@ class OutfitSelector(QWidget):
         return next(name for name, button in self.buttons.items() if button.isChecked())
 
 
-class _ParameterColumn(QFormLayout):
+class _ParameterColumn(ContentForm):
     """参数列：输入框靠右，标签使用它左侧的全部剩余宽度。"""
 
     def addRow(self, *args):
@@ -215,16 +226,6 @@ class _ParameterRow(QWidget):
         if event.size().width() != event.oldSize().width():
             self.updateGeometry()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        # 隐藏期间父表单可能改变列宽，重新显示时丢弃旧的按宽度计算高度缓存
-        QTimer.singleShot(0, self, self.refresh_height)
-
-    def refresh_height(self):
-        self.layout().invalidate()
-        self.updateGeometry()
-
-
 def _parameter_columns(count=2):
     """等宽参数列，未使用的列仍保留空间；默认双列，调色区使用三列"""
     panel = _ParameterRow()
@@ -244,7 +245,7 @@ def _parameter_columns(count=2):
     return panel, tuple(columns)
 
 
-class _ParameterForm(QFormLayout):
+class _ParameterForm(SectionForm):
     """分类页中的单个输入项占左列；说明、分割线与复合选择器保持整行。"""
 
     def addRow(self, *args):
@@ -355,19 +356,6 @@ class OverseerSlotsEditor(QWidget):
                 self.filament_counts[key].setValue(self.slots[key].filament_count)
                 self.update_shape_fields(key)
         self.add_button.setEnabled(len(self.slots) < 4)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if event.size().height() < self.minimumSizeHint().height():
-            # 等当前布局完成后清除父表单的旧高度分配，避免增删行时压缩或重叠控件
-            QTimer.singleShot(0, self, self._refresh_parent_layout)
-
-    def _refresh_parent_layout(self):
-        parent = self.parentWidget()
-        if parent is not None and parent.layout() is not None:
-            parent.layout().invalidate()
-            parent.layout().activate()
-            parent.updateGeometry()
 
     def add_slot(self):
         key = next((key for key in self.rows if key not in self.slots), None)
@@ -530,27 +518,36 @@ class OracleSettingsDialog(QDialog):
         general.addRow(test_note)
 
         appearance = forms['appearance']
-        self.appearance_owner = QLabel()
-        self.appearance_owner.setTextFormat(Qt.TextFormat.PlainText)
-        appearance.addRow(self.appearance_owner)
         body = OutfitSelector(config.oracle.body_appearance,
-                              choices=(('bell', '手势之铃'), ('custom', '自定义迭代器')), horizontal=True)
+                              choices=(('bell', '手势之铃'), ('custom', '自定义迭代器'), ('prince', 'prince')), horizontal=True)
         self.controls['oracle.body_appearance'] = body
         # 类型由角色或导入的外观决定，保留统一字段读写但不提供手动切换入口
         body.setParent(self)
         body.hide()
         outfit = OutfitSelector(config.oracle.outfit, horizontal=True)
         self.controls['oracle.outfit'] = outfit
-        appearance.addRow('附加外观', outfit)
+        self.outfit_section = self.section_heading(appearance, '附加外观')
+        appearance.addRow(outfit)
         build_outfit_settings(self, appearance, config.oracle)
+        # 主体分支是独立小节，不能被上方的附加外观折叠一起隐藏
+        appearance.addRow(PixelRuleThin())
         self.bell_parameters = QWidget()
         bell = _ParameterForm(self.bell_parameters)
         bell.setContentsMargins(0, 0, 0, 0)
         bell.setVerticalSpacing(20)
         bell.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         appearance.addRow(self.bell_parameters)
-        bell.addRow(PixelRuleThin())
+        self.section_heading(bell, '配色')
         self.color_palette(bell, 'oracle.colors', config.oracle.colors, BELL_COLOR_ORDER,
+                           bubble_color=config.oracle.pearl_bubble_color)
+        self.prince_parameters = QWidget()
+        prince = _ParameterForm(self.prince_parameters)
+        prince.setContentsMargins(0, 0, 0, 0)
+        prince.setVerticalSpacing(20)
+        prince.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        appearance.addRow(self.prince_parameters)
+        self.section_heading(prince, '配色')
+        self.color_palette(prince, 'oracle.prince_colors', config.oracle.prince_colors, PRINCE_COLOR_NAMES,
                            bubble_color=config.oracle.pearl_bubble_color)
         self.custom_parameters = QWidget()
         custom = _ParameterForm(self.custom_parameters)
@@ -564,8 +561,9 @@ class OracleSettingsDialog(QDialog):
         self.ear_editors = {}
         self.eye_editors = {}
         self.soft_part_editors = {}
+        self.clothing_editors = {}
 
-        custom.addRow(PixelRuleThin())
+        self.section_heading(custom, '配色')
         self.color_palette(custom, 'oracle.custom_colors', config.oracle.custom_colors, CUSTOM_COLOR_ORDER,
                            bubble_color=config.oracle.pearl_bubble_color)
         custom.addRow(PixelRuleThin())
@@ -575,6 +573,7 @@ class OracleSettingsDialog(QDialog):
         preview_button.clicked.connect(self.open_face_preview)
         custom.addRow(preview_button)
 
+        self.section_heading(custom, '眼睛')
         shape = config.oracle.custom_appearance
         for column, (name, title) in zip(self.two_columns(custom), EYE_LABELS.items()):
             editor = EyeEditor(title, getattr(shape, name))
@@ -583,13 +582,35 @@ class OracleSettingsDialog(QDialog):
             column.addRow(editor)
         custom.addRow(PixelRuleThin())
 
+        self.section_heading(custom, '面部贴图')
+        # png_note = QLabel('最大 32×32 像素，x 向右、y 向下')
+        # png_note.setWordWrap(True)
+        # png_note.setStyleSheet(NOTE_STYLE)
+        # custom.addRow(png_note)
+        for name, title in (('forehead', '额头标记 PNG'), ('face', '面部装饰 PNG')):
+            editor = FaceDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            self.face_editors[name] = editor
+            self.controls['oracle.custom_appearance.'+name] = editor
+            custom.addRow(editor)
+        custom.addRow(PixelRuleThin())
+
+        self.section_heading(custom, '耳机部件')
+        for name, title in EAR_LABELS.items():
+            editor = EarPartEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            self.ear_editors[name] = editor
+            self.controls['oracle.custom_appearance.'+name] = editor
+            custom.addRow(editor)
+        custom.addRow(PixelRuleThin())
+
+        self.section_heading(custom, '基础体型')
         left, right = self.two_columns(custom)
-        for column, label, name in ((left, '头部长度', 'head_length'), (right, '衣袍长度', 'robe_length')):
-            key = 'oracle.custom_appearance.'+name
-            # 可输入的端点向有效范围内舍入，避免 0.1px 精度反算出越界比例
-            self.spin(column, label, key, display_value(key, getattr(shape, name)),
-                      ceil(display_value(key, .7)*10)/10, floor(display_value(key, 1.5)*10)/10,
-                      decimals=1, step=1, suffix=' px')
+        key = 'oracle.custom_appearance.head_length'
+        # 可输入的端点向有效范围内舍入，避免 0.1px 精度反算出越界比例
+        self.spin(left, '头部长度', key, display_value(key, shape.head_length),
+                  ceil(display_value(key, .7)*10)/10, floor(display_value(key, 1.5)*10)/10,
+                  decimals=1, step=1, suffix=' px')
+        self.spin(right, '颈部宽度', 'oracle.custom_appearance.neck_width', shape.neck_width,
+                  1, 8, decimals=1, step=.5, suffix=' px')
         left, right = self.two_columns(custom)
         self.spin(left, '胸肩宽度', 'oracle.custom_appearance.chest_width', shape.chest_width,
                   8, 18, decimals=1, step=.5, suffix=' px')
@@ -611,13 +632,21 @@ class OracleSettingsDialog(QDialog):
                   0, 4, decimals=1, step=.5, suffix=' px')
         self.controls['oracle.custom_appearance.sleeve_cuff_radius'].setToolTip(
             '圆角半径；0 为直角，实际半径受袖宽与袖长限制')
-        self.spin(right, '颈部宽度', 'oracle.custom_appearance.neck_width', shape.neck_width,
-                  1, 8, decimals=1, step=.5, suffix=' px')
+        key = 'oracle.custom_appearance.robe_length'
+        self.spin(right, '衣袍长度', key, display_value(key, shape.robe_length),
+                  ceil(display_value(key, .7)*10)/10, floor(display_value(key, 1.5)*10)/10,
+                  decimals=1, step=1, suffix=' px')
+        left, right = self.two_columns(custom)
+        self.spin(left, '衣袍下摆张开程度', 'oracle.custom_appearance.robe_flare', shape.robe_flare*100,
+                  0, 200, step=5, suffix=' %')
+        self.spin(right, '衣袍底边弯曲程度', 'oracle.custom_appearance.robe_hem_curve', shape.robe_hem_curve*100,
+                  0, 200, step=5, suffix=' %')
         # note = QLabel('尺寸均为逻辑像素，宽度均为完整宽度；衣袍长度为未摆动时衣料顶端至下摆的距离，不随领口深度改变')
         # note.setWordWrap(True)
         # note.setStyleSheet(NOTE_STYLE)
         # custom.addRow(note)
         custom.addRow(PixelRuleThin())
+        self.section_heading(custom, '内搭与高领')
         left, right = self.two_columns(custom)
         self.check(left, '显示内搭', 'oracle.custom_appearance.inner_robe_enabled', shape.inner_robe_enabled)
         self.check(right, '启用高领', 'oracle.custom_appearance.inner_collar_enabled', shape.inner_collar_enabled)
@@ -632,22 +661,18 @@ class OracleSettingsDialog(QDialog):
             self.controls['oracle.custom_appearance.'+name].toggled.connect(self.sync_dependencies)
         self.neckline_settings(custom, shape, config.oracle.custom_colors)
         custom.addRow(PixelRuleThin())
-        # png_note = QLabel('最大 32×32 像素，x 向右、y 向下')
-        # png_note.setWordWrap(True)
-        # png_note.setStyleSheet(NOTE_STYLE)
-        # custom.addRow(png_note)
-        for name, title in (('forehead', '额头标记 PNG'), ('face', '面部装饰 PNG')):
-            editor = FaceDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
-            self.face_editors[name] = editor
+        self.section_heading(custom, '服装贴图')
+        for name, title in CLOTHING_LABELS:
+            editor = ClothingDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            self.clothing_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
             custom.addRow(editor)
         custom.addRow(PixelRuleThin())
-        for name, title in EAR_LABELS.items():
-            editor = EarPartEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
-            self.ear_editors[name] = editor
-            self.controls['oracle.custom_appearance.'+name] = editor
-            custom.addRow(editor)
+        self.section_heading(custom, '斗篷')
+        build_cape_settings(self, custom, shape.cape)
         custom.addRow(PixelRuleThin())
+
+        self.section_heading(custom, '柔性部件')
         # soft_note = QLabel('柔性部件用于围巾等垂挂装饰，保持鼠标穿透；尺寸为逻辑像素，X 向右、Y 向脚，随固定部位旋转')
         # soft_note.setWordWrap(True)
         # soft_note.setStyleSheet(NOTE_STYLE)
@@ -676,7 +701,7 @@ class OracleSettingsDialog(QDialog):
         left, right = self.two_columns(pearls)
         self.spin(left, '播放光晕特效大小', 'oracle.pearl_bubble_max_size',
                   o.pearl_bubble_max_size, 6, 64, decimals=1, suffix=' px')
-        self.pearl_bubble_color = self.color(right, '播放光晕特效颜色', 'oracle.pearl_bubble_color', o.pearl_bubble_color)
+        self.pearl_bubble_color = self.color(right, '珍珠播放特效色', 'oracle.pearl_bubble_color', o.pearl_bubble_color)
 
         halo = forms['projection']
         left, right = self.two_columns(halo)
@@ -685,12 +710,13 @@ class OracleSettingsDialog(QDialog):
         projection_row = QHBoxLayout(self.projection_color_panel)
         projection_row.setContentsMargins(0, 0, 0, 0)
         self.projection_colors = {}
-        for key, palette in (('oracle.colors', o.colors), ('oracle.custom_colors', o.custom_colors)):
+        for key, palette in (('oracle.colors', o.colors), ('oracle.custom_colors', o.custom_colors),
+                             ('oracle.prince_colors', o.prince_colors)):
             control = self.color_control('投影颜色', key+'.pearl_glyph', palette.pearl_glyph)
             self.projection_colors[key+'.pearl_glyph'] = control
             projection_row.addWidget(control)
         right.addRow('投影颜色', self.projection_color_panel)
-        self.projection_color_panel.setToolTip('编辑当前主体外观的投影颜色，两套配色分别保存')
+        self.projection_color_panel.setToolTip('编辑当前主体外观的投影颜色，各角色配色分别保存')
         opacity_note = QLabel('*此透明度应用于珍珠文字、光环、电弧等全息投影类特效')
         opacity_note.setStyleSheet(NOTE_STYLE)
         opacity_note.setWordWrap(True)
@@ -850,7 +876,7 @@ class OracleSettingsDialog(QDialog):
         self.reset_all_button = QPushButton('恢复程序默认设置')
         self.reset_all_button.setAutoDefault(False)
         self.reset_all_button.setToolTip('恢复所有分类及游戏目录的默认设置，点击保存后生效。')
-        self.reset_all_button.clicked.connect(lambda: self.restore_defaults())
+        self.reset_all_button.clicked.connect(lambda: self.confirm_restore_defaults())
         self.save_button = self.buttons.button(QDialogButtonBox.StandardButton.Save)
         self.save_button.setText('保存并启动' if first_run else '保存并关闭')
         self.save_button.setProperty('primary', True)
@@ -885,11 +911,13 @@ class OracleSettingsDialog(QDialog):
         for key, control in self.controls.items():
             if key.startswith(('oracle.custom_appearance.', 'oracle.custom_colors.', 'oracle.colors.', 'oracle.outfit_settings.')):
                 signal = (control.group.buttonToggled if isinstance(control, OutfitSelector) else
+                          control.currentIndexChanged if isinstance(control, QComboBox) else
                           control.toggled if isinstance(control, QCheckBox) else control.valueChanged)
                 signal.connect(self.queue_face_preview)
         for key in ('oracle.body_appearance', 'oracle.outfit'):
             self.controls[key].group.buttonToggled.connect(self.queue_face_preview)
         self.finished.connect(self.close_face_preview)
+        self.finished.connect(self.reset_sections)
         self.preset_workflow = PresetWorkflow(self)
 
     def showEvent(self, event):
@@ -906,7 +934,8 @@ class OracleSettingsDialog(QDialog):
 
     @property
     def image_editors(self):
-        return (*self.face_editors.values(), *self.ear_editors.values(), *self.soft_part_editors.values())
+        return (*self.face_editors.values(), *self.ear_editors.values(), *self.soft_part_editors.values(),
+                *self.clothing_editors.values())
 
     def appearance_draft(self):
         """导出不依赖游戏路径或其他页签是否填写完整，只读取当前主体的外观草稿"""
@@ -973,6 +1002,8 @@ class OracleSettingsDialog(QDialog):
         self.initial_values[key] = self.value(control)
 
     def open_face_preview(self):
+        if self.controls['oracle.body_appearance'].value() != 'custom':
+            return
         if self.face_preview is None:
             self.face_preview = FacePreviewDialog(self)
             bind_parameter_resets(self, self.preset_workflow, self.face_preview)
@@ -994,16 +1025,14 @@ class OracleSettingsDialog(QDialog):
         self._face_preview_pending = False
         if self.face_preview is None:
             return
+        if self.controls['oracle.body_appearance'].value() == 'prince':
+            self.close_face_preview()
+            return
         custom = self.controls['oracle.body_appearance'].value() == 'custom'
-        prefix = 'oracle.custom_colors.' if custom else 'oracle.colors.'
-        original = self.original.oracle.custom_colors if custom else self.original.oracle.colors
-        colors = replace(original, **{key[len(prefix):]: self.draft_value(key)
-                                      for key in self.controls if key.startswith(prefix)})
-        prefix = 'oracle.custom_appearance.'
-        shape = replace(self.original.oracle.custom_appearance, **{
-            key[len(prefix):]: self.draft_value(key) for key in self.controls if key.startswith(prefix)}) if custom else None
-        outfit_settings = self.scoped_draft(appearance_paths('custom')).oracle.outfit_settings
-        self.face_preview.set_appearance(colors, shape, self.controls['oracle.outfit'].value(), outfit_settings)
+        # 与保存共用嵌套字段组装，斗篷等子组不能作为带点号的 dataclass 参数传入
+        draft = self.scoped_draft(appearance_paths('custom' if custom else 'bell')).oracle
+        self.face_preview.set_appearance(draft.active_colors, draft.custom_appearance if custom else None,
+                                         draft.outfit, draft.outfit_settings)
 
     def set_status(self, message):
         self._status_message = message
@@ -1144,13 +1173,39 @@ class OracleSettingsDialog(QDialog):
             return form
         reset = QPushButton('恢复本页程序默认值')
         reset.setAutoDefault(False)
-        reset.clicked.connect(lambda checked=False, page=area: self.restore_defaults(self.tabs.indexOf(page)))
+        reset.clicked.connect(lambda checked=False, page=area: self.confirm_restore_defaults(self.tabs.indexOf(page)))
         self.reset_tab_buttons.append(reset)
         row = QHBoxLayout()
-        row.addStretch(1)
+        if key == 'appearance':
+            self.appearance_owner = QLabel()
+            self.appearance_owner.setTextFormat(Qt.TextFormat.PlainText)
+            self.appearance_owner.setStyleSheet(NOTE_STYLE)
+            self.appearance_owner.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            row.addWidget(self.appearance_owner, 1)
+        else:
+            row.addStretch(1)
         row.addWidget(reset)
         form.addRow(row)
         return form
+
+    def confirm_restore_defaults(self, index=None):
+        if self.worker is not None:
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle(tr('确认恢复默认值'))
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(tr('将全部设置及游戏目录恢复为程序默认值？') if index is None else
+                    tr('将「{page}」页的设置恢复为程序默认值？', page=self.tabs.tabText(index)))
+        box.setInformativeText(tr('*若您开启了自动保存，此恢复操作将是不可撤销的'))
+        box.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        box.button(QMessageBox.StandardButton.Ok).setText(tr('恢复默认值'))
+        box.button(QMessageBox.StandardButton.Cancel).setText(tr('取消'))
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        box.setEscapeButton(QMessageBox.StandardButton.Cancel)
+        apply_settings_style(box)
+        if box.exec() == QMessageBox.StandardButton.Ok:
+            self.restore_defaults(index)
+        box.deleteLater()
 
     def restore_defaults(self, index=None):
         """仅重置面板字段；按控件所属页划分，不按共享的 oracle 配置组划分"""
@@ -1184,8 +1239,8 @@ class OracleSettingsDialog(QDialog):
         self.sync_dependencies()
         self.refresh_space()
         self.queue_face_preview()
-        self.set_status('已恢复全部默认设置，点击保存后生效。' if page is None else
-                        '已恢复本页默认设置，点击保存后生效。')
+        self.set_status('已恢复[全部]默认设置，点击保存后生效' if page is None else
+                        '已恢复[本页]默认设置，点击保存后生效')
 
     @staticmethod
     def two_columns(form):
@@ -1222,7 +1277,7 @@ class OracleSettingsDialog(QDialog):
         # 共用的播放光晕颜色单列收尾，与配色区第一列对齐
         row, columns = _parameter_columns(3)
         form.addRow(row)
-        self.color(columns[0], '播放光晕特效颜色', 'oracle.pearl_bubble_color', bubble_color)
+        self.color(columns[0], '珍珠播放特效色', 'oracle.pearl_bubble_color', bubble_color)
 
     def color_control(self, label, key, value):
         """同一配色可在相关分类中编辑，共用草稿值和保存边界"""
@@ -1238,8 +1293,18 @@ class OracleSettingsDialog(QDialog):
         editors.append(control)
         return control
 
+    @staticmethod
+    def section_heading(form, title, *, default_collapsed=False):
+        """default_collapsed=True 默认折叠；仅影响窗口初始显示，不写入用户配置"""
+        return form.add_section(title, default_collapsed=default_collapsed)
+
+    def reset_sections(self, *args):
+        for section in self.findChildren(CollapsibleSection):
+            section.restore_default()
+
     def neckline_settings(self, form, shape, colors):
         form.addRow(PixelRuleThin())
+        self.section_heading(form, '衣袍领口与领边')
         prefix = 'oracle.custom_appearance.'
         selector = OutfitSelector(shape.neckline_shape, choices=(('arc', '弧形'), ('v', 'V 型')), horizontal=True)
         self.controls[prefix+'neckline_shape'] = selector
@@ -1273,7 +1338,7 @@ class OracleSettingsDialog(QDialog):
         self.controls[prefix+'neckline_trim_enabled'].toggled.connect(self.sync_dependencies)
 
     def projection_color_key(self):
-        group = 'custom_colors' if self.controls['oracle.body_appearance'].value() == 'custom' else 'colors'
+        group = CHARACTERS[self.controls['oracle.body_appearance'].value()].palette
         return 'oracle.'+group+'.pearl_glyph'
 
     def edge_selection(self, form, config):
@@ -1347,8 +1412,11 @@ class OracleSettingsDialog(QDialog):
     def sync_dependencies(self, *args):
         c = self.controls
         sync_outfit_dependencies(self)
+        sync_cape_settings(self)
         self.bell_parameters.setVisible(c['oracle.body_appearance'].value() == 'bell')
         self.custom_parameters.setVisible(c['oracle.body_appearance'].value() == 'custom')
+        self.prince_parameters.setVisible(c['oracle.body_appearance'].value() == 'prince')
+        self.outfit_section.setVisible(CHARACTERS[c['oracle.body_appearance'].value()].outfits)
         inner = c['oracle.custom_appearance.inner_robe_enabled'].isChecked()
         c['oracle.custom_appearance.inner_collar_enabled'].setEnabled(inner)
         collar = inner and c['oracle.custom_appearance.inner_collar_enabled'].isChecked()

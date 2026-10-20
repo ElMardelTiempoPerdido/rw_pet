@@ -10,7 +10,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QDialog, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QDialog, QLabel, QMessageBox, QPushButton, QWidget
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, CustomAppearance, OracleColors, OracleConfig
@@ -18,6 +18,7 @@ from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import BELL_COLOR_ORDER, CUSTOM_COLOR_ORDER, OracleSettingsDialog
+from rw_creature_pet.oracle.ui.sections import SectionHeading
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.presets.fields import paths_for
 from tests.oracle.test_desktop import FakeScreen
@@ -72,6 +73,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertFalse(self.store.path.exists())
         self.assertEqual(self.config.desktop.scale, 1.)
 
+    @patch.object(QMessageBox, 'exec', lambda self: QMessageBox.StandardButton.Ok)
     def test_tab_order_and_screen_controls_are_separate_from_character_movement(self):
         d = self.dialog()
         self.assertEqual(list(d.pages), ['general', 'screen', 'behavior', 'pearls',
@@ -138,8 +140,8 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertTrue(set(paths_for('profile')).issubset(d.controls))
         actual = {key for key, control in d.controls.items() if d.pages['behavior'].isAncestorOf(control)}
         self.assertEqual(actual, set(paths_for('profile')) - visual_fields)
-        self.assertEqual(len(actual), 23)
-        self.assertEqual([label.text() for label in d.pages['behavior'].findChildren(QLabel)
+        self.assertEqual(len(actual), 86)
+        self.assertEqual([label.text() for label in d.pages['behavior'].findChildren(SectionHeading)
                           if label.text() in ('移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动')],
                          ['移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动'])
         for key in ('interaction.drag_enabled', 'desktop.autonomous', 'audio.enabled', 'audio.volume'):
@@ -177,6 +179,21 @@ class OracleSettingsTests(unittest.TestCase):
         d = w.settings_dialog
         values = {
             'oracle.base_speed': 3.25, 'oracle.pearl_follow_width': 600.5, 'oracle.pearl_follow_height': 320.5,
+            'oracle.daily_activity.idle_min_seconds': 1.2,
+            'oracle.daily_activity.idle_max_seconds': 2.3,
+            'oracle.daily_activity.cross_edge_cooldown_seconds': 0,
+            'oracle.daily_activity.cross_edge_check_seconds': 2,
+            'oracle.daily_activity.move_lean_degrees': 11.5,
+            'oracle.reading.start_probability': 48.9,
+            'oracle.drift.cooldown_seconds': 45.5,
+            'oracle.drift.short_pause_weight': 0,
+            'oracle.drift.entry_min_seconds': 1.25,
+            'oracle.drift.speed_min_factor': .55,
+            'oracle.drift.long_bout_probability': 62.5,
+            'oracle.mouse_avoidance.delay_min_seconds': .25,
+            'oracle.mouse_avoidance.probability': 12.3,
+            'oracle.mouse_avoidance.lean_sample_power': 3.5,
+            'oracle.mouse_avoidance.speed_min': .8,
             'oracle.drag_reactions.gesture_probability': 78.9,
             'oracle.drag_reactions.flutter_probability': 45.6,
             'oracle.drag_reactions.alternating_probability': 12.3,
@@ -195,12 +212,69 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(w.motion.scene.drag_reactions.config, candidate.oracle.drag_reactions)
         self.assertAlmostEqual(candidate.oracle.drag_reactions.voice_probability, .666)
         self.assertFalse(w.motion.scene.drag_reactions.config.enabled)
+        self.assertEqual(w.motion.scene.behavior.IDLE_TICKS, (48, 92))
+        self.assertEqual(w.motion.scene.behavior.CROSS_EDGE_COOLDOWN, 0)
+        self.assertEqual(w.motion.scene.behavior.DRIFT_CROSS_CHECK_TICKS, 80)
+        self.assertEqual(w.motion.scene.config.daily_activity.move_lean_degrees, 11.5)
+        self.assertAlmostEqual(w.motion.scene.config.reading.start_probability, .489)
+        self.assertEqual(w.motion.scene.behavior.DRIFT_COOLDOWN, 1820)
+        self.assertEqual(w.motion.scene.behavior.DRIFT_ENTRY_TICKS[0], 50)
+        self.assertEqual(w.motion.scene.mouse_reaction.avoidance.DELAY[0], .25)
+        self.assertAlmostEqual(w.motion.scene.mouse_reaction.avoidance.PROBABILITY, .123)
+        self.assertEqual(w.motion.scene.mouse_reaction.avoidance.LEAN_SAMPLE_POWER, 3.5)
+        self.assertEqual(w.motion.scene.mouse_reaction.avoidance.SPEED[0], .8)
         d.reject()
         w.open_settings()
         reopened = w.settings_dialog
         self.assertEqual(reopened.candidate(), candidate)
         for key, value in values.items():
             self.assertEqual(reopened.controls[key].value(), value)
+
+    def test_mouse_avoidance_switch_preserves_hidden_values_and_invalid_ranges_stay_in_draft(self):
+        d = self.dialog(assets=self.assets)
+        key = 'oracle.mouse_avoidance.lean_min_degrees'
+        d.controls[key].setValue(21)
+        d.controls['interaction.hover_avoidance_enabled'].setChecked(False)
+        self.assertFalse(d.controls[key].isEnabled())
+        self.assertEqual(d.candidate().oracle.mouse_avoidance.lean_min_degrees, 21)
+        d.controls['interaction.hover_avoidance_enabled'].setChecked(True)
+        self.assertTrue(d.controls[key].isEnabled())
+        for name, bad_value, good_value in (
+                ('oracle.drift.entry_min_seconds', 8, 2.5),
+                ('oracle.mouse_avoidance.enter_distance', 80, 55)):
+            d.controls[name].setValue(bad_value)
+            d.apply_button.click()
+            self.assertFalse(self.store.path.exists())
+            self.assertEqual(d.controls[name].value(), bad_value)
+            with self.assertRaises(ValueError):
+                d.candidate()
+            d.controls[name].setValue(good_value)
+        d.apply_button.click()
+        self.assertEqual(self.store.load().oracle.mouse_avoidance.lean_min_degrees, 21)
+
+    def test_invalid_daily_activity_keeps_draft_and_current_desktop_until_fixed(self):
+        w = self.desktop()
+        d = self.dialog(assets=self.assets, commit=w.apply_settings)
+        previous = w.motion.scene
+        key = 'oracle.daily_activity.idle_min_seconds'
+        d.controls[key].setValue(9)
+        d.apply_button.click()
+        self.assertIs(w.motion.scene, previous)
+        self.assertFalse(self.store.path.exists())
+        self.assertEqual(d.controls[key].value(), 9)
+        self.assertIsNone(d.worker)
+        with self.assertRaises(ValueError):
+            d.candidate()
+        d.controls['oracle.daily_activity.idle_max_seconds'].setValue(12)
+        for name in ('idle_weight', 'move_weight', 'meditate_weight'):
+            d.controls['oracle.daily_activity.'+name].setValue(0)
+        d.apply_button.click()
+        self.assertIs(w.motion.scene, previous)
+        self.assertFalse(self.store.path.exists())
+        d.controls['oracle.daily_activity.idle_weight'].setValue(1)
+        d.apply_button.click()
+        self.assertEqual(self.store.load().oracle.daily_activity.idle_min_seconds, 9)
+        self.assertEqual(w.motion.scene.behavior.IDLE_TICKS, (360, 480))
 
     def test_neckline_controls_save_apply_and_preserve_bell_and_inactive_values(self):
         w = self.desktop()
@@ -1087,10 +1161,11 @@ class OracleSettingsTests(unittest.TestCase):
         d = w.settings_dialog
         shape = CustomAppearance(12.1/(100/11+1), 4.5, 13., (30.-8.41275)/19.13725,
                                  sleeve_cuff_radius=0., neck_width=5.5, chest_width=15.5, chest_height=6.,
-                                 shoulder_width=12.5)
+                                 shoulder_width=12.5, robe_flare=1.4, robe_hem_curve=.6)
         d.controls['oracle.body_appearance'].setValue('custom')
         for name, value in (('head_length', 12.1), ('sleeve_root_width', 4.5),
                             ('sleeve_cuff_width', 13), ('robe_length', 30),
+                            ('robe_flare', 140), ('robe_hem_curve', 60),
                             ('sleeve_cuff_radius', 0), ('neck_width', 5.5),
                             ('chest_width', 15.5), ('chest_height', 6.), ('shoulder_width', 12.5)):
             d.controls['oracle.custom_appearance.'+name].setValue(value)
@@ -1115,6 +1190,8 @@ class OracleSettingsTests(unittest.TestCase):
         w.open_settings()
         d = w.settings_dialog
         self.assertEqual(d.controls['oracle.custom_appearance.head_length'].value(), 12.1)
+        self.assertEqual(d.controls['oracle.custom_appearance.robe_flare'].value(), 140)
+        self.assertEqual(d.controls['oracle.custom_appearance.robe_hem_curve'].value(), 60)
         self.assertEqual(d.controls['oracle.custom_appearance.sleeve_cuff_radius'].value(), 0.)
         self.assertEqual(d.controls['oracle.custom_appearance.neck_width'].value(), 5.5)
         self.assertEqual(d.controls['oracle.custom_appearance.chest_width'].value(), 15.5)
@@ -1215,7 +1292,8 @@ class OracleSettingsTests(unittest.TestCase):
         palette = fields(OracleColors)
         self.assertEqual(set(d.color_editors), {'oracle.colors.' + f.name for f in palette}
                          | {'oracle.custom_colors.'+name for name in CUSTOM_COLOR_NAMES}
-                         | {'oracle.pearl_bubble_color'})
+                         | {'oracle.pearl_bubble_color', 'oracle.custom_appearance.cape.color',
+                            'oracle.custom_appearance.cape.hem_trim_color'})
         self.assertCountEqual([name for name in BELL_COLOR_ORDER if name is not None],
                               [f.name for f in palette])
         self.assertCountEqual([name for name in CUSTOM_COLOR_ORDER if name is not None],
@@ -1343,6 +1421,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(w.voice_player.clips, new_assets.voice_paths)
         self.assertEqual(self.store.load().game_dir, new_game)
 
+    @patch.object(QMessageBox, 'exec', lambda self: QMessageBox.StandardButton.Ok)
     def test_reset_game_directory_prepares_defaults_assets_before_applying(self):
         w = self.desktop()
         new_game = self.config.game_dir.parent/'默认游戏'

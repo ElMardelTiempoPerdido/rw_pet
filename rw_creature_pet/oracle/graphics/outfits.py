@@ -6,7 +6,7 @@ from PySide6.QtCore import QRectF
 from PySide6.QtGui import QImage, QTransform
 
 from ...shared.paths import PACKAGE_ROOT
-from .outfit_definition import Slot
+from .outfit_definition import Slot, outfit_definition
 
 
 @lru_cache(maxsize=128)
@@ -74,3 +74,18 @@ def head_outfit_radius(definition, density, crown):
 def outfit_raster_key(definition, density):
     # 不带部件的常规外观不因倍率重录矢量指令；定义变化仍使缓存失效
     return definition, tuple(part.variant(density) for part in definition.components)
+
+
+def outfit_padding(config):
+    return _outfit_padding(outfit_definition(config.active_outfit, config.outfit_settings))
+
+
+@lru_cache(maxsize=128)
+def _outfit_padding(definition):
+    """可更换锚点后不能假定大图总被衣袍裁剪，包含原图、镜像和旋转的余量"""
+    radius = max((hypot(x, y) for part in definition.components for variant in part.variants
+                  for _, rect in component_layers(part, variant.density)
+                  for x in (rect.left(), rect.right()) for y in (rect.top(), rect.bottom())), default=0.)
+    # 原有质点包围盒已有 20px 余量，另为头顶/领口相对质点的位置留出空间
+    return max(0., radius+12.-20.,
+               max((hypot(*part.offset) for part in definition.components), default=0.))

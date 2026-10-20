@@ -78,6 +78,33 @@ class PersonalPresetTests(unittest.TestCase):
         self.assertEqual(restored.oracle.float_speed, 1.2)
         self.assertEqual(data, untouched)
 
+    def test_old_activity_snapshot_defaults_preserve_explicit_adjustments(self):
+        prefixes = ('oracle.daily_activity.', 'oracle.reading.', 'oracle.drift.', 'oracle.mouse_avoidance.')
+        defaults = {key: value for key, value in capture(self.config, 'profile', self.directory).items()
+                    if not key.startswith(prefixes)}
+        data = {'kind': 'profile', 'defaults': defaults, 'overrides': {
+            'oracle.daily_activity.cross_edge_cooldown_seconds': 0.,
+            'oracle.reading.start_probability': .123456,
+            'oracle.drift.long_pause_weight': 0., 'oracle.mouse_avoidance.lean_move_probability': 0.}}
+        untouched = deepcopy(data)
+        entry = PersonalEntry.read(data)
+        current = apply_values(self.config, {'oracle.daily_activity.move_weight': 0.,
+                                             'oracle.daily_activity.move_lean_degrees': 0.,
+                                             'oracle.drift.cooldown_seconds': 0.,
+                                             'oracle.mouse_avoidance.lean_sample_power': 5.})
+        loaded = apply_values(current, entry.values)
+        self.assertEqual(loaded.oracle.daily_activity.move_weight, 35.)
+        self.assertEqual(loaded.oracle.daily_activity.move_lean_degrees, 20.)
+        self.assertEqual(loaded.oracle.daily_activity.cross_edge_cooldown_seconds, 0.)
+        self.assertEqual(loaded.oracle.reading.start_probability, .123456)
+        self.assertEqual(entry.defaults['oracle.reading.start_probability'], .25)
+        self.assertEqual(loaded.oracle.drift.cooldown_seconds, 120.)
+        self.assertEqual(loaded.oracle.drift.long_pause_weight, 0.)
+        self.assertEqual(loaded.oracle.mouse_avoidance.lean_sample_power, 2.)
+        self.assertEqual(loaded.oracle.mouse_avoidance.lean_move_probability, 0.)
+        self.assertEqual(PersonalEntry.read(entry.serialize()).serialize(), entry.serialize())
+        self.assertEqual(data, untouched)
+
 
 if __name__ == '__main__':
     unittest.main()

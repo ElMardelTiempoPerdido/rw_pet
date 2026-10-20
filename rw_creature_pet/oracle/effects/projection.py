@@ -79,6 +79,8 @@ class OracleProjection:
         return self.random.choice([p for score, p in candidates if score <= best+4])
 
     def try_start(self, scene):
+        if not scene.config.character.has_hands:
+            return False
         reactions = scene.drag_reactions
         if (not self.available or self.busy or self.cooldown > 0 or not scene.drag.active
                 or not reactions.active or reactions.gesturing or scene.config.projection_opacity <= 0
@@ -144,6 +146,10 @@ class OracleProjection:
             self.revision += 1
 
     def step(self, scene):
+        if not scene.config.character.has_hands:
+            if self.busy:
+                self.stop(cancel=True)
+            return
         self.cooldown = max(0., self.cooldown-self.DT)
         before = (self.position, self.alpha, self.frame_index, self.state)
         self.previous_position, self.previous_alpha = self.position, self.alpha

@@ -36,12 +36,14 @@ class ProfilePresetPanel(PresetPanel):
 
     def refresh(self, selected_id=None):
         try:
-            if not self.library.scan().presets:
+            report = self.library.scan()
+            if not report.presets:
                 preset = self.library.export(default_bell(load_defaults()), '手势之铃', preset_id=BELL_PROFILE_ID)
                 if self.ready:
                     self.apply(preset)
                     self.loaded = preset
+                report = self.library.scan()
         except (OSError, ValueError, TypeError, RuntimeError) as exc:
             self.set_message(exc)
             return False
-        return super().refresh(selected_id)
+        return super().refresh(selected_id, report=report)

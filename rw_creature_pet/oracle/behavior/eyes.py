@@ -7,8 +7,9 @@ class OracleEyes:
     OPEN_TICKS = 10  # 40 Hz：0.25 秒
     CLOSE_TICKS = 8
 
-    def __init__(self, seed=621):
+    def __init__(self, seed=621, *, enabled=True):
         self.random = Random(seed)
+        self.enabled = enabled
         self.observing = False
         self.target = 0.
         self.attention_target = None  # 临时窗口注视覆盖；基础观察继续维护自己的目标。
@@ -16,6 +17,8 @@ class OracleEyes:
         self.revision = 0
 
     def begin_observation(self, *, restart=False):
+        if not self.enabled:
+            return
         if self.observing and not restart:
             return
         self.observing = True
@@ -27,18 +30,33 @@ class OracleEyes:
 
     def begin_reaction(self, opened):
         """交互使用自己的抽签结果，不改变自主观察的低概率随机流。"""
+        if not self.enabled:
+            return
         self.observing = True
         self.target = float(opened)
 
     @property
     def effective_target(self):
+        if not self.enabled:
+            return 0.
         return self.target if self.attention_target is None else self.attention_target
+
+    def set_enabled(self, enabled):
+        if self.enabled == enabled:
+            return
+        self.enabled = enabled
+        self.observing = False
+        self.target = self.openness = self.previous_openness = 0.
+        self.attention_target = None
+        self.revision += 1
 
     @property
     def moving(self):
         return self.openness != self.effective_target or self.previous_openness != self.openness
 
     def step(self):
+        if not self.enabled:
+            return
         previous = self.previous_openness
         self.previous_openness = self.openness
         target = self.effective_target

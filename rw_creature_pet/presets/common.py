@@ -197,6 +197,8 @@ def scan_library(directory, manifest, loader):
             preset = loader(path)
             groups.setdefault(preset.id, []).append(preset)
         except (OSError, ValueError, TypeError, RecursionError) as exc:
+            # 报告仅供显示；堆栈会保留 PNG 读取器并锁住文件，阻止用户修复坏资源
+            exc.__traceback__ = exc.__context__ = exc.__cause__ = None
             errors.append((path, exc))
     winners, duplicates = [], []
     for group in groups.values():

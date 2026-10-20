@@ -52,7 +52,7 @@ class OracleDragReactions:
         return self.LABELS.get(self.gesture, '放松')
 
     def begin(self, scene):
-        if not self.config.enabled:
+        if not self.config.enabled or not scene.config.character.has_hands:
             return
         self.active = True
         self.gesture = None
@@ -81,7 +81,7 @@ class OracleDragReactions:
         """显式调试入口；日常运行通过独立的间歇抽签调用。"""
         if kind not in self.LABELS:
             raise ValueError('未知拖动手势')
-        if self.projection.busy:
+        if not scene.config.character.has_hands or self.projection.busy:
             return
         self.gesture = kind
         self.weight = self.elapsed = 0.
@@ -123,6 +123,8 @@ class OracleDragReactions:
             self.flutter_phases[i] += 2*pi*self.flutter_rates[i]*self.DT
 
     def _try_gesture(self, scene):
+        if not scene.config.character.has_hands:
+            return
         if self.projection.try_start(scene):
             self.gesture_wait = self.random.uniform(.45, 1.35)
             return
@@ -134,6 +136,8 @@ class OracleDragReactions:
         self.gesture_wait = self.random.uniform(.45, 1.35)
 
     def _try_eyes(self, scene):
+        if not scene.config.character.has_eyes:
+            return
         opened = self.eye_random.random() < self.config.eye_open_probability
         scene.eyes.begin_reaction(opened)
         self.eye_remaining = self.eye_random.uniform(1.5, 3.) if opened else 0.
@@ -150,6 +154,12 @@ class OracleDragReactions:
         self.voice_wait = self.voice.remaining+self.voice_random.uniform(1.8, 3.8)
 
     def step(self, scene):
+        if not scene.config.character.has_voice:
+            self.voice.cancel()
+        if not scene.config.character.has_hands:
+            if self.active or self.gesturing or self.projection.busy:
+                self.end(scene, cancel=True)
+            return
         self.voice.step(self.DT)
         self.projection.step(scene)
         if not self.active and not self.gesturing:
@@ -181,7 +191,7 @@ class OracleDragReactions:
         if self.eye_wait <= 0:
             self._try_eyes(scene)
         self.voice_wait -= self.DT
-        if self.voice_wait <= 0:
+        if self.voice_wait <= 0 and scene.config.character.has_voice:
             self._try_voice()
 
     def hand_weight(self, index):

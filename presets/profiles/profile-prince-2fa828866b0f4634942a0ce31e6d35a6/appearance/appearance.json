@@ -1,0 +1,25 @@
+{
+  "type": "rw-creature-pet.appearance",
+  "version": 1,
+  "id": "bd979bc0-ceda-4133-9c9d-3dab72214199",
+  "name": "prince",
+  "updated_at": "2026-10-19T10:06:04.755045+00:00",
+  "config": {
+    "oracle": {
+      "body_appearance": "prince",
+      "pearl_bubble_color": "#b6a1cc",
+      "prince_colors": {
+        "arm": "#7b7889",
+        "arm_highlight": "#b3afbd",
+        "joints": "#474451",
+        "pearl": "#d8cdc5",
+        "pearl_glyph": "#b6a1cc",
+        "pearl_primary": "#b597c9",
+        "pearl_secondary": "#889bab",
+        "robe_bottom": "#171620",
+        "robe_top": "#302e3b",
+        "skin": "#34313f"
+      }
+    }
+  }
+}

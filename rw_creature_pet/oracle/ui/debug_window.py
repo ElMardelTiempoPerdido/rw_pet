@@ -18,7 +18,7 @@ from ...overseer.events import OverseerEvents
 from ...overseer.group import OverseerGroup, OverseerEntry
 from .overseer import overseer_bounds, puppet_position, spawn_context
 from ..scene import OracleScene, RailSide
-from ..config import COLOR_LABELS, CUSTOM_COLOR_NAMES, DISPLAY_SCALES, OracleColors
+from ..config import COLOR_LABELS, DISPLAY_SCALES, OracleColors, OracleConfig
 from ..eye_config import EYE_FIELDS, EyeAppearance
 from .eye_editor import EYE_LABELS
 from ..pearls.glyphs import load_pearl_glyphs
@@ -26,6 +26,7 @@ from ..graphics.render import OracleRenderer, point
 from ..interaction.input import PuppetHitMap
 from ...shared.timing import FixedStepper
 from ..audio.assets import make_bell_voice_player
+from ..audio.playback import sync_oracle_voice
 
 
 class OracleCanvas(QWidget):
@@ -405,7 +406,7 @@ class OracleDebugWindow(QMainWindow):
         self.scene.drag.set_enabled(config.interaction.drag_enabled)
         self.voice_player = make_bell_voice_player(config, config_path, self,
                                                   initialize=load_atlas, source=voice_source)
-        self.voice_player.sync(self.scene.drag_reactions.voice)
+        sync_oracle_voice(self.voice_player, self.scene)
         self.clock = FixedStepper(self.scene.TICK_RATE)
         self.asset_message = '几何预览（未加载图集）'
         atlas = None
@@ -658,7 +659,7 @@ class OracleDebugWindow(QMainWindow):
         grid = QGridLayout()
         self.color_buttons = {}
         palette = [field for field in fields(OracleColors)
-                   if config.oracle.body_appearance == 'bell' or field.name in CUSTOM_COLOR_NAMES]
+                   if field.name in config.oracle.editable_color_names]
         for row, field in enumerate(palette):
             grid.addWidget(QLabel(COLOR_LABELS[field.name]), row, 0)
             button = QPushButton()
@@ -741,7 +742,7 @@ class OracleDebugWindow(QMainWindow):
     def reset_colors(self):
         if self.scene.config.body_appearance == 'custom':
             self.set_eye_colors({name: EyeAppearance().color for name in EYE_FIELDS})
-        self.set_colors(OracleColors())
+        self.set_colors(OracleConfig(body_appearance=self.scene.config.body_appearance).active_colors)
 
     def reload_colors(self):
         try:
@@ -935,7 +936,7 @@ class OracleDebugWindow(QMainWindow):
         now = perf_counter()
         self.clock.advance(now - self.last_time, self.step_scene)
         self.last_time = now
-        self.voice_player.sync(self.scene.drag_reactions.voice, paused=self.clock.paused)
+        sync_oracle_voice(self.voice_player, self.scene, paused=self.clock.paused)
         self.refresh(force=False)
 
     def refresh(self, *, force=True):

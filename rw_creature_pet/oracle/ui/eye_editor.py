@@ -11,6 +11,7 @@ from .inputs import ColorButton, WheelSafeComboBox
 
 EYE_LABELS = {'eye_1': '眼睛1', 'eye_2': '眼睛2'}
 EYE_STATES = (('闭眼', False), ('睁眼', True))
+EYE_HEIGHTS = (('通常', 'normal'), ('较低', 'lower'))
 
 
 class EyeEditor(QWidget):
@@ -31,13 +32,19 @@ class EyeEditor(QWidget):
         self.color.setFixedWidth(110)
         form.addRow('颜色', self.color)
         self.state = WheelSafeComboBox()
-        self.state.setMinimumWidth(110)
+        self.state.setFixedWidth(100)
         for label, data in EYE_STATES:
             self.state.addItem(tr(label), data)
         form.addRow('默认状态', self.state)
+        self.height_mode = WheelSafeComboBox()
+        self.height_mode.setFixedWidth(100)
+        for label, data in EYE_HEIGHTS:
+            self.height_mode.addItem(tr(label), data)
+        form.addRow('眼位高度', self.height_mode)
         self.visible.toggled.connect(lambda visible: self.change(visible=visible))
         self.color.valueChanged.connect(lambda color: self.change(color=color))
         self.state.currentIndexChanged.connect(lambda: self.change(default_open=self.state.currentData()))
+        self.height_mode.currentIndexChanged.connect(lambda: self.change(height_mode=self.height_mode.currentData()))
         self.setValue(value)
 
     def value(self):
@@ -49,10 +56,11 @@ class EyeEditor(QWidget):
         if value == self._value:
             return
         self._value = value
-        blockers = [QSignalBlocker(widget) for widget in (self.visible, self.color, self.state)]
+        blockers = [QSignalBlocker(widget) for widget in (self.visible, self.color, self.state, self.height_mode)]
         self.visible.setChecked(value.visible)
         self.color.setValue(value.color)
         self.state.setCurrentIndex(self.state.findData(value.default_open))
+        self.height_mode.setCurrentIndex(self.height_mode.findData(value.height_mode))
         del blockers
         self.refresh()
         self.valueChanged.emit(value)
@@ -63,5 +71,8 @@ class EyeEditor(QWidget):
     def refresh(self):
         self.color.setEnabled(self._value.visible)
         self.state.setEnabled(self._value.visible)
+        self.height_mode.setEnabled(self._value.visible)
         for index, (label, _) in enumerate(EYE_STATES):
             self.state.setItemText(index, tr(label))
+        for index, (label, _) in enumerate(EYE_HEIGHTS):
+            self.height_mode.setItemText(index, tr(label))

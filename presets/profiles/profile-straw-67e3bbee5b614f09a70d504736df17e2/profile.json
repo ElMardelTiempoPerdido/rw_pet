@@ -3,7 +3,7 @@
   "version": 1,
   "id": "72e93f37-aaba-470e-85cf-4f5be68d8ce6",
   "name": "straw",
-  "updated_at": "2026-10-15T10:47:04.028556+00:00",
+  "updated_at": "2026-10-18T10:40:25.702733+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -48,6 +48,6 @@
   },
   "appearance": {
     "id": "6312b790-3c6e-423c-a91b-7621a6d99f51",
-    "path": "appearance/appearance.json"
+    "path": "appearance-e9bd05dc0b7948569eea619e210a88ee/appearance.json"
   }
 }

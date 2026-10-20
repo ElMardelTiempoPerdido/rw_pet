@@ -11,8 +11,10 @@ from .settings_style import apply_settings_style
 def acknowledge_character_upgrade(parent=None):
     box = QMessageBox(parent)
     box.setWindowTitle(tr('保留原有设置'))
-    box.setText(tr('检测到旧版的珍珠、行动等设置。确认后，会将这些设置保留为「手势之铃」的个人调整。\n'
-                   '你仍可右键点击参数，恢复为该角色提供的默认值。'))
+    box.setText(tr('检测到本地存在旧版的角色配置（当您下载过仅包含手势之铃的桌宠版本时，会出现这种情况）\n'
+                   '请单击[确认]来进行配置的自动合并，这将会：\n'
+                   '保留您调整过的部分设置(如桌宠活动范围和隐藏线缆)作为全局设置；\n'
+                   '并将其余设置(影响角色个性的设置，如移动和鼠标拖动反应的风格)作为手势之铃的角色设置'))
     box.setStandardButtons(QMessageBox.StandardButton.Ok)
     box.button(QMessageBox.StandardButton.Ok).setText(tr('确认'))
     apply_settings_style(box)

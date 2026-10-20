@@ -3,11 +3,14 @@ from dataclasses import dataclass, fields, replace
 from math import isfinite
 
 from ..shared.messages import Message
+from .outfit_layout import Anchor, MAID_PLACEMENTS, Slot, resolved_slot
 
 
 @dataclass(frozen=True, slots=True)
 class OutfitPartSettings:
     enabled: bool = True
+    anchor: str = Anchor.HEAD_CROWN
+    layer: str = Slot.BEHIND_HEAD
     offset_x: float = 0.
     offset_y: float = 0.
     mirror: bool = False
@@ -16,6 +19,13 @@ class OutfitPartSettings:
     brightness: float = 0.
 
     def __post_init__(self):
+        try:
+            anchor = Anchor(self.anchor)
+            layer = resolved_slot(anchor, self.layer)
+        except (ValueError, TypeError):
+            raise ValueError('附加外观的锚点或层级无效') from None
+        object.__setattr__(self, 'anchor', anchor)
+        object.__setattr__(self, 'layer', layer)
         for name in ('enabled', 'mirror'):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(Message('附加外观参数 {name} 必须为布尔值', name=name))
@@ -28,13 +38,18 @@ class OutfitPartSettings:
                                          name=name, low=low, high=high))
 
 
+def maid_part_settings(part_id, **values):
+    anchor, layer = MAID_PLACEMENTS[part_id]
+    return OutfitPartSettings(anchor=anchor, layer=layer, **values)
+
+
 @dataclass(frozen=True, slots=True)
 class MaidSettings:
-    head: OutfitPartSettings = OutfitPartSettings()
-    lace: OutfitPartSettings = OutfitPartSettings(mirror=True)
-    apron: OutfitPartSettings = OutfitPartSettings()
-    ribbon_up: OutfitPartSettings = OutfitPartSettings()
-    ribbon_down: OutfitPartSettings = OutfitPartSettings()
+    head: OutfitPartSettings = maid_part_settings('head')
+    lace: OutfitPartSettings = maid_part_settings('lace', mirror=True)
+    apron: OutfitPartSettings = maid_part_settings('apron')
+    ribbon_up: OutfitPartSettings = maid_part_settings('ribbon_up')
+    ribbon_down: OutfitPartSettings = maid_part_settings('ribbon_down')
 
     def __post_init__(self):
         if any(not isinstance(getattr(self, f.name), OutfitPartSettings) for f in fields(self)):

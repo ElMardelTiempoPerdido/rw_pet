@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from rw_creature_pet.config import AppConfig, DesktopConfig
+from rw_creature_pet.oracle.behavior_config import DailyActivityConfig, ReadingConfig
 from rw_creature_pet.settings_store import SettingsStore, absolute_paths
 
 
@@ -30,6 +31,29 @@ class SettingsStoreTests(unittest.TestCase):
         self.store.save(updated)
         self.assertEqual(self.store.load(), updated)
         self.assertEqual(self.store.path.with_suffix('.json.bak').read_bytes(), original)
+
+    def test_old_activity_settings_fill_only_missing_values_and_roundtrip_new_fields(self):
+        self.write_profile({'oracle': {'float_speed': 1.2, 'cross_edge_probability': 0,
+                                      'daily_activity': {'move_weight': 0, 'move_lean_degrees': 0},
+                                      'reading': {'start_probability': 0},
+                                      'drift': {'duration_variation': 0},
+                                      'mouse_avoidance': {'leave_grace_seconds': 0}}})
+        with patch('rw_creature_pet.settings_store.load_defaults', return_value=AppConfig()):
+            loaded = self.store.load()
+            self.assertEqual(loaded.oracle.float_speed, 1.2)
+            self.assertEqual(loaded.oracle.cross_edge_probability, 0)
+            self.assertEqual(loaded.oracle.daily_activity,
+                             DailyActivityConfig(move_weight=0, move_lean_degrees=0))
+            self.assertEqual(loaded.oracle.reading, ReadingConfig(0))
+            self.assertEqual(loaded.oracle.drift.duration_variation, 0.)
+            self.assertEqual(loaded.oracle.drift.cooldown_seconds, 120.)
+            self.assertEqual(loaded.oracle.mouse_avoidance.leave_grace_seconds, 0.)
+            self.assertEqual(loaded.oracle.mouse_avoidance.lean_sample_power, 2.)
+            changed = replace(loaded, oracle=replace(loaded.oracle,
+                daily_activity=replace(loaded.oracle.daily_activity, idle_max_seconds=9.876543),
+                reading=ReadingConfig(.123456)))
+            self.store.save(changed)
+            self.assertEqual(self.store.load(), changed)
 
     def test_atomic_replace_failure_keeps_previous_complete_file(self):
         self.store.save(AppConfig())

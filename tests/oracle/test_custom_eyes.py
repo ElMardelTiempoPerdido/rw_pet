@@ -22,6 +22,7 @@ from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from tests.oracle.character_fixture import isolate_characters
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.presets.appearance import appearance_mapping, validate_config
 from rw_creature_pet.shared.geometry import Vec2
 
 
@@ -57,7 +58,8 @@ class CustomEyesTests(unittest.TestCase):
                 if image.pixelColor(x, y) == target]
 
     def test_validation_and_old_toml_inherits_shared_color(self):
-        for kw in ({'color': ''}, {'color': '#abcd'}, {'visible': 1}, {'default_open': 'open'}):
+        for kw in ({'color': ''}, {'color': '#abcd'}, {'visible': 1}, {'default_open': 'open'},
+                   {'height_mode': 'invalid'}):
             with self.subTest(kw=kw), self.assertRaises(ValueError):
                 EyeAppearance(**kw)
         legacy = OracleConfig.from_mapping({'colors': {'eyes': '#123456'}})
@@ -104,6 +106,24 @@ class CustomEyesTests(unittest.TestCase):
         self.assertEqual(self.render(shape, 0.), idle)
         hidden = replace(shape, eye_1=replace(shape.eye_1, visible=False))
         self.assertFalse(self.pixels(self.render(hidden, 1.), '#ff0000'))
+
+    def test_lower_closed_eye_moves_one_logical_pixel_and_open_eye_stays_put(self):
+        shape = replace(self.shape(), eye_1=EyeAppearance('#ff0000'))
+        lower = replace(shape, eye_1=replace(shape.eye_1, height_mode='lower'))
+        renderer = OracleRenderer()
+        for angle, direction in ((0., 1), (180., -1)):
+            regular_image = self.render(shape, renderer=renderer, angle=angle)
+            lower_image = self.render(lower, renderer=renderer, angle=angle)
+            regular = self.pixels(regular_image, '#ff0000')
+            shifted = self.pixels(lower_image, '#ff0000')
+            self.assertTrue(regular)
+            self.assertEqual(set(shifted), {(x, y+4*direction) for x, y in regular})
+            self.assertEqual(self.pixels(regular_image, '#0000ff'), self.pixels(lower_image, '#0000ff'))
+            self.assertEqual(self.render(shape, 1., angle=angle), self.render(lower, 1., angle=angle))
+        config = OracleConfig(body_appearance='custom', custom_appearance=lower)
+        restored = validate_config(json.loads(json.dumps(appearance_mapping(config))))
+        self.assertEqual(restored.custom_appearance.eye_1.height_mode, 'lower')
+        self.assertEqual(restored.custom_appearance.eye_2.height_mode, 'normal')
 
     def test_eye_identity_stays_attached_when_turning_and_rotating(self):
         shape = self.shape()
@@ -186,6 +206,14 @@ class CustomEyesTests(unittest.TestCase):
                     d.restore_defaults(d.tabs.indexOf(d.pages['appearance']))
                 self.assertEqual(first.value(), config.oracle.custom_appearance.eye_1)
                 self.assertEqual(second.value(), config.oracle.custom_appearance.eye_2)
+                d.controls['oracle.body_appearance'].setValue('custom')
+                first.height_mode.setCurrentIndex(first.height_mode.findData('lower'))
+                self.assertEqual(d.eye_editors['eye_1'].value().height_mode, 'lower')
+                self.assertEqual(second.value().height_mode, 'normal')
+                self.assertTrue(first.height_mode.property('default_reset_bound'))
+                d.save(close=False)
+                self.assertEqual(store.load().oracle.custom_appearance.eye_1.height_mode, 'lower')
+                self.assertEqual(first.height_mode.itemText(first.height_mode.findData('lower')), 'Lower')
             finally:
                 d.shutdown()
                 d.deleteLater()

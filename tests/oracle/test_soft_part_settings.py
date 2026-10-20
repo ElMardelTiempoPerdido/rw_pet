@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtTest import QTest
+from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
@@ -160,9 +160,12 @@ class SoftPartSettingsTests(unittest.TestCase):
         settle()
         check_upload(second)
         # 布局收敛后不应继续调度刷新，避免设置窗口空闲时反复计算
-        with patch.object(first, '_refresh_layout', wraps=first._refresh_layout) as refresh:
-            QTest.qWait(200)
-            refresh.assert_not_called()
+        root = page.widget().layout()
+        settle()
+        refresh = QSignalSpy(root._reflow_timer.timeout)
+        QTest.qWait(200)
+        self.assertEqual(refresh.count(), 0)
+        self.assertFalse(root._reflow_timer.isActive())
 
     def test_autosave_role_isolation_and_reopen_keep_share_defaults_read_only(self):
         d = self.dialog()

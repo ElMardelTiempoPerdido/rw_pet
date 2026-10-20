@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from math import atan2, degrees
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QImage, QPainter, QTransform
 
 from ...shared.geometry import Vec2
 from ..scene import unit
@@ -17,6 +17,8 @@ from .raster import aligned_sprite, attached_sprite_rect, painter_density, stabl
 @dataclass
 class OutfitSprite:
     key: tuple | None = None
+    source_key: tuple | None = None
+    source: QImage | None = None
     image: QImage | None = None
     target: QRectF | None = None
     glow: GlowLayer = field(default_factory=GlowLayer)
@@ -30,6 +32,7 @@ class OutfitRenderer:
         self._outfit_sprites = {}
         self._front_outfit_layers = ()
         self._clothing_geometry_key = None
+        self._front_clothing_key = None
 
     def draw_head_outfit(self, painter, definition, slot, density, crown_y):
         for component in definition.at(slot):
@@ -42,7 +45,7 @@ class OutfitRenderer:
         return upper+direction*(delta.x*direction.x+delta.y*direction.y), direction
 
     def draw_outfit_components(self, painter, definition, components, density, frames,
-                               *, mask=None, offset=Vec2()):
+                               *, mask=None, offset=Vec2(), clip_sprites=False):
         if definition != self._outfit_definition:
             # 只保留当前套装的旋转图，避免切换套装后积累不再使用的缓存
             self._outfit_sprites.clear()
@@ -53,7 +56,7 @@ class OutfitRenderer:
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-            if component.clip == Clip.CLOTHING:
+            if component.clip == Clip.CLOTHING and not clip_sprites:
                 painter.setClipPath(mask, Qt.ClipOperation.IntersectClip)
             if component.sampling == Sampling.LOCAL:
                 painter.translate(origin.x, origin.y)
@@ -68,12 +71,31 @@ class OutfitRenderer:
                     if sprite is None:
                         sprite = self._outfit_sprites[sprite_id] = OutfitSprite()
                     key = (component, texture.cacheKey(), density, rect.getRect(), angle)
-                    if key != sprite.key:
-                        sprite.image = aligned_sprite(texture, rect, density, angle)
-                        sprite.key = key
+                    if key != sprite.source_key:
+                        sprite.source = aligned_sprite(texture, rect, density, angle)
+                        sprite.source_key = key
                     # 缓存身体含局部平移，只在最终世界网格量化一次
-                    sprite.target = attached_sprite_rect(sprite.image, origin+offset, density)
+                    sprite.target = attached_sprite_rect(sprite.source, origin+offset, density)
                     sprite.target.translate(-offset.x, -offset.y)
+                    clip = None
+                    if clip_sprites and component.clip == Clip.CLOTHING:
+                        clip = QTransform.fromTranslate(-sprite.target.x(), -sprite.target.y()).map(mask)
+                    display_key = key if clip is None else (*key, clip)
+                    if display_key != sprite.key:
+                        sprite.image = sprite.source
+                        if clip is not None:
+                            # 前景外发光读取的也是裁剪后 alpha，不能让被裁掉的原图发光
+                            sprite.image = QImage(sprite.source.size(), sprite.source.format())
+                            sprite.image.fill(0)
+                            local = QPainter(sprite.image)
+                            try:
+                                local.scale(density, density)
+                                local.setClipPath(clip)
+                                local.drawImage(QRectF(0, 0, sprite.target.width(), sprite.target.height()),
+                                                sprite.source)
+                            finally:
+                                local.end()
+                        sprite.key = display_key
                     painter.drawImage(sprite.target, sprite.image)
                     aligned.append(sprite)
             painter.restore()
@@ -81,7 +103,7 @@ class OutfitRenderer:
 
     def draw_body_outfit(self, painter, scene, alpha, upper, lower, direction, head,
                          opening, gown, density, slot, *, offset=Vec2(), cache_key=None):
-        definition = outfit_definition(scene.config.outfit, scene.config.outfit_settings)
+        definition = outfit_definition(scene.config.active_outfit, scene.config.outfit_settings)
         components = definition.at(slot)
         if not components:
             return
@@ -101,7 +123,7 @@ class OutfitRenderer:
 
     def draw_front_outfit(self, painter, scene, alpha=1., *, raster_scale=None):
         self._front_outfit_layers = ()
-        definition = outfit_definition(scene.config.outfit, scene.config.outfit_settings)
+        definition = outfit_definition(scene.config.active_outfit, scene.config.outfit_settings)
         components = definition.at(Slot.FRONT)
         if not components:
             if definition != self._outfit_definition:
@@ -115,11 +137,24 @@ class OutfitRenderer:
         app = scene.appearance
         direction = rotate(unit(upper-lower), app.previous_sway+(app.sway-app.previous_sway)*alpha)
         frames = {}
+        mask = None
+        if any(c.clip == Clip.CLOTHING for c in components):
+            key = (app, app.revision, alpha, scene.config.active_custom_appearance,
+                   upper, lower, direction, app.head.sample(alpha))
+            if key != self._front_clothing_key:
+                _, _, opening, _, gown = self.gown_geometry(scene, alpha)
+                self._front_clothing_geometry = self.clothing_geometry(
+                    scene, alpha, upper, lower, direction, app.head.sample(alpha), opening, gown, Vec2())
+                self._front_clothing_key = key
+            mask, origin, angle = self._front_clothing_geometry
+            frames[Anchor.GOWN_COLLAR] = origin, angle
         for anchor in {component.anchor for component in components}:
+            if anchor in frames:
+                continue
             if anchor == Anchor.GOWN_COLLAR:
                 origin, axis = self.gown_axis(scene, alpha, upper, direction, app.head.sample(alpha))
             else:
                 origin, axis = self.body_collar_axis(upper, direction, app.head.sample(alpha))
             frames[anchor] = origin, degrees(atan2(axis.x, -axis.y))
         self._front_outfit_layers = self.draw_outfit_components(
-            painter, definition, components, density, frames)
+            painter, definition, components, density, frames, mask=mask, clip_sprites=True)

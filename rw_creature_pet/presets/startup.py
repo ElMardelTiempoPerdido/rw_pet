@@ -10,6 +10,7 @@ from .personal import PersonalState, apply_values
 from .profile_library import ProfileLibrary
 
 BELL_PROFILE_ID = '797805d8-a9eb-4729-983e-32d7c0923f6f'
+PRINCE_PROFILE_ID = '90fc64fe-b159-4f43-8af9-a5f6a93a607f'
 CHARACTER_SETUP_VERSION = 1
 
 
@@ -43,6 +44,13 @@ class CharacterInitialization:
 
 def default_bell(defaults):
     return replace(defaults, oracle=replace(defaults.oracle, body_appearance='bell'))
+
+
+def default_prince(defaults):
+    """固定角色的初始入口，不改变启动时优先选择 Bell 的规则"""
+    from ..oracle.config import OracleConfig
+    return replace(defaults, oracle=replace(defaults.oracle, body_appearance='prince',
+        prince_colors=OracleConfig().prince_colors, outfit='normal', pearl_bubble_color='#b6a1cc'))
 
 
 def default_custom(defaults):

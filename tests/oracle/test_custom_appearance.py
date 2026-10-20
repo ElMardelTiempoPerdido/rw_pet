@@ -2,7 +2,7 @@
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import fields, replace
-from math import isfinite, radians
+from math import isfinite, pi, radians, sin
 from pathlib import Path
 import tempfile
 import unittest
@@ -49,7 +49,8 @@ class CustomAppearanceTests(unittest.TestCase):
                 with self.subTest(field=field.name, bad=bad), self.assertRaises(ValueError):
                     CustomAppearance(**{field.name: bad})
         shape = CustomAppearance(1.35, 4., 13., 1.25, sleeve_cuff_radius=0., neck_width=5.,
-                                 chest_width=15., chest_height=5.5, shoulder_width=12.5)
+                                 chest_width=15., chest_height=5.5, shoulder_width=12.5,
+                                 robe_flare=1.4, robe_hem_curve=.6)
         config = AppConfig(oracle=OracleConfig(body_appearance='custom', custom_appearance=shape))
         with tempfile.TemporaryDirectory() as temp:
             store = SettingsStore(Path(temp)/'settings.json')
@@ -83,7 +84,7 @@ class CustomAppearanceTests(unittest.TestCase):
                 self.assertAlmostEqual((edges[0][1]-edges[0][0]).length(), 4.)
                 self.assertAlmostEqual((edges[-1][1]-edges[-1][0]).length(), 14.)
         bell = renderer.sleeve_edges(Vec2(), Vec2(0, 14), Vec2(0, -1), 1)
-        self.assertAlmostEqual((bell[0][1]-bell[0][0]).length(), 6.)
+        self.assertAlmostEqual((bell[0][1]-bell[0][0]).length(), 8.)
         self.assertAlmostEqual((bell[-1][1]-bell[-1][0]).length(), 10.)
 
     def test_custom_cuff_zero_is_square_and_large_radius_preserves_narrow_opening(self):
@@ -113,7 +114,7 @@ class CustomAppearanceTests(unittest.TestCase):
             painter.scale(4, 4)
             renderer.draw_inner_robe(painter, upper, lower, up, head, shape=shape)
             painter.end()
-            mask, _, _ = renderer.apron_geometry(scene, 1., upper, lower, up, head,
+            mask, _, _ = renderer.clothing_geometry(scene, 1., upper, lower, up, head,
                                                  QPainterPath(), QPainterPath(), Vec2())
             # 拉长测试颈部以隔离胸肩/头部遮挡，分别检查内搭与露出的皮肤
             for y, color, expected_width in ((-10., renderer.colors.inner_robe, 6.),
@@ -165,6 +166,8 @@ class CustomAppearanceTests(unittest.TestCase):
                           CustomAppearance(inner_robe_enabled=False),
                           CustomAppearance(inner_collar_enabled=False),
                           CustomAppearance(inner_collar_height=7., inner_collar_top_width=6.),
+                          CustomAppearance(robe_flare=1.6),
+                          CustomAppearance(robe_hem_curve=0.),
                           CustomAppearance(robe_length=1.4)):
                 # Bell 忽略已经保存的自定义数据，不污染常量或复用错缓存
                 scene.config = replace(scene.config, body_appearance='bell', custom_appearance=shape)
@@ -180,9 +183,63 @@ class CustomAppearanceTests(unittest.TestCase):
             scene.appearance.sync_shape(scene)
             self.assertEqual(self.paint(renderer, scene), original)
 
+    def test_default_robe_keeps_original_mesh(self):
+        for mode in ('custom', 'bell'):
+            app = self.scene(body_appearance=mode).appearance
+            n = app.CLOTH_DIVS
+            for y in range(n):
+                for x in range(n):
+                    expected = ((2*x/(n-1)-1)*(5+6*y/(n-1)),
+                                (5-23*y/(n-1))*(1+sin(pi*x/(n-1))*.35*(2*y/(n-1)-1)))
+                    for actual, before in zip(app._cloth_local[y*n+x], expected):
+                        self.assertAlmostEqual(actual, before)
+
+    def test_hem_curve_and_width_are_independent_of_length_and_center_depth(self):
+        from rw_creature_pet.oracle.config import CUSTOM_LENGTH_UNITS
+        for flare in (0., 1., 2.):
+            for curve in (0., 1., 2.):
+                outlines = []
+                for length in (.7, 1., 1.5):
+                    shape = CustomAppearance(robe_length=length, robe_flare=flare, robe_hem_curve=curve)
+                    app = self.scene(body_appearance='custom', custom_appearance=shape).appearance
+                    n = app.CLOTH_DIVS
+                    hem = app._cloth_local[-n:]
+                    middle = hem[n//2][1]
+                    outlines.append([(x, y-middle) for x, y in hem])
+                    slope, offset = CUSTOM_LENGTH_UNITS['robe_length']
+                    self.assertAlmostEqual(app._cloth_local[n//2][1]-middle, length*slope+offset)
+                    self.assertAlmostEqual(hem[-1][0]-hem[0][0], 10+12*flare)
+                    self.assertAlmostEqual(hem[0][1]-middle, 6.3*curve)
+                    for x in range(n):
+                        for y in range(5, n-1):
+                            self.assertLess(app._cloth_local[(y+1)*n+x][1], app._cloth_local[y*n+x][1])
+                for other in outlines[1:]:
+                    for a, b in zip(outlines[0], other):
+                        self.assertAlmostEqual(a[0], b[0])
+                        self.assertAlmostEqual(a[1], b[1])
+
+    def test_live_hem_changes_refresh_constraints_and_interpolation(self):
+        scene = self.scene(body_appearance='custom')
+        app = scene.appearance
+        for values in ({'robe_flare': 1.6}, {'robe_hem_curve': 0.}):
+            before = app.cloth_goals()
+            revision = app.revision
+            scene.config = replace(scene.config, custom_appearance=replace(scene.config.custom_appearance, **values))
+            app.sleeping = True
+            app.sync_shape(scene)
+            goals = app.cloth_goals()
+            self.assertNotEqual(goals, before)
+            self.assertFalse(app.sleeping)
+            self.assertGreater(app.revision, revision)
+            for i, neighbors in enumerate(app._cloth_neighbors):
+                for j, rest in neighbors:
+                    self.assertAlmostEqual((goals[i]-goals[j]).length(), rest)
+            self.assertTrue(all(p.position == p.previous_position and p.velocity == Vec2() for p in app.cloth))
+
     def test_extreme_robe_lengths_move_and_settle_without_nonfinite_points(self):
-        for length in (.7, 1.5):
-            scene = self.scene(body_appearance='custom', custom_appearance=CustomAppearance(robe_length=length))
+        for length, flare, curve in ((.7, 1., 1.), (1.5, 1., 1.), (.7, 0., 2.), (1.5, 2., 0.)):
+            scene = self.scene(body_appearance='custom', custom_appearance=CustomAppearance(
+                robe_length=length, robe_flare=flare, robe_hem_curve=curve))
             scene.set_target(scene.body.chunks[0].position+Vec2(55, 0))
             for tick in range(2400):
                 if tick == 80:

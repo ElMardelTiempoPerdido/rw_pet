@@ -15,8 +15,10 @@ _COLOR_FIELDS = (
 )
 _DECAL_FIELDS = ('enabled', 'image_path', 'image_name', 'offset_x', 'offset_y')
 _EAR_FIELDS = (*_DECAL_FIELDS, 'kind', 'width', 'height', 'rotation', 'tone')
-_EYE_FIELDS = ('color', 'visible', 'default_open')
-_OUTFIT_PART_FIELDS = ('enabled', 'offset_x', 'offset_y', 'mirror', 'hue', 'saturation', 'brightness')
+_CLOTHING_FIELDS = (*_DECAL_FIELDS, 'part')
+_EYE_FIELDS = ('color', 'visible', 'default_open', 'height_mode')
+_OUTFIT_PART_FIELDS = ('enabled', 'anchor', 'layer', 'offset_x', 'offset_y', 'mirror', 'hue',
+                       'saturation', 'brightness')
 _SOFT_PART_FIELDS = ('enabled', 'anchor', 'offset_x', 'offset_y', 'angle', 'length', 'width',
                      'color', 'softness', 'damping', 'kind', 'layer', 'image_path', 'image_name',
                      'tip_width_ratio')
@@ -51,6 +53,29 @@ FIELD_SCOPES = build_registry((
         'projection_opacity', 'drag_projection_probability',
         'drag_projection_cooldown_seconds', 'halo_scale', 'halo_arc_max_count',
     )),
+    ('oracle.daily_activity', _PROFILE, (
+        'idle_min_seconds', 'idle_max_seconds', 'long_idle_min_seconds', 'long_idle_max_seconds',
+        'move_min_distance', 'move_max_distance', 'idle_weight', 'move_weight', 'meditate_weight',
+        'meditate_min_seconds', 'meditate_max_seconds', 'cross_edge_cooldown_seconds',
+        'cross_edge_check_seconds', 'move_lean_degrees',
+    )),
+    ('oracle.reading', _PROFILE, ('start_probability',)),
+    ('oracle.drift', _PROFILE, (
+        'cooldown_seconds', 'duration_variation', 'entry_min_seconds', 'entry_max_seconds',
+        'resume_min_seconds', 'resume_max_seconds', 'short_pause_min_seconds', 'short_pause_max_seconds',
+        'normal_pause_min_seconds', 'normal_pause_max_seconds', 'long_pause_min_seconds', 'long_pause_max_seconds',
+        'short_pause_weight', 'normal_pause_weight', 'long_pause_weight', 'bout_min_seconds', 'bout_max_seconds',
+        'long_bout_min_seconds', 'long_bout_max_seconds', 'long_bout_probability',
+        'move_min_distance', 'move_max_distance', 'speed_min_factor', 'speed_max_factor',
+    )),
+    ('oracle.mouse_avoidance', _PROFILE, (
+        'delay_min_seconds', 'delay_max_seconds', 'probability', 'enter_distance', 'exit_distance',
+        'leave_grace_seconds', 'pointer_lag_seconds', 'retry_min_seconds', 'retry_max_seconds',
+        'impatience_min_seconds', 'impatience_max_seconds', 'move_probability',
+        'move_min_distance', 'move_max_distance', 'speed_min', 'speed_max',
+        'lean_move_probability', 'lean_move_min_distance', 'lean_move_max_distance',
+        'lean_min_degrees', 'lean_max_degrees', 'lean_sample_power', 'lean_speed', 'move_angle_jitter',
+    )),
     # 拖动反应归角色行为；音量与语音总开关仍为本机
     ('oracle.drag_reactions', _PROFILE, (
         'enabled', 'gesture_probability', 'flutter_probability',
@@ -65,8 +90,10 @@ FIELD_SCOPES = build_registry((
     ('oracle.outfit_settings.maid.ribbon_down', _APPEARANCE, _OUTFIT_PART_FIELDS),
     ('oracle.colors', _APPEARANCE, _COLOR_FIELDS),
     ('oracle.custom_colors', _APPEARANCE, _COLOR_FIELDS),
+    ('oracle.prince_colors', _APPEARANCE, _COLOR_FIELDS),
     ('oracle.custom_appearance', _APPEARANCE, (
         'head_length', 'sleeve_root_width', 'sleeve_cuff_width', 'robe_length',
+        'robe_flare', 'robe_hem_curve',
         'sleeve_cuff_radius', 'neck_width', 'chest_width', 'chest_height',
         'shoulder_width', 'inner_robe_enabled', 'inner_collar_enabled',
         'inner_collar_height', 'inner_collar_top_width', 'inner_collar_bottom_width',
@@ -84,6 +111,14 @@ FIELD_SCOPES = build_registry((
     ('oracle.custom_appearance.ear_part_3', _APPEARANCE, _EAR_FIELDS),
     ('oracle.custom_appearance.soft_part_1', _APPEARANCE, _SOFT_PART_FIELDS),
     ('oracle.custom_appearance.soft_part_2', _APPEARANCE, _SOFT_PART_FIELDS),
+    ('oracle.custom_appearance.clothing_decal_1', _APPEARANCE, _CLOTHING_FIELDS),
+    ('oracle.custom_appearance.clothing_decal_2', _APPEARANCE, _CLOTHING_FIELDS),
+    ('oracle.custom_appearance.clothing_decal_3', _APPEARANCE, _CLOTHING_FIELDS),
+    ('oracle.custom_appearance.cape', _APPEARANCE, (
+        'enabled', 'length', 'color', 'neckline_shape', 'neckline_width', 'neckline_depth',
+        'neckline_height', 'neckline_roundness', 'neckline_tip_radius', 'hem_trim_enabled',
+        'hem_trim_color', 'hem_trim_width', 'hem_trim_gap',
+    )),
     # 监视者是独立附加模块，本轮全部保留在本机，包括单个槽位的外观
     ('overseer', _LOCAL, (
         'enabled', 'appearance_mode', 'check_interval', 'appearance_probability',
