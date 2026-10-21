@@ -828,7 +828,8 @@ class OracleDesktopWindow(QWidget):
             return
         s = self.motion.scene
         revision = (s.appearance, s.appearance.revision, s.pearl_visual_revision, s.eyes.revision,
-                    s.halo_visual_revision, s.projection.revision, s.soft_parts, s.soft_parts.revision)
+                    s.halo_visual_revision, s.projection.revision, s.soft_parts, s.soft_parts.revision,
+                    s.support_visual_revision)
         changed = (revision != self._last_revision or not s.appearance.sleeping or not s.arrived
                    or not s.pearls_settled or s.eyes.moving or not s.soft_parts.sleeping)
         if now >= self._next_render_time:

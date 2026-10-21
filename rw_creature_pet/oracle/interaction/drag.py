@@ -65,6 +65,8 @@ class OracleDrag:
         s.arm.corridor = self.free_arm
         self.prince_target = self.controller.target
         s.drag_reactions.begin(s)
+        if s.prince_tentacles is not None:
+            s.prince_tentacles.begin_drag()
         return True
 
     def move(self, point):
@@ -85,16 +87,36 @@ class OracleDrag:
         s.pose.recover_upright(s)
         s.drag_reactions.end(s, cancel=cancel)
         s.look_target = None
-        self.home = s.project_target(s.base+s.base_normal()*64.)
+        if s.prince_tentacles is not None:
+            support = s.prince_tentacles
+            attached = [p for p in support.parts if p.attached]
+            guard = (support.guard if support.guard in attached else
+                     min(attached, key=lambda p: (p.grip-s.body.chunks[0].position).length(), default=None))
+            # 长触手允许越过屏幕中线；按实际支撑的边归位，避免选到够不到的对边
+            location = guard.grip_s if guard is not None else support.location
+            edge = support.rail.sample(location)[0]
+            normal = support.rail.normal(location)
+            delta = s.body.chunks[0].position-edge
+            edge = s.body.chunks[0].position-normal*(delta.x*normal.x+delta.y*normal.y)
+            # 抓附边内缩只留出末端显示空间，不改变人偶松手后的正常离边距离
+            depth = s.world.rail_inset+64.-support.rail.inset
+            self.home = s.project_target(edge+normal*depth)
+        else:
+            self.home = s.project_target(s.base+s.base_normal()*64.)
         for chunk in s.body.chunks:
             chunk.velocity = Vec2() if cancel else limited(chunk.velocity, 3.)
 
-    def project_upper(self, point, direction):
+    def project_upper(self, point, direction, *, choose_support=False):
         # 末段连接是 upper - direction*last_length，不能以身体中心冒充臂端。
         center = self.scene.base+direction*self.scene.arm.lengths[3]
+        support = self.scene.prince_tentacles
+        if support is not None:
+            point = support.project_drag(self.scene, point, choose=choose_support)
         for _ in range(12):
             point = self.outer.clamp(point)
             point = center+limited(point-center, self.reach)
+            if support is not None:
+                point = support.project_drag(self.scene, point)
         return point
 
     def prince_grab(self):
@@ -121,8 +143,13 @@ class OracleDrag:
         desired_upper = requested+(upper.position-s.body.chunks[selected].position)
         if s.navigator:
             # 共用底座的圆角、加速度与换向滞回；它不会瞬移到鼠标所在边。
-            s.navigator.base.step(desired_upper, upper.position-direction*s.arm.lengths[3], self.reach+4)
-        safe_upper = self.project_upper(desired_upper, direction)
+            base_target = (s.prince_tentacles.project_drag(s, desired_upper, choose=True)
+                           if s.prince_tentacles is not None else desired_upper)
+            # 隐藏的导航锚点跟随实际可达位置，不能追着超出触手范围的鼠标跨到另一边
+            # 恢复时允许隐藏锚点追上已经换边的触手，否则旧机械臂跨度会把两者卡在不同边
+            base_reach = float('inf') if s.prince_tentacles is not None and self.recovering else self.reach+4
+            s.navigator.base.step(base_target, upper.position-direction*s.arm.lengths[3], base_reach)
+        safe_upper = self.project_upper(desired_upper, direction, choose_support=True)
         if prince is not None:
             self.prince_target = self.controller.target+safe_upper-desired_upper
         target = safe_upper+(s.body.chunks[selected].position-upper.position)
@@ -170,9 +197,13 @@ class OracleDrag:
         s = self.scene
         upper = s.body.chunks[0]
         region = s.navigator.region if s.navigator else s.world.corridor(s.anchor.side)
-        arm_safe = s.arm.safe_in(self.saved_corridor)
-        if ((upper.position-self.home).length() > .15 or upper.velocity.length() > .03
-                or not region.contains(upper.position) or not arm_safe or not s.arm.settled or not s.pose.settled
+        support_ready = (s.prince_tentacles.settled if s.prince_tentacles is not None
+                         else s.arm.safe_in(self.saved_corridor) and s.arm.settled)
+        # Prince 的触手与导航可达范围共同限制归位，目标可能比实际可达点远几像素
+        home = (self.project_upper(self.home, s.body.direction)
+                if s.prince_tentacles is not None else self.home)
+        if ((upper.position-home).length() > .15 or upper.velocity.length() > .03
+                or not region.contains(upper.position) or not support_ready or not s.pose.settled
                 or (s.navigator and abs(s.navigator.base.velocity) > .01)):
             return
         self.recovering = False

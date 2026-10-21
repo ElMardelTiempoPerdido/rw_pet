@@ -15,6 +15,7 @@ from .motion.navigation import EdgeRegion, FloatNavigator, RoundedRail
 from .graphics.appearance import OracleAppearance
 from .motion.soft_parts import SoftParts
 from .motion.prince import PrincePosture
+from .motion.prince_tentacles import PrinceTentacles
 from .behavior.controller import Activity, OracleBehavior
 from .behavior.eyes import OracleEyes
 from .effects.halo import OracleHalo
@@ -410,6 +411,7 @@ class OracleScene:
         self.set_pearl_orbits(self.pearl_orbits_enabled)
         self.ticks = 0
         self.appearance = OracleAppearance(self)
+        self.prince_tentacles = PrinceTentacles(self) if self.prince_posture is not None else None
         self.soft_parts = SoftParts(self)
         self.halo = OracleHalo(self.world, self.orbit_center, self.config.halo_scale)
         self.halo_arcs = HaloArcs(self.world, self.config.halo_arc_max_count)
@@ -441,6 +443,10 @@ class OracleScene:
     @property
     def halo_visual_revision(self):
         return (self.halo, self.halo.revision, self.halo_arcs.revision) if self.halo_visible else None
+
+    @property
+    def support_visual_revision(self):
+        return self.prince_tentacles.visual_key if self.prince_tentacles is not None else None
 
     def set_anchor(self, side, fraction):
         if side not in self.config.allowed_edges:
@@ -688,7 +694,7 @@ class OracleScene:
     def arrived(self):
         return ((self.mouse_reaction.avoidance.neutral_position(self) - self.target).length() < .3
                 and max(c.velocity.length() for c in self.body.chunks) < .03
-                and self.arm.settled
+                and (self.prince_tentacles.settled if self.prince_tentacles is not None else self.arm.settled)
                 and (self.navigator is None or (self.navigator.done and abs(self.navigator.base.velocity) < .01)))
 
     def _new_prince_posture(self):
@@ -717,6 +723,12 @@ class OracleScene:
                 self.head.position = self.head.previous_position = (
                     root+unit(direction+self.look_direction*.5, direction)*OracleHead.CONNECTION_LENGTH)
                 self.head.velocity = self.head.drive_velocity = Vec2()
+                # Prince 期间机械臂不步进；切回时按当前位置重建，暂停中也不能显示旧位置的臂
+                self.arm = FixedOracleArm(
+                    self.base, self.body.chunks[0].position-direction*self.arm.lengths[3],
+                    self.base_normal(), self.arm.corridor, self.config.arm_scale)
+            # 设置面板可能在暂停时切换角色，同步替换支撑层而不等待下一次物理步
+            self.prince_tentacles = PrinceTentacles(self) if prince else None
         self.eyes.set_enabled(self.config.character.has_eyes)
         if not self.config.character.has_hands and (self.drag_reactions.active
                 or self.drag_reactions.gesturing or self.projection.busy):
@@ -820,11 +832,16 @@ class OracleScene:
             self.head.step(upper, self.body.direction, self.look_direction)
         if self.pearl_orbits is not None:
             self.pearl_orbits.step(pearl_center, self.orbit_center)
-        self.arm.step(upper.position - self.body.direction * self.arm.lengths[3],
-                      self.base if self.navigator else None, self.base_normal(),
-                      guide_region=self.drag.saved_corridor if self.drag.recovering else None)
+        if self.prince_posture is None:
+            self.arm.step(upper.position - self.body.direction * self.arm.lengths[3],
+                          self.base if self.navigator else None, self.base_normal(),
+                          guide_region=self.drag.saved_corridor if self.drag.recovering else None)
         self.projection.avoid_arm(self)
         self.appearance.step(self)
+        if self.prince_posture is not None:
+            if self.prince_tentacles is None:
+                self.prince_tentacles = PrinceTentacles(self)
+            self.prince_tentacles.step(self)
         self.soft_parts.step(self)
         if self.halo_visible:
             self.halo.step(self.orbit_center)

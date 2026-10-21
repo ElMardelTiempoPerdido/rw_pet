@@ -93,3 +93,106 @@ python tools/oracle/review_prince_spine.py --bow-projection
 ```
 
 预览脚本仅将图片输出到 `artifacts/prince`，不读取或修改当前用户角色。`review_prince_spine.py` 输出静态注视姿态、身体轴示意和真实拖拽/恢复流程的 GIF；加上 `--lower-drag` 输出腰部和下摆抓取、长按、再次移动及恢复的并排预览，镜头固定，紫色十字标记鼠标位置；`--gaze-height` 对照静止、仰视、平视和俯视的身体与颈部弯曲；`--bow-projection` 对照相同低头程度在不同横向方向的投影，并生成经过正下方的连续注视 GIF。这些是离屏验证，不替代桌面上的实际拖动观感检查
+
+## 三条触手的轮廓与常规移动
+
+三条触手已接入 Prince 的桌面与调试场景，替换机械臂和线缆的显示与次级运动。配置位于 `rw_creature_pet/skin/prince/tentacles.toml`，由原来的 `tools/oracle/prince_tentacles.toml` 原样移入，桌面和预览共用这一份资源，不读取或写入用户设置、角色文件，也无需提取游戏素材
+
+常规移动时，抓住的末端保持在工作区边缘的原位置，身体前移后逐条收起末端、伸向前方并重新抓住；默认三条触手最多只有一条换点，其余两条继续支撑。触手的根部跟随弯曲后的背部，中段具有阻尼和惯性，停下后收敛休眠，不持续添加随机抖动。跨角时可逐条转移至允许活动的相邻边，限制为单边或连续多边的配置同样生效
+
+实际抓附轨道相对工作区四边向内收 16 个逻辑像素，为末端管宽与囊肿留出显示空间。初始抓点、换点、跨角和拖拽回抓共用此轨道；人偶本体的正常离边距离不随之增加。此设置也用于真实场景的移动预览，静态轮廓预览仍使用 TOML 的画布与原点
+
+极限拖拽松手后，优先返回仍在支撑人偶的触手所在边，并按实际可达位置判定归位完成，避免长触手允许身体越过屏幕中线后误选到无法到达的对边
+
+`points` 是参考轮廓，普通导航仍允许根据距边缘的距离调整弧度和跨度。拖拽及松手恢复期间，每条触手的实际弧长最多为参考长度的 120%，这个限制同时作用于目标形状和惯性形变，不放大管宽或囊肿。最多两条触手可以松开，够不到边缘时保持悬空并收回；至少保留一条抓住边缘，并用它的可达范围限制人偶继续远离屏幕边缘。导航锚点跟随实际可达位置，松手返回仍在支撑人偶的边缘，依次重新抓回，再恢复普通移动的一次一条换点
+
+触手先展开弯曲，再进入伸长阶段：两端距离达到参考弧长的 75% 后，模板弯曲平滑减弱，到 100% 时完全展开。实际节点也遵守自然弧长与当前跨度的限制，绷紧后不再保留根部回弯。运动时适当减弱中段向模板回弹的力度、增加惯性保留，长触手更明显；运动强度平滑过渡，停下后恢复静态约束并休眠，固定抓点不滑动
+
+触手保持鼠标穿透，参与原有像素化、实体外发光和绘制范围更新。声源摸索式的反复试探尚未加入，后续作为独立动作处理，可分别设置普通移动与漫游时的占比
+
+在项目根目录、安装了项目依赖的 Python 环境中启动：
+
+```powershell
+python tools/oracle/review_prince_tentacles.py
+```
+
+窗口每 400ms 检查一次配置文件，保存 TOML 后自动刷新；“打开配置”使用系统关联的编辑器，“重新载入”可以手动刷新，“导出 PNG”默认保存到 `artifacts/prince/prince-tentacles.png`。配置错误时保留上一张有效画面，显示字段或语法错误，并暂时禁用导出；修正并保存后自动恢复
+
+也可不打开窗口，只导出一次：
+
+```powershell
+python tools/oracle/review_prince_tentacles.py --output artifacts/prince/prince-tentacles.png
+python tools/oracle/review_prince_tentacles.py --config rw_creature_pet/skin/prince/tentacles.toml
+```
+
+`--config` 可指向另存的 TOML，用于对比不同方案；`--export-path` 指定窗口中导出按钮的目标路径
+
+配置中的位置、长宽均以 **1x 逻辑像素**为单位。三条触手分别为最长的黑紫渐变、中长的深紫外壳与亮芯、最短的灰紫，固定生成，不使用随机分布
+
+| 字段 | 作用 |
+| --- | --- |
+| `points` | 从背部到末端的中心线控制点，自动平滑经过各点；相对 `preview.origin`，x 向右、y 向下 |
+| `smoothness` | 0～1，控制中心线平滑程度；0 为折线 |
+| `widths` | `[沿曲线的比例, 完整宽度]`，各项之间线性插值 |
+| `colors` | `[沿曲线的比例, "#RRGGBB"]`，颜色沿曲线长度渐变，不按屏幕高度渐变 |
+| `bumps` | 深色囊肿列表 |
+| `cores` | 独立的亮芯列表，不必与 `bumps` 一一对应，也不裁剪到外壳内 |
+| `core_color` | 此触手亮芯的默认颜色 |
+| `enabled` | 是否显示此触手；单个囊肿或内芯也可添加此开关 |
+
+`widths`、`colors` 的比例须严格递增，首项为 0、末项为 1。主体按触手列表顺序从后往前绘制，然后绘制所有深色囊肿，最后绘制所有亮芯；Prince 的身体覆盖在触手整体上方，使根部自然藏在背部
+
+每颗囊肿或内芯使用同一种配置格式，可直接复制一行增加：
+
+```toml
+{ s = 0.90, offset = -0.9, width = 5.8, height = 7.7, angle = 16, color = "#7044FF" },
+```
+
+- `s`：沿整条曲线的弧长比例，0 为根部、1 为末端；增加中间控制点不会把比例改成“第几个点”
+- `offset`：离开中心线的侧向偏移；例如触手朝上时，正值向右、负值向左
+- `width`、`height`：分别为横跨触手、沿着触手方向的直径；相等为圆，不相等为椭圆
+- `angle`：在上述朝向基础上额外顺时针旋转，单位为度
+- `color`：可以省略；深色囊肿使用所在位置的主体渐变色，亮芯使用 `core_color`
+- `enabled = false`：保留此项配置但暂时不绘制
+
+让亮芯偏心时，可单独改其 `s`、`offset`，无需修改对应的外壳。囊肿随局部曲线方向定位和旋转，但自身不沿曲线拉伸
+
+`[preview]` 仅控制观察画面：
+
+- `size`：画布逻辑宽高；`origin`：触手共用原点在画布中的位置
+- `scale`：1 / 1.5 / 2 / 3 / 4，像素密度遵循桌宠现有规则；3x 以 1x 为基础，4x 默认按 `coarse_pixels_4x` 选择 1x 或 2x 基础
+- `magnify`：额外整数观察倍率，不改变像素计算；例如检查 1x 可设 `scale = 1`、`magnify = 4`
+- `background`：`"#RRGGBB"` 或 `"transparent"`
+- `show_prince`：是否显示人偶；`back_offset`：触手原点相对胸部的位移
+- `gaze`：人偶头部方向，x 左负右正，y 低头负、抬头正，范围均为 -1～1
+
+窗口按图像物理像素显示，避免系统缩放额外模糊边缘；画面超过窗口时使用滚动条，不自动缩小图像。该窗口保持静态轮廓预览；桌面进程在首次创建 Prince 时读取轮廓，修改 TOML 后重启桌宠以应用
+
+另外提供真实场景的常规移动 GIF 导出，包含同边往返、跨角和拖拽三种场景，不会启动桌宠或修改本地角色：
+
+```powershell
+python tools/oracle/review_prince_tentacle_motion.py
+python tools/oracle/review_prince_tentacle_motion.py --scenario corner
+python tools/oracle/review_prince_tentacle_motion.py --scenario drag
+python tools/oracle/review_prince_tentacle_motion.py --scenario stretch
+```
+
+输出至 `artifacts/prince/tentacles-walk.gif`、`tentacles-corner.gif`、`tentacles-drag.gif`、`tentacles-stretch.gif`，并各保存一张换点中的 PNG。`stretch` 展示拖向远处、达到牵拉上限、两条松开和松手恢复。可用 `--config`、`--scale`、`--output` 选择另存的轮廓、显示倍率和 GIF 路径
+
+常规移动参数集中在 `oracle/motion/prince_tentacles.py`：
+
+- `GripRail.EDGE_INSET`：触手抓附轨道距真实工作区边缘的内缩距离，当前为 `16` 逻辑像素，增大可为末端装饰留出更多空间
+- `REPLANT_DISTANCE`：身体沿边移动后，理想抓点与原抓点相差多少逻辑像素才启动换点
+- `LEAD_DISTANCE`：新抓点沿移动方向的最大提前量
+- `REST_TICKS`：一条触手落点后，到下一条开始换点的最短间隔
+- `BACK_OUTSET` / `BACK_DOWN`：根部距胸部向边缘、向下的偏移，与静态预览的 `back_offset` 分开
+- `MAX_DRAG_STRETCH`：拖拽时相对参考弧长的最大倍率，当前为 `1.20`
+- `DRAG_ROOT_MARGIN`：人偶拖拽可达范围预留的余量，容纳下一帧胸部弯曲和根部惯性
+
+`SupportTentacle` 中可微调形态与回摆：
+
+- `STRAIGHTEN_START`：开始展开参考弯曲的距离比例，当前为 `.75`，达到自然长度时完全展开
+- `REST_SHAPE_STIFFNESS` / `MOVING_SHAPE_STIFFNESS`：静止与运动时向参考轮廓回弹的力度，当前为 `.12` / `.065`，越小越柔软；运动值主要作用于松弛的长触手中段
+- `REST_VELOCITY_RETENTION` / `MOVING_VELOCITY_RETENTION`：静止与运动时的惯性保留，当前为 `.68` / `.78`，越大回摆越明显
+
+相关代码为 `oracle/prince_tentacles.py` 的配置与曲线采样、`oracle/motion/prince_tentacles.py` 的常规支撑，以及 `oracle/graphics/prince_tentacles.py` 的渐变网格和分层精灵绘制；检查命令为 `python -m unittest tests.oracle.test_prince_tentacles tests.oracle.test_prince_tentacle_motion`

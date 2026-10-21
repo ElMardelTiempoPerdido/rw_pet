@@ -954,6 +954,7 @@ class OracleDebugWindow(QMainWindow):
         now = perf_counter()
         revision = (scene.appearance, scene.appearance.revision, scene.pearl_visual_revision, scene.eyes.revision,
                     scene.halo_visual_revision, scene.projection.revision, scene.soft_parts, scene.soft_parts.revision,
+                    scene.support_visual_revision,
                     self.canvas.overseer_group.revision, self.canvas.overseer.revision)
         needs_frame = ((not self.clock.paused and (not scene.appearance.sleeping or not scene.arrived
                                                    or not scene.pearls_settled or scene.eyes.moving

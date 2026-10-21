@@ -295,7 +295,7 @@ class OracleAppearance:
 
     def sync_cords(self, scene):
         """按配置释放或重建线缆；不改变身体、导航及行为状态。"""
-        visible = not scene.config.hide_cords
+        visible = not scene.config.hide_cords and scene.config.body_appearance != 'prince'
         if visible == (self.cords is not None):
             return
         if visible:

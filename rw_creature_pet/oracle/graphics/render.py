@@ -26,6 +26,7 @@ from .outfit_render import OutfitRenderer
 from .soft_parts import SoftPartsRenderer
 from .cape import draw_cape
 from .clothing_decals import clothing_key, draw_clothing_decals
+from .prince_tentacles import draw_tentacles
 from .outfits import head_outfit_radius, outfit_raster_key
 
 
@@ -1023,11 +1024,13 @@ class OracleRenderer(OutfitRenderer):
         app = scene.appearance
         cords = cords and not scene.config.hide_cords and app.cords is not None
         eye_alpha = pearl_alpha = soft_alpha = alpha
-        if app.sleeping:
+        support = scene.prince_tentacles
+        if app.sleeping and (support is None or support.settled):
             alpha = 1.
         outfit_scale = outfit_raster_key(outfit_definition(scene.config.active_outfit, scene.config.outfit_settings), density)
         key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale, scene.config.body_appearance,
-               scene.config.active_custom_appearance, clothing_key(scene.config.active_custom_appearance))
+               scene.config.active_custom_appearance, clothing_key(scene.config.active_custom_appearance),
+               support.visual_key if support is not None else None)
         if key != self._frame_key:
             commands = PaintCommands()
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
@@ -1391,7 +1394,10 @@ class OracleRenderer(OutfitRenderer):
         lower = upper-waist_direction*9
         head = app.head.sample(alpha)
         if arm:
-            self.draw_arm(painter, scene, alpha)
+            if scene.prince_tentacles is not None:
+                draw_tentacles(painter, (), paths=scene.prince_tentacles.paths(alpha))
+            else:
+                self.draw_arm(painter, scene, alpha)
         if cords and not scene.config.hide_cords and app.cords is not None:
             self.draw_cords(painter, scene, alpha)
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
@@ -1553,5 +1559,11 @@ class OracleRenderer(OutfitRenderer):
         painter.drawEllipse(point(head), 5, 5)
         for p in scene.appearance.hands+scene.appearance.feet:
             painter.drawEllipse(point(p.sample(alpha)), 2, 2)
-        for j in scene.arm.joints:
-            painter.drawEllipse(point(j.previous_position.lerp(j.position, alpha)), 4, 4)
+        if scene.prince_tentacles is not None:
+            for part in scene.prince_tentacles.parts:
+                for a, b in zip(part.nodes, part.nodes[1:]):
+                    painter.drawLine(point(a.sample(alpha)), point(b.sample(alpha)))
+                painter.drawEllipse(point(part.nodes[-1].sample(alpha)), 3, 3)
+        else:
+            for j in scene.arm.joints:
+                painter.drawEllipse(point(j.previous_position.lerp(j.position, alpha)), 4, 4)

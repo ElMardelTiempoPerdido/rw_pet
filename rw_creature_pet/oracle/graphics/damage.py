@@ -26,9 +26,15 @@ def body_bounds(scene):
     if radius > 20.+extra:
         soft = soft.united(point_bounds((head.previous_position, head.position), radius))
     # 外壳弯折至多 24，活塞可伸出 length/4，另含底座和抗锯齿余量。
-    arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
-                        for v in (p.previous_position, p.position)),
-                       32.+max(scene.arm.lengths)/4)
+    if scene.prince_tentacles is not None:
+        arm = QRectF()
+        for part in scene.prince_tentacles.parts:
+            arm = arm.united(point_bounds((v for p in part.nodes
+                                          for v in (p.previous_position, p.position)), part.padding))
+    else:
+        arm = point_bounds((v for p in (*scene.arm.joints, scene.body.chunks[1])
+                            for v in (p.previous_position, p.position)),
+                           32.+max(scene.arm.lengths)/4)
     return soft.united(arm).united(cape_bounds(scene))
 
 

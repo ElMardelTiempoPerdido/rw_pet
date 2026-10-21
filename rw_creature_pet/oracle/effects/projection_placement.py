@@ -30,6 +30,8 @@ class ProjectionArmObstacles:
 
     def broadly_clear(self, scene, start, middle, end, width, height):
         """远离机械臂时只查四个保守框，不重新求外壳曲线。"""
+        if scene.config.body_appearance == 'prince':
+            return True
         parts = (*scene.arm.joints, scene.body.chunks[1])
         for i, (a, b) in enumerate(zip(parts, parts[1:])):
             # 肘部最多偏离主段 24；活塞可再伸 length/4，另含关节、底座支架。
@@ -42,6 +44,9 @@ class ProjectionArmObstacles:
         return True
 
     def update(self, scene):
+        if scene.config.body_appearance == 'prince':
+            self.key, self.boxes = None, ()
+            return self
         parts = (*scene.arm.joints, scene.body.chunks[1])
         positions = tuple(part.position for part in parts)
         previous = tuple(part.previous_position for part in parts)
