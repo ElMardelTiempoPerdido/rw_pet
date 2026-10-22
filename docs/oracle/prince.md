@@ -18,7 +18,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 
 俯身强度与左右朝向分开：`projected_bend()` 根据俯身角计算各段相对平视姿态的高度损失，横向分量只决定前伸有多少显示为侧移。同样的向下分量在左右和正下方产生相同的额外下沉量，正下方通过纵向透视缩短表达，不再额外套用固定 16%/22% 缩短或随横向分量减弱俯身。投影后的段向量不归一化，身体物理使用投影后的目标长度，避免把纵向缩短重新拉直
 
-拖拽时按点击区域选择最近的身体轴节点，在此处施加抓取力。Prince 拖拽期间不主动注视鼠标，原先的注视方向平滑回到中性，避免身体持续朝抓取点主动弯折。导航支点仍保留机械臂长度和工作区边界约束；视觉身体会由抓取点逐段带动，未抓取的部分保留惯性和下垂感。松手后平滑恢复到正常体态和活动带，全部身体节点与下摆停稳后允许休眠
+拖拽时按点击区域选择最近的身体轴节点，在此处施加抓取力。Prince 拖拽期间不主动注视鼠标，原先的注视方向平滑回到中性，避免身体持续朝抓取点主动弯折。导航支点由仍抓附的触手限制可达距离，并保留工作区边界约束；视觉身体会由抓取点逐段带动，未抓取的部分保留惯性和下垂感。松手后平滑恢复到正常体态和活动带，身体、下摆和触手停稳后允许休眠
 
 导航根据抓取点在目标体态中的位置推导支点，不追逐实际柔性节点的细小惯性偏移。按下时记录导航参考方向，本次抓取的位置换算和导航骨架始终使用该方向，避免下摆的长力臂将转角反馈给支点，造成按住不动时持续绕抓取点摆动。实际五段身体仍独立受力、弯曲；松手或取消时清除参考方向，下次抓取重新记录当前方向，不在按下瞬间强制切换为直立
 
@@ -54,6 +54,8 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 
 下摆使用已有的分片 PNG 变形、像素化与外发光流程，纳入绘制清除范围和身体命中范围；透明镂空保持鼠标穿透。下摆回摆独立于上身几何缓存，尾端运动时无需重新生成上半衣袍网格
 
+双层下摆按当前插值姿态合成为一张对齐世界像素网格的局部透明图，画面、外发光和鼠标命中轮廓共用此结果，命中检测不再重复绘制两个网格。缓存只保留最近一次结果；尾端位置、素材、显示像素密度或角色切换时更新，不改变透明镂空的鼠标穿透范围
+
 ## 外观和保存
 
 - `oracle.prince_colors` 独立保存皮肤、衣袍、机械支架、珍珠和投影配色
@@ -67,7 +69,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 - `oracle/graphics/prince.py`：Prince 固定头部和身体绘制入口，不读取 `CustomAppearance`，花冠尺寸和曲面参数在此调整
 - `oracle/motion/prince.py`：Prince 专用注视体态、身体轴目标和绘制帧
 - `oracle/motion/prince_spine.py`：五点身体物理、距离/防反折约束和曲线采样
-- `oracle/interaction/drag.py`：按实际身体区域抓取，导航和机械臂边界保持通用约束
+- `oracle/interaction/drag.py`：按实际身体区域抓取，Prince 使用触手可达范围，其余迭代器保留机械臂约束
 - `oracle/prince_assets.py`：两层衣料的共同画布、连接宽度和接缝颜色
 - `oracle/motion/prince_robe.py`、`oracle/graphics/prince_robe.py`：窄肩衣袍轮廓、独立下摆物理和 PNG 网格绘制
 - `shared/petal_head.py`：Friend 与 Prince 共用的曲面生成和深度投影，角色各自保留素材和投影缓存
@@ -98,17 +100,33 @@ python tools/oracle/review_prince_spine.py --bow-projection
 
 三条触手已接入 Prince 的桌面与调试场景，替换机械臂和线缆的显示与次级运动。配置位于 `rw_creature_pet/skin/prince/tentacles.toml`，由原来的 `tools/oracle/prince_tentacles.toml` 原样移入，桌面和预览共用这一份资源，不读取或写入用户设置、角色文件，也无需提取游戏素材
 
-常规移动时，抓住的末端保持在工作区边缘的原位置，身体前移后逐条收起末端、伸向前方并重新抓住；默认三条触手最多只有一条换点，其余两条继续支撑。触手的根部跟随弯曲后的背部，中段具有阻尼和惯性，停下后收敛休眠，不持续添加随机抖动。跨角时可逐条转移至允许活动的相邻边，限制为单边或连续多边的配置同样生效
+常规移动时，抓住的末端保持在工作区边缘的原位置，身体前移后逐条收起末端、伸向前方并重新抓住；默认三条触手最多只有一条换点，其余两条继续支撑。三条触手的默认根部均位于胸段中轴沿身体向下 4 个逻辑像素处，不朝停靠边偏移，正面直立时在四条边上均保持居中；弯曲时跟随背部。中段具有阻尼和惯性，停下后收敛休眠，不持续添加随机抖动。跨角时可逐条转移至允许活动的相邻边，限制为单边或连续多边的配置同样生效
 
 实际抓附轨道相对工作区四边向内收 16 个逻辑像素，为末端管宽与囊肿留出显示空间。初始抓点、换点、跨角和拖拽回抓共用此轨道；人偶本体的正常离边距离不随之增加。此设置也用于真实场景的移动预览，静态轮廓预览仍使用 TOML 的画布与原点
 
 极限拖拽松手后，优先返回仍在支撑人偶的触手所在边，并按实际可达位置判定归位完成，避免长触手允许身体越过屏幕中线后误选到无法到达的对边
 
-`points` 是参考轮廓，普通导航仍允许根据距边缘的距离调整弧度和跨度。拖拽及松手恢复期间，每条触手的实际弧长最多为参考长度的 120%，这个限制同时作用于目标形状和惯性形变，不放大管宽或囊肿。最多两条触手可以松开，够不到边缘时保持悬空并收回；至少保留一条抓住边缘，并用它的可达范围限制人偶继续远离屏幕边缘。导航锚点跟随实际可达位置，松手返回仍在支撑人偶的边缘，依次重新抓回，再恢复普通移动的一次一条换点
+`points` 保留为静态设计轮廓，不再逐点拉回此轮廓。桌面使用独立的自然长度 `length`、伸出方向 `root_directions` 和抓点偏好 `grip_directions`，仅保留第一个控制点对根部的偏移；若省略这些新字段，对应项才从 `points` 推导。拖拽及松手恢复期间，每条触手的实际弧长最多为自然长度的 120%，不放大管宽或囊肿。最多两条触手可以松开，够不到边缘时保持悬空并收回；至少保留一条抓住边缘，并用它的可达范围限制人偶继续远离屏幕边缘。导航锚点跟随实际可达位置，松手返回仍在支撑人偶的边缘，依次重新抓回，再恢复普通移动的一次一条换点
 
-触手先展开弯曲，再进入伸长阶段：两端距离达到参考弧长的 75% 后，模板弯曲平滑减弱，到 100% 时完全展开。实际节点也遵守自然弧长与当前跨度的限制，绷紧后不再保留根部回弯。运动时适当减弱中段向模板回弹的力度、增加惯性保留，长触手更明显；运动强度平滑过渡，停下后恢复静态约束并休眠，固定抓点不滑动
+悬空且没有可达抓点时，只固定根部，末端与其余节点一起受惯性、重力和长度约束影响。远端通过弱追踪力向边缘方向探寻，目标距离在自然长度的 45%～80% 内选择，并以附近边缘距离为上限；不会把末端固定在空中的目标坐标上。每条触手独立随机选择方向、距离、追踪力度、过渡与停留时长，在较有力的试探与放松回摆之间平滑变化，不强制轮流执行，也不逐帧添加随机抖动。松开时从零牵引渐入，保留原有姿态和速度；再次松开继续各自的随机序列，不重复固定开场。拉长的弧长逐渐回到自然长度，保留回摆和弯曲余量；找到可达抓点后仍保持自由末端，通过受力接近墙面，实际触墙后再固定。此探寻只作用于悬空触手，不使已抓附的末端滑动，也不属于声源调查动作
 
-触手保持鼠标穿透，参与原有像素化、实体外发光和绘制范围更新。声源摸索式的反复试探尚未加入，后续作为独立动作处理，可分别设置普通移动与漫游时的占比
+悬空动作的随机参数位于 `oracle/motion/prince_free_search.py` 的 `FreeTipSearch`：`ANGLE` / `REACH` 调整探寻角度和距离范围，`STRENGTH` 调整力度倍率，`RELAX_CHANCE` / `RELAX_REACH` / `RELAX_STRENGTH` 调整放松的概率、距离和力度，`TRANSITION_TICKS` / `HOLD_TICKS` 及其 `RELAX_` 版本调整过渡与停留时长（40 步为 1 秒）。当前试探力度为原追踪力的 65%～100%，放松为 12%～30%，均平滑过渡。基础物理仍位于 `oracle/motion/prince_tentacles.py` 的 `SupportTentacle`：`FREE_TRACK_STIFFNESS` / `FREE_TRACK_FORCE` 调整追踪力度和力的上限，`FREE_LENGTH_RETURN` 调整松开后收回拉伸余量的速度。Python 和 Numba 使用同一自由端求解分支，仍复用坐标缓冲区，Numba 在场景创建时预热
+
+普通悬空回摆中会偶发朝墙探查，借鉴原版 `DaddyTentacle.ExamineSound` 在目标附近更换探查点、通过力推动触手的方式，不接入真实声音。当前参数下，每条触手松开后独立等待约 2.5～10.5 秒，临时朝墙伸出并连续试探附近方向，约 12.5～27.5 秒后缓慢放松；下一次等待约 4.5～15 秒。动作使用独立时钟，可在普通回摆过渡途中插入，内部每 0.3～0.75 秒重新选择附近方向、目标距离和力度，并连续追踪这些参数。目标距离提高到自然长度的 86%～96%，力度为原基础追踪力的 115%～155%。探查权重上升时，牵引平滑扩展到前中段，根部伸出偏好减弱至 20%，使触手能展开而不是把大部分长度耗在重力下垂和折返上；放松时恢复原分布。仍然只改变受力，不固定末端，也不放大自然长度或拖拽上限。实际有可达抓点时优先通过受力回抓
+
+朝墙探查参数位于同文件的 `WallProbe`：`FIRST_WAIT_TICKS` / `WAIT_TICKS` 为首次与后续等待，`DURATION_TICKS` / `RETARGET_TICKS` 为持续时长与换探查点间隔，`ANGLE` / `REACH` / `STRENGTH` 为方向、距离、力度范围，`TARGET_RESPONSE` / `ENTER_RESPONSE` / `EXIT_RESPONSE` 为追踪、进入与退出的响应速度。等待和持续时间均按 40 Hz 计步，各条触手分别计时、使用独立随机流，也不会改写普通回摆的随机序列
+
+悬空后的回抓不再使用固定末端的换点动画：选到可达目标后，保留所有节点位置、速度并暂停随机探查，通过连续牵引让自由末端靠近目标。末端距抓附轨道不超过 2 个逻辑像素、沿轨道距目标不超过 12 像素时，在实际接触的位置固定。目标重新超出可达范围时回到悬空探寻。接近抓点时按需逐步展开拉伸余量，并留出自然长度 2.5% 的弧长余量；触墙后逐步收回，始终遵守拖拽的 120% 上限。仍按原有名额限制回抓数量，至少保留一条支撑；普通行走中主动换点继续使用原动画
+
+受力分布和回抓参数位于 `SupportTentacle`：`EXTEND_TRACK_RAMP` / `EXTEND_TRACK_BASE` 调整前中段牵引分布，`EXTEND_ROOT_RETENTION` 调整伸展时保留的根部偏好；`REGRIP_STRENGTH` / `REGRIP_RESPONSE` 调整回抓力度与接入速度，`REGRIP_CONTACT_DISTANCE` / `REGRIP_CONTACT_SPAN` 调整触墙和沿墙落脚容差，`REGRIP_PRESS` 提供最后几像素的接触压力，`REGRIP_SLACK` 调整回抓弧长余量。`FREE_LENGTH_RETURN` 同时控制余量展开和收回的速度
+
+触手使用局部伸出偏好、屏幕重力、相邻段限长与轻微抗弯形成姿态，不再使用模板回弹、围绕模板的活动范围或静止吸附。相邻段限长由自然总长均分，允许松弛压缩，避免把余量硬撑成小锯齿；实际总长另有硬限制，两端固定时拉到自然长度后展开为直线，再允许整体伸长。自由端则通过逐段限长向内让位，不把整条链强制收拢为直线。抗弯只平滑相邻节点的尖折，不指定整条链的弯曲方向
+
+重力始终朝屏幕下方。四个边缘各自配置屏幕坐标下的根部伸出方向，跨角时平滑混合，方向偏好只作用于靠近根部的前 22%，向外衰减，不指定中后段形状。默认左右边缘镜像水平伸展，上下边缘独立配置，不将右侧造型依次旋转 90°。松弛段接近工作区外侧时保留装饰的显示余量，避免下垂越出屏幕
+
+运动时保留较多惯性，固定抓点不滑动。停下后按速度和约束误差判断休眠，保留当时形成的受力姿态，不恢复指定造型，因此同一位置可以因之前的运动轨迹而留下不同的弯曲
+
+触手保持鼠标穿透，参与原有像素化、实体外发光和绘制范围更新。当前朝墙探查只用于失去抓点的悬空状态；普通移动与漫游中的声源摸索式动作仍留待后续独立处理
 
 在项目根目录、安装了项目依赖的 Python 环境中启动：
 
@@ -128,6 +146,24 @@ python tools/oracle/review_prince_tentacles.py --config rw_creature_pet/skin/pri
 `--config` 可指向另存的 TOML，用于对比不同方案；`--export-path` 指定窗口中导出按钮的目标路径
 
 配置中的位置、长宽均以 **1x 逻辑像素**为单位。三条触手分别为最长的黑紫渐变、中长的深紫外壳与亮芯、最短的灰紫，固定生成，不使用随机分布
+
+`[motion]` 中的 `body_edge_distance` 设置身体定位点到真实工作区边缘的默认距离，当前为 `106`，原先约为 `82`；启动、重置和拖拽松手归位共用此值。它不是头部或轮廓最近点的间距，也不强制所有自主移动位置保持同一距离。若当前活动带或导航可达范围无法容纳设定值，会收回到允许范围，不越过中央禁区
+
+每条 `[[tentacles]]` 分别设置以下运动参数，修改后重启桌宠，或重新运行动态预览：
+
+```toml
+length = 341.947
+grip_reach = { top = 0.65, right = 0.65, bottom = 0.65, left = 0.65 }
+root_directions = { top = [-0.6, 1], right = [0.5, 1], bottom = [0.2, 1], left = [-0.5, 1] }
+grip_directions = { top = [-1, -0.5], right = [0.45, -1], bottom = [1, 0.5], left = [-0.45, -1] }
+```
+
+- `length`：自然总长，独立于静态轮廓，不改变管宽、囊肿尺寸或分布比例；范围为 `8～2048`，普通导航仍允许适度伸展到抓点，拖拽及恢复时受 `120%` 上限限制
+- `root_directions`：每条边的根部伸出偏好，不是固定的整条曲线
+- `grip_directions`：每条边寻找新抓点时的偏好方向；初始抓点和后续换点共用，已经抓住的末端不会随身体滑动
+- `grip_reach`：四个边缘各自的抓点偏好距离与自然长度之比，各值范围为 `0～1`；例如长度 `200`、顶部比值 `0.65` 时，在顶部停靠会先从根部沿顶部偏好方向取 `130` 像素外的位置，再投影到允许的抓附轨道。表内须包含 `top/right/bottom/left`，也可继续用 `grip_reach = 0.65` 表示四边共用该值；省略时四边均为 `0.65`。跨角时平滑混合相邻边的偏好位移，移动时仍叠加原有的少量前移量，拖拽时还受可达范围约束
+
+两组方向表都必须填写 `top/right/bottom/left`，分别代表人偶当前所在边。所有向量均使用屏幕坐标 `[x, y]`：右为正 x，下为正 y；例如 `[1, -1]` 总是右上方，不随边缘旋转。向量会归一化，`[1, 1]` 与 `[2, 2]` 效果相同，不能填写 `[0, 0]`。`body_edge_distance` 范围为 `24～1024`
 
 | 字段 | 作用 |
 | --- | --- |
@@ -166,7 +202,7 @@ python tools/oracle/review_prince_tentacles.py --config rw_creature_pet/skin/pri
 - `show_prince`：是否显示人偶；`back_offset`：触手原点相对胸部的位移
 - `gaze`：人偶头部方向，x 左负右正，y 低头负、抬头正，范围均为 -1～1
 
-窗口按图像物理像素显示，避免系统缩放额外模糊边缘；画面超过窗口时使用滚动条，不自动缩小图像。该窗口保持静态轮廓预览；桌面进程在首次创建 Prince 时读取轮廓，修改 TOML 后重启桌宠以应用
+窗口按图像物理像素显示，避免系统缩放额外模糊边缘；画面超过窗口时使用滚动条，不自动缩小图像。该窗口保持静态素材布局预览，不代表物理链停稳后的姿态；桌面进程在首次创建 Prince 时读取配置，修改 TOML 后重启桌宠以应用
 
 另外提供真实场景的常规移动 GIF 导出，包含同边往返、跨角和拖拽三种场景，不会启动桌宠或修改本地角色：
 
@@ -175,9 +211,11 @@ python tools/oracle/review_prince_tentacle_motion.py
 python tools/oracle/review_prince_tentacle_motion.py --scenario corner
 python tools/oracle/review_prince_tentacle_motion.py --scenario drag
 python tools/oracle/review_prince_tentacle_motion.py --scenario stretch
+python tools/oracle/review_prince_tentacle_motion.py --side top
+python tools/oracle/review_prince_tentacle_motion.py --side bottom --scenario drag
 ```
 
-输出至 `artifacts/prince/tentacles-walk.gif`、`tentacles-corner.gif`、`tentacles-drag.gif`、`tentacles-stretch.gif`，并各保存一张换点中的 PNG。`stretch` 展示拖向远处、达到牵拉上限、两条松开和松手恢复。可用 `--config`、`--scale`、`--output` 选择另存的轮廓、显示倍率和 GIF 路径
+输出至 `artifacts/prince/tentacles-walk.gif`、`tentacles-corner.gif`、`tentacles-drag.gif`、`tentacles-stretch.gif`，并各保存一张换点中的 PNG。`stretch` 展示拖向远处、达到牵拉上限、两条松开和松手恢复。`--side` 支持 `top/right/bottom/left`，选择对应起始边并调整移动/拖拽方向，非右边的默认文件名追加边名。可用 `--config`、`--scale`、`--output` 选择另存的配置、显示倍率和 GIF 路径；离边距离、自然长度和方向参数均从该配置读取，镜头显示完整工作区。静态轮廓窗口仅预览 `points` 的素材布局，不展示这些运动参数的效果
 
 常规移动参数集中在 `oracle/motion/prince_tentacles.py`：
 
@@ -185,14 +223,24 @@ python tools/oracle/review_prince_tentacle_motion.py --scenario stretch
 - `REPLANT_DISTANCE`：身体沿边移动后，理想抓点与原抓点相差多少逻辑像素才启动换点
 - `LEAD_DISTANCE`：新抓点沿移动方向的最大提前量
 - `REST_TICKS`：一条触手落点后，到下一条开始换点的最短间隔
-- `BACK_OUTSET` / `BACK_DOWN`：根部距胸部向边缘、向下的偏移，与静态预览的 `back_offset` 分开
-- `MAX_DRAG_STRETCH`：拖拽时相对参考弧长的最大倍率，当前为 `1.20`
+- `BACK_OUTSET` / `BACK_DOWN`：根部距胸部向边缘、沿身体向下的偏移，当前分别为 `0` / `4`；三条 `points[0]` 均为 `[0, 0]`，因此共用背部中轴上的出发点。与静态预览的 `back_offset` 分开，后者默认也为 `[0, 4]`
+- `MAX_DRAG_STRETCH`：拖拽时相对配置自然长度的最大倍率，当前为 `1.20`
 - `DRAG_ROOT_MARGIN`：人偶拖拽可达范围预留的余量，容纳下一帧胸部弯曲和根部惯性
 
 `SupportTentacle` 中可微调形态与回摆：
 
-- `STRAIGHTEN_START`：开始展开参考弯曲的距离比例，当前为 `.75`，达到自然长度时完全展开
-- `REST_SHAPE_STIFFNESS` / `MOVING_SHAPE_STIFFNESS`：静止与运动时向参考轮廓回弹的力度，当前为 `.12` / `.065`，越小越柔软；运动值主要作用于松弛的长触手中段
-- `REST_VELOCITY_RETENTION` / `MOVING_VELOCITY_RETENTION`：静止与运动时的惯性保留，当前为 `.68` / `.78`，越大回摆越明显
+- `GRAVITY`：固定朝屏幕下方的重力，当前为 `.14`，增大会增强下垂倾向
+- `ROOT_DIRECTION_FORCE` / `ROOT_DIRECTION_SPAN`：根部伸出偏好的力度和作用长度比例，当前为 `.65` / `.22`，不影响中后段的自由弯曲
+- `BEND_STIFFNESS`：局部抗弯，当前为 `.24`，增大会减少尖折，不恢复参考轮廓
+- `REST_VELOCITY_RETENTION` / `MOVING_VELOCITY_RETENTION`：静止与运动时的惯性保留，当前为 `.82` / `.90`，越大回摆越明显
+- `SETTLE_SPEED` / `SETTLE_TICKS`：休眠的速度门槛与连续稳定帧数，当前为 `.025` / `24`
 
-相关代码为 `oracle/prince_tentacles.py` 的配置与曲线采样、`oracle/motion/prince_tentacles.py` 的常规支撑，以及 `oracle/graphics/prince_tentacles.py` 的渐变网格和分层精灵绘制；检查命令为 `python -m unittest tests.oracle.test_prince_tentacles tests.oracle.test_prince_tentacle_motion`
+长度约束和总长校正集中在 `oracle/motion/prince_tentacle_numeric.py`，使用每条触手自己的坐标和直线缓冲区，避免在迭代中反复创建向量及候选点列表。保留原有的 12 轮约束顺序、16 次总长二分以及休眠规则
+
+触手沿用 `oracle.physics_backend`：`auto` 在 Numba 可用时启用加速，不可用时回退到优化后的 Python 内核；`python` 强制使用 Python，`numba` 强制加速并报告不可用错误。也沿用 `RW_PET_NUMERIC_BACKEND` 环境变量覆盖，创建场景时预热编译，运动过程中不增加首次编译开销
+
+触手绘制使用自适应细分，参数位于 `oracle/graphics/prince_tentacles.py`：`TUBE_SPACING = 4` 为平缓段的最大逻辑像素间距，`TUBE_ERROR = 0.12` 为中心线近似误差，`TUBE_SUBDIVISIONS = 8` 让急弯最多细分至原来约 0.5 逻辑像素的精度。颜色与宽度的配置转折点始终保留，囊肿和亮芯仍按原中心线定位
+
+归一化宽度和颜色采样使用有容量上限的缓存，长度轻微变化时复用同一档采样；缓存键包含配置值，预览重新加载修改后的颜色或宽度时会自动更新。运动位置和物理节点不进入此静态缓存，物理精度与更新频率不受绘制细分影响
+
+相关代码为 `oracle/prince_tentacles.py` 的配置与曲线采样、`oracle/motion/prince_tentacles.py` 的常规支撑，以及 `oracle/graphics/prince_tentacles.py` 的渐变网格和分层精灵绘制；检查命令为 `python -m unittest tests.oracle.test_prince_tentacles tests.oracle.test_prince_tentacle_render tests.oracle.test_prince_tentacle_motion tests.oracle.test_prince_tentacle_numeric tests.oracle.test_prince_tentacle_config`

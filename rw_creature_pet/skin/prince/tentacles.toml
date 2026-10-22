@@ -2,6 +2,11 @@
 # 所有位置、长宽均为 1x 逻辑像素；颜色为 #RRGGBB
 version = 1
 
+[motion]
+# 身体定位点距工作区边缘的默认距离，1x 逻辑像素；启动、重置和拖拽松手归位共用
+# 受当前活动带与导航可达范围限制；设置过大时会收回到允许范围
+body_edge_distance =96
+
 [preview]
 size = [280, 420]        # 画布宽高
 origin = [42, 250]       # 三条触手共用原点在画布中的位置
@@ -10,11 +15,18 @@ scale = 3               # 桌宠倍率：1 / 1.5 / 2 / 3 / 4
 coarse_pixels_4x = true  # 4x 时以 1x 的像素块放大，false 则以 2x 为基础
 magnify = 1             # 额外观察放大，不改变像素化密度
 show_prince = true
-back_offset = [5, 4]    # 触手原点相对 Prince 胸部的偏移
+back_offset = [0, 4]    # 静态预览中触手原点位于胸部中轴下方
 gaze = [-0.75, 0.05]    # 头部朝向，x 左负右正，y 低头负抬头正
 
 # 三条主体按列表顺序从后往前绘制，随后绘制全部 bumps，最后绘制全部 cores
-# points：从背部到末端的中心线，x 向右、y 向下，自动平滑经过各点
+# length：物理链的自然长度，直接修改此值，无需缩放 points
+# root_directions：根部伸出方向；grip_directions：寻找抓点偏好方向
+# top/right/bottom/left 分别对应人偶所在边，各向量均为屏幕坐标 [x, y]
+# x 右正左负，y 下正上负；[1, 1] 与 [2, 2] 方向相同，不影响力度；不能为 [0, 0]
+# grip_reach：四边各自的寻找抓点偏好距离 / length，范围 0～1；也可填一个数值供四边共用
+# 跨角时方向和距离平滑过渡；偏好位置会投影到允许的边缘，移动时仍逐条换点
+# points：静态布局草案，自动平滑经过各点；运行时仅保留第一个点的根部偏移
+# 未配置 length 或方向表时，仍可从 points 推导对应默认值
 # widths / colors：[沿曲线的比例 0～1, 宽度或颜色]，须从 0 开始到 1 结束
 # smoothness：0～1，越大越圆滑；0 为折线，不改变 points 的位置
 # bumps / cores 完全独立；每行可复制增加，或增加 enabled = false 暂时隐藏
@@ -26,6 +38,10 @@ gaze = [-0.75, 0.05]    # 头部朝向，x 左负右正，y 低头负抬头正
 
 [[tentacles]]
 name = "最长 - 黑紫渐变"
+length = 341
+grip_reach = { top = 0.65, right = 0.75, bottom = 0.65, left = 0.65 }
+root_directions = { top = [0, 1], right = [0.5, 1], bottom = [0.2, 1], left = [-0.5, 1] }
+grip_directions = { top = [0.1, -1], right = [0.45, -1], bottom = [1, 0.5], left = [-1, 0] }
 enabled = true
 smoothness = 1
 points = [
@@ -33,7 +49,7 @@ points = [
      [92, -110], [114, -170], [118, -198],
 ]
 widths = [[0, 2], [0.25, 2], [0.65, 2], [1, 2]]
-colors = [[0, "#030307"], [0.35, "#030307"], [0.68, "#907AE1"], [1, "#907AE1"]]
+colors = [[0, "#030307"], [0.35, "#030307"], [0.5, "#7B70D5"], [1, "#CDCCF7"]]
 core_color = "#B29CFD"
 bumps = [
     # 前半段唯一的突出囊肿
@@ -57,6 +73,10 @@ cores = []
 
 [[tentacles]]
 name = "中长 - 深紫外壳与亮芯"
+length = 228
+grip_reach = { top = 0.65, right = 0.65, bottom = 0.65, left = 0.65 }
+root_directions = { top = [0, 1], right = [1, 0.5], bottom = [0.3, 1], left = [-1, 0.5] }
+grip_directions = { top = [-0.55, -1], right = [0.6, -1], bottom = [1, 0.8], left = [-0.6, -1] }
 enabled = true
 smoothness = 1
 points = [
@@ -64,18 +84,18 @@ points = [
     [104, -24], [114, -58], [120, -90], [124, -126],
 ]
 widths = [[0, 2], [0.45, 2], [0.80, 2], [1, 2]]
-colors = [[0, "#141026"], [0.65, "#2E12AE"], [1, "#907AE1"]]
-core_color = "#B29CFD"
+colors = [[0, "#271B6B"], [0.35, "#431EE3"],[0.7,'#BDA4F3'], [1, "#CDCCF7"]]
+core_color = "#DDDEFE"
 bumps = [
     # 背部附近的小簇
-    { s = 0.035, offset = -0.6, width =5, height = 7, color = "#332C6F" },
+    { s = 0.035, offset = -0.6, width =5, height = 7, color = "#4F49BF" },
 
 #    { s = 0.09, offset = -0.4, width = 7, height = 7, color = "#332C6F" },
 #    { s = 0.08, offset = 0.5, width = 5, height = 5, color = "#332C6F" },
 
-    { s = 0.2, offset = -0.5, width = 7, height =7, color = "#332C6F" },
-    { s = 0.22, offset = 0.2, width =8 ,height =8, color = "#332C6F" },
-    { s = 0.28, offset = 0.9, width =5, height =5, color = "#332C6F" },
+    { s = 0.2, offset = -0.5, width = 7, height =7, color = "#4F49BF" },
+    { s = 0.22, offset = 0.2, width =8 ,height =8, color = "#4F49BF" },
+    { s = 0.28, offset = 0.9, width =5, height =5, color = "#4F49BF" },
 
     # 末端的大簇
 #    { s = 0.55, offset = 0, width = 6, height =6 },
@@ -95,7 +115,7 @@ bumps = [
     { s = 0.92, offset = 2, width = 7, height = 7 } ,
     { s = 0.93, offset = -2.5, width = 6, height = 6 } ,
     { s = 0.95, offset = 0.9, width = 6, height = 6 },
-    { s = 0.96, offset = -1.2, width = 13, height = 13 } ,
+    { s = 0.96, offset = -1.2, width = 13, height = 13 ,color='#C8B8F5'} ,
     { s = 0.98, offset = 2, width = 7, height = 7 } ,
     { s =1, offset = 1, width =10, height = 10 },
 ]
@@ -111,12 +131,16 @@ cores = [
 
 [[tentacles]]
 name = "最短 - 灰紫"
+length = 148
+grip_reach = { top = 0.65, right = 0.65, bottom = 0.65, left = 0.65 }
+root_directions = { top = [1, 0], right = [1, 0.7], bottom = [-0.1, 1], left = [-1, 0.7] }
+grip_directions = { top = [0.4, -1], right = [1, 0.3], bottom = [0, 1], left = [-1, 0.5] }
 enabled = true
 smoothness = 1
-points = [[0, 6], [22, 22], [50, 32],[70, 32],[80, 31],[90, 28], [104, 22], [132, 0]]
+points = [[0, 0], [22, 22], [50, 32],[70, 32],[80, 31],[90, 28], [104, 22], [132, 0]]
 widths = [[0, 2], [0.7, 2], [1, 2]]
-colors = [[0, "#625A79"], [0.7, "#665D81"], [1, "#6954B1"]]
-core_color = "#6545F8"
+colors = [[0, "#9B98D7"], [0.7, "#9B98D7"], [1, "#9B98D7"]]
+core_color = "#9D73FD"
 bumps = [
 #    { s = 0.83, offset = -0.2, width = 3.2, height = 4.5 },
 #    { s = 0.92, offset = 0.2, width = 4.1, height = 5.0 },
@@ -129,6 +153,6 @@ cores = [
 
     { s = 0.87, offset = -0.3, width = 6, height = 6 },
 #    { s = 0.9, offset = 2, width = 8, height =8},
-    { s = 0.95, offset = -1.5, width =8 ,height = 8},
+    { s = 0.95, offset = -1.5, width =8 ,height = 8,color='#BDA4F3'},
     { s = 1.0, offset = -1.2, width = 10, height =10},
 ]

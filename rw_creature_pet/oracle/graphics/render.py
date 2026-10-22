@@ -27,6 +27,7 @@ from .soft_parts import SoftPartsRenderer
 from .cape import draw_cape
 from .clothing_decals import clothing_key, draw_clothing_decals
 from .prince_tentacles import draw_tentacles
+from .prince_robe import LowerRobeRenderer
 from .outfits import head_outfit_radius, outfit_raster_key
 
 
@@ -196,6 +197,7 @@ class OracleRenderer(OutfitRenderer):
         self._body_sleeves = [None, None]
         self.init_outfit_renderer()
         self._soft_parts_renderer = SoftPartsRenderer()
+        self._prince_robe_renderer = LowerRobeRenderer()
         self._head_key = None
         self._head_image = None
         self._head_geometry_key = None
@@ -1030,7 +1032,8 @@ class OracleRenderer(OutfitRenderer):
         outfit_scale = outfit_raster_key(outfit_definition(scene.config.active_outfit, scene.config.outfit_settings), density)
         key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale, scene.config.body_appearance,
                scene.config.active_custom_appearance, clothing_key(scene.config.active_custom_appearance),
-               support.visual_key if support is not None else None)
+               support.visual_key if support is not None else None,
+               density if app.prince_robe is not None else None)
         if key != self._frame_key:
             commands = PaintCommands()
             self.draw_geometry(commands, scene, alpha, cords=cords, cache_body=True, pearl=False,
@@ -1406,7 +1409,7 @@ class OracleRenderer(OutfitRenderer):
         shape = scene.config.active_custom_appearance
         palms_in_front = definition.palms_over_decorations and not (shape and shape.cape.enabled)
         # Prince 下摆独立于上身几何缓存，尾端仍回摆时不会冻结，也不重建上身网格
-        style.draw_body_back(self, painter, scene, alpha)
+        style.draw_body_back(self, painter, scene, alpha, density=outfit_density)
         if cache_body:
             # 匀速平移时不重建衣袍/袖子网格。只容忍 0.001 的亚像素变化；
             # 参考姿态不跟随容差更新，累计形变仍使缓存失效。

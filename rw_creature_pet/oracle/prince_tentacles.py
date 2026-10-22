@@ -11,6 +11,7 @@ from ..shared.geometry import Vec2
 
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1]/'skin/prince/tentacles.toml'
+EDGES = ('top', 'right', 'bottom', 'left')
 
 
 @lru_cache(maxsize=1)
@@ -46,6 +47,41 @@ def fields(data, allowed, name):
     unknown = set(data)-set(allowed.split())
     if unknown:
         raise ValueError(f'{name} 包含未知字段：{", ".join(sorted(unknown))}')
+
+
+def edge_directions(data, name):
+    """每条边单独配置屏幕坐标方向；大小不影响力度"""
+    fields(data, ' '.join(EDGES), name)
+    if set(data) != set(EDGES):
+        raise ValueError(f'{name} 需要包含 top/right/bottom/left 四个方向')
+    result = []
+    for edge in EDGES:
+        value = vector(data[edge], f'{name}.{edge}')
+        if value.length() < 1e-6:
+            raise ValueError(f'{name}.{edge} 不能是零向量')
+        result.append(value*(1./value.length()))
+    return tuple(result)
+
+
+def edge_reach(data, name):
+    """接受四边独立比例，也保留单个数值作为四边共用的简写"""
+    if not isinstance(data, dict):
+        return number(data, name, 0., 1.)
+    fields(data, ' '.join(EDGES), name)
+    if set(data) != set(EDGES):
+        raise ValueError(f'{name} 需要包含 top/right/bottom/left 四个边缘')
+    return tuple(number(data[edge], f'{name}.{edge}', 0., 1.) for edge in EDGES)
+
+
+@dataclass(frozen=True)
+class TentacleMotion:
+    body_edge_distance: float = 106.
+
+    @classmethod
+    def parse(cls, data):
+        fields(data, 'body_edge_distance', 'motion')
+        return cls(number(data.get('body_edge_distance', 106.),
+                          'motion.body_edge_distance', 24., 1024.))
 
 
 def enabled(data, name):
@@ -111,6 +147,10 @@ class Tentacle:
     core_color: str
     smoothness: float
     enabled: bool
+    length: float | None = None
+    root_directions: tuple[Vec2, ...] | None = None
+    grip_directions: tuple[Vec2, ...] | None = None
+    grip_reach: float | tuple[float, ...] = .65
 
     def width_at(self, s):
         a, b, t = stop_interval(self.widths, s)
@@ -119,7 +159,8 @@ class Tentacle:
     @classmethod
     def parse(cls, data, index):
         name = f'tentacles[{index}]'
-        fields(data, 'name points widths colors bumps cores core_color smoothness enabled', name)
+        fields(data, 'name points widths colors bumps cores core_color smoothness enabled '
+                     'length root_directions grip_directions grip_reach', name)
         title = data.get('name', str(index+1))
         if not isinstance(title, str) or not title.strip():
             raise ValueError(f'{name}.name 必须是非空文字')
@@ -142,19 +183,26 @@ class Tentacle:
                          f'{name}.colors', color),
                    *layers, color(data.get('core_color', '#7149FF'), f'{name}.core_color'),
                    number(data.get('smoothness', 1.), f'{name}.smoothness', 0., 1.),
-                   enabled(data, name))
+                   enabled(data, name),
+                   number(data['length'], f'{name}.length', 8., 2048.) if 'length' in data else None,
+                   edge_directions(data['root_directions'], f'{name}.root_directions')
+                   if 'root_directions' in data else None,
+                   edge_directions(data['grip_directions'], f'{name}.grip_directions')
+                   if 'grip_directions' in data else None,
+                   edge_reach(data.get('grip_reach', .65), f'{name}.grip_reach'))
 
 
 @dataclass(frozen=True)
 class TentacleStudy:
     tentacles: tuple[Tentacle, ...]
     preview: dict
+    motion: TentacleMotion = TentacleMotion()
 
 
 def load_study(path):
     with Path(path).open('rb') as stream:
         data = tomllib.load(stream)
-    fields(data, 'version preview tentacles', '配置')
+    fields(data, 'version preview tentacles motion', '配置')
     if type(data.get('version')) is not int or data['version'] != 1:
         raise ValueError('version 必须为 1')
     values = data.get('tentacles', [])
@@ -166,7 +214,7 @@ def load_study(path):
     preview = data.get('preview', {})
     if not isinstance(preview, dict):
         raise ValueError('preview 必须是配置表')
-    return TentacleStudy(tentacles, preview)
+    return TentacleStudy(tentacles, preview, TentacleMotion.parse(data.get('motion', {})))
 
 
 @dataclass(frozen=True)

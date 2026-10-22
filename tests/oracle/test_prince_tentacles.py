@@ -96,7 +96,9 @@ class PrinceTentacleTests(unittest.TestCase):
         one = render(study, replace(preview, scale=1))
         two = render(study, replace(preview, scale=2))
         half = render(study, replace(preview, scale=1.5))
-        self.assertEqual((half.width(), half.height()), (210, 315))
+        self.assertEqual((half.width(), half.height()),
+                         (round(preview.size.x*1.5)*preview.magnify,
+                          round(preview.size.y*1.5)*preview.magnify))
         self.assertEqual(half.pixelColor(0, 0).alpha(), 0)
         for scale, coarse, base in ((3, False, one), (4, True, one), (4, False, two)):
             result = render(study, replace(preview, scale=scale, coarse_pixels_4x=coarse))

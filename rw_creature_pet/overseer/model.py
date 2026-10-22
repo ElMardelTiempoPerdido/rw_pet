@@ -6,6 +6,7 @@ from random import Random
 
 from ..shared.geometry import Bounds, Vec2
 from .config import APPEARANCE_COLORS, OverseerConfig
+from .filament_motion import FilamentMotion
 from .graphics.lens import ObservationLens
 from .graphics.friend.body import FriendBend, NECK_LENGTH, body_centers, body_gaze_follow, head_view_gaze, neck_offset
 from .graphics.friend.light import OBSERVATION_DURATION as FRIEND_OBSERVATION_DURATION, light_extent
@@ -154,6 +155,7 @@ class Overseer:
         self.idle_target = Vec2(0, 180)
         self.look_at = self.previous_look = self.root+self.normal*180
         self.target = None
+        self.filament_motion = FilamentMotion(self.seed)
         self._reset_filaments()
         self.revision += 1
 
@@ -311,14 +313,16 @@ class Overseer:
     def _filament_tips(self):
         if self.appearance == 'friend':
             return friend_filaments.tip_targets(self)
-        gaze, depth = self.gaze()
-        spread = (20+5*sin(self.time*.7))*self.config.size
-        phase = .32*sin(self.time*.43)
+        motion = self.filament_motion
+        size = self.config.size
+        spread = motion.radius*size
+        back = -25*size*motion.spread.value-(10-10*size)
+        # 观察时稍减向后收拢，保留此前已校准的前伸幅度
+        opening = self.lens.up
+        back *= 1-.15*opening*opening*(3-2*opening)
         base = self.filament_base()
-        count = self.config.filament_count
-        return [base.lerp(self.head.position+self.tangent*(cos(i*2*pi/count+phase)*spread)
-                +self.normal*(sin(i*2*pi/count+phase)*spread*depth+3*self.config.size)
-                -gaze*(8*self.config.size), self.extended) for i in range(count)]
+        return [base.lerp(self.head.position+offset, self.extended)
+                for offset in motion.ring_offsets(self, self.config.filament_count, spread, back)]
 
     def step(self, target=None, *, threat=None, puppet=None):
         if not self.active:
@@ -374,6 +378,7 @@ class Overseer:
             head.velocity = head.position-head.previous
         if self.appearance == 'friend':
             self.friend_bend.step(self)
+        self.filament_motion.step()
         self._step_filaments()
         self.revision += 1
 
@@ -387,6 +392,9 @@ class Overseer:
         # 使用头部的屏幕投影，不归一化；接近正视时自然减弱，不突然倒向一侧
         gaze = self.head_gaze()[0]
         forward = gaze*(idle_forward+(self.FILAMENT_OBSERVE_FORWARD-idle_forward)*opening)
+        friend_orbit = (self.filament_motion.ring_offsets(self, 2,
+            self.filament_motion.radius*self.config.size*FilamentMotion.FRIEND_ORBIT_SCALE)
+            if self.appearance == 'friend' and opening > 0 else None)
         # 收拢过程中允许节点退到墙内；绘制仍由边框裁剪。
         inset = 1-(1-self.extended)*self.reach
         safe = Bounds(self.bounds.left+inset, self.bounds.top+inset,
@@ -397,7 +405,10 @@ class Overseer:
             segment_length = lengths[index]*self.extended/(len(strand)-1)
             if self.appearance == 'friend':
                 # 观察时松开后向姿态引导，避免长须被原有 S 弧一直留在身后
-                tip = tip.lerp(base+gaze*(lengths[index]*.8), opening*.85)
+                observe_tip = base+gaze*(lengths[index]*.8)
+                if friend_orbit is not None:
+                    observe_tip += friend_orbit[index]*self.extended
+                tip = tip.lerp(observe_tip, opening*.85)
             # 仅在重合点初次展开时使用局部方向，避免归一化零向量后无法撑开。
             angle = index*pi/2 if self.appearance == 'friend' else index*2*pi/len(self.filaments)
             radial = self.tangent*cos(angle)+self.normal*sin(angle)

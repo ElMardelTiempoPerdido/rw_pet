@@ -39,7 +39,7 @@ class PuppetHitMap:
                 painter.translate(-rect.x(), -rect.y())
                 renderer.draw_geometry(painter, scene, alpha, cords=False, pearl=False,
                                        halo=False, arm=False, cache_body=True, include_head=False,
-                                       include_front_outfit=False)
+                                       include_front_outfit=False, raster_scale=density)
                 renderer.draw_scene_head(painter, scene, alpha, pixelated=True, raster_scale=density)
                 renderer.draw_front_outfit(painter, scene, alpha, raster_scale=density)
             finally:

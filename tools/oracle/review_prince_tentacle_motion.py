@@ -15,7 +15,6 @@ from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
-from rw_creature_pet.oracle.motion.prince_tentacles import PrinceTentacles
 from rw_creature_pet.oracle.prince_tentacles import DEFAULT_CONFIG, load_study
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.geometry import Vec2
@@ -25,43 +24,46 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
     parser.add_argument('--scenario', choices=('walk', 'corner', 'drag', 'stretch'), default='walk')
+    parser.add_argument('--side', choices=('top', 'right', 'bottom', 'left'), default='right')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--scale', type=float, choices=(1, 1.5, 2, 3, 4), default=2)
     args = parser.parse_args()
     app = QApplication.instance() or QApplication([])
     scene = OracleScene(OracleConfig(body_appearance='prince', physics_backend='python',
-        world_width=640, world_height=480, edge_fraction=.35, base_side='right',
+        world_width=640, world_height=480, edge_fraction=.35, base_side=args.side,
         base_fraction=.6, halo_enabled=False, pearl_matrix_enabled=False,
-        pearl_orbits_enabled=False, pearl_fixed_count=0))
-    scene.prince_tentacles = PrinceTentacles(scene, load_study(args.config))
+        pearl_orbits_enabled=False, pearl_fixed_count=0), prince_study=load_study(args.config))
     scene.behavior.enabled = False
     renderer = OracleRenderer(colors=scene.config.active_colors)
     for _ in range(200):
         scene.step()
     start = scene.body.chunks[0].position
+    inward = scene.base_normal()
+    tangent = Vec2(-inward.y, inward.x)
     frames = []
     scale = args.scale
-    camera = (QRectF(400, 40, 240, 400) if args.scenario == 'walk'
-              else QRectF(0, 0, scene.world.width, scene.world.height))
+    camera = QRectF(0, 0, scene.world.width, scene.world.height)
     width, height = round(camera.width()*scale), round(camera.height()*scale)
-    output = args.output or ROOT/f'artifacts/prince/tentacles-{args.scenario}.gif'
+    suffix = '' if args.side == 'right' else f'-{args.side}'
+    output = args.output or ROOT/f'artifacts/prince/tentacles-{args.scenario}{suffix}.gif'
     peak = None
     for tick in range(900):
         if args.scenario == 'walk':
             if tick == 40:
-                scene.set_target(start+Vec2(0, -120))
+                scene.set_target(start+tangent*120)
             elif tick == 460:
-                scene.set_target(start+Vec2(0, 40))
+                scene.set_target(start-tangent*40)
         elif args.scenario == 'corner':
             if tick == 40:
-                scene.set_target(Vec2(390, 420))
+                scene.set_target({'right': Vec2(390, 420), 'bottom': Vec2(60, 200),
+                                  'left': Vec2(300, 60), 'top': Vec2(580, 300)}[args.side])
         else:
             if tick == 40:
                 scene.drag.set_enabled(True)
                 scene.drag.press(scene.head.position, lambda _: True)
                 pointer = scene.head.position
             if 40 < tick <= 180:
-                offset = Vec2(-900, -45) if args.scenario == 'stretch' else Vec2(-90, -45)
+                offset = inward*(900 if args.scenario == 'stretch' else 90)+tangent*45
                 scene.drag.move(pointer+offset*((tick-40)/140))
             if tick == 300:
                 scene.drag.release()

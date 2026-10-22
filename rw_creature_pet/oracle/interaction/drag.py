@@ -98,8 +98,8 @@ class OracleDrag:
             normal = support.rail.normal(location)
             delta = s.body.chunks[0].position-edge
             edge = s.body.chunks[0].position-normal*(delta.x*normal.x+delta.y*normal.y)
-            # 抓附边内缩只留出末端显示空间，不改变人偶松手后的正常离边距离
-            depth = s.world.rail_inset+64.-support.rail.inset
+            # 配置以真实工作区边缘为基准，扣除触手抓附轨道的内缩
+            depth = support.study.motion.body_edge_distance-support.rail.inset
             self.home = s.project_target(edge+normal*depth)
         else:
             self.home = s.project_target(s.base+s.base_normal()*64.)

@@ -301,7 +301,11 @@ withdraw_seconds = 0.25
 原版 `OverseerGraphics.Update` 的 `useDir * t² * 0.5` 持续存在，并不直接由 `holoLensUp` 开关控制；桌宠将普通外观的日常力度设为 `FILAMENT_IDLE_FORWARD = 0.05`，观察力度为 `FILAMENT_OBSERVE_FORWARD = 0.5`，两者位于 `overseer/model.py`
 “朋友？”日常保持原 C/S 弧，观察时逐渐减弱后向引导和弧线偏好，使两条触须前伸；观察结束、避让或离场时平滑恢复。沿头部视线的二维投影施力，正视时减弱，四条边共用同一物理逻辑
 运行 `python tools/overseer/review_filament_observation.py` 可在 `artifacts/overseer/filament-observation.png` 与同名 GIF 检查日常、前伸及恢复过程；只创建临时模型，不修改用户设置
-展开半径在 `15～25 × size` 范围内缓慢变化，收缩时静止长度乘以 `extended`，完全隐藏后仍停止外观计算。
+触须的绕转与镜片使用独立状态，普通外观不再使用固定正弦左右摆动：每次转完后按 40 Hz 下 `1/80` 的概率选择新方向和角度，平均等待约 2 秒；角度增量为正负 `0.8 × 随机数³` 圈，偏向小幅转动，偶尔转得更大，并使用原版 `SCurve` 缓动
+另一条独立张合通道在完成变化后按每 tick `1/20` 的概率选择新目标；引导环半径在 `15～25 × size` 内变化，并同步向后收拢。观察时平滑减弱 15% 的后向收拢，保留此前前伸效果。旋转先绕环自身轴发生，再按视线投影，柔性链通过弱牵引追随，末端不锁定在环上
+“朋友？”只在观察时将小幅绕转加入前伸目标，根部仍固定于脸盘后方；观察结束恢复原有 C/S 弧。绕转参数位于 `overseer/filament_motion.py`，其中 `FRIEND_ORBIT_SCALE` 控制双须绕转幅度
+触须运动使用独立随机序列，不改变镜片、光束、出现和身体运动的抽签；隐藏或暂停时停止推进，绘制不改变运动状态。收缩时静止长度仍乘以 `extended`，不增加节点数、物理迭代次数或计时器
+运行 `python tools/overseer/review_filament_rotation.py` 可生成普通/朋友？、正视/侧视的 `artifacts/overseer/filament-rotation.png` 与同名 GIF；预览中延长观察时长，不修改正式事件配置
 触须参考 `Mycelium.UpdateColor`：根部颜色先渐变为深青色，最后一段过渡到固定的纯蓝色尖端；渐变起点随体型由全长的 50% 提前到 30%（默认体型 0.6 时为 46%）。主色预览改变根部配色，末端蓝色保持原版设置。
 监视者没有鼠标命中区域，不会扩大人偶的拖拽范围；调试与桌面使用相同模型和事件调度。
 

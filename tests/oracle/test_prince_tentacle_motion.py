@@ -47,27 +47,7 @@ class TentacleTensionTests(unittest.TestCase):
         root = self.tip-Vec2(length*.6, 0)
         return SupportTentacle(definition, root, self.outward, self.s, self.rail), root
 
-    def test_reference_bow_opens_before_stretching_all_three_tentacles(self):
-        for definition in default_study().tentacles:
-            with self.subTest(name=definition.name):
-                part, _ = self.part(definition)
-                previous = float('inf')
-                for ratio in (.6, .75, .85, .95, 1., 1.15):
-                    root = self.tip-Vec2(part.reference_length*ratio, 0)
-                    goals = part.goals(root, self.outward, self.tip)
-                    bow = max(abs(p.y-self.tip.y) for p in goals)
-                    self.assertLessEqual(bow, previous+1e-8)
-                    previous = bow
-                    arc = sum((b-a).length() for a, b in zip(goals, goals[1:]))
-                    self.assertLessEqual(arc, max(part.reference_length, (self.tip-root).length())+1e-6)
-                    self.assertEqual(goals[0], root)
-                    self.assertEqual(goals[-1], self.tip)
-                    if ratio == .6:
-                        self.assertGreater(bow, 5.)
-                    elif ratio >= 1.:
-                        self.assertLess(bow, 1e-6)
-
-    def test_inertial_chain_straightens_under_tension_then_recovers_its_bow(self):
+    def test_inertial_chain_straightens_under_tension_then_sags_and_sleeps(self):
         for definition in default_study().tentacles:
             with self.subTest(name=definition.name):
                 part, rest_root = self.part(definition)
@@ -81,39 +61,76 @@ class TentacleTensionTests(unittest.TestCase):
                     if ratio >= 1.:
                         self.assertLess(max(abs(p.position.y-self.tip.y) for p in part.nodes), .001)
                     self.assertLessEqual(part.path(1).length, part.length_limit+1e-6)
-                for _ in range(350):
+                for _ in range(500):
+                    before = tuple(n.position for n in part.nodes)
                     part.step(rest_root, self.outward, self.rail)
+                    if part.sleeping:
+                        # 休眠只冻结当前姿态，最后一帧不能跳到另一条目标轮廓
+                        self.assertLess(max((n.position-p).length() for n,p in zip(part.nodes,before)), .03)
+                        break
                 self.assertTrue(part.sleeping)
-                self.assertGreater(max(abs(p.position.y-self.tip.y) for p in part.nodes), 5.)
+                self.assertGreater(max(p.position.y-self.tip.y for p in part.nodes), 5.)
+                resting = part.path(1)
+                for _ in range(80):
+                    self.assertFalse(part.step(rest_root, self.outward, self.rail))
+                self.assertEqual(part.path(1), resting)
 
-    def test_long_tentacle_has_more_motion_lag_and_still_settles(self):
-        definition = max(default_study().tentacles, key=lambda p: make_path(p).length)
-        soft, root = self.part(definition)
-        firm, _ = self.part(definition)
-        # 对照始终使用静态回弹参数，验证移动时能留下适量惯性，而非只改了常量
-        firm.MOVING_SHAPE_STIFFNESS = firm.REST_SHAPE_STIFFNESS
-        firm.MOVING_VELOCITY_RETENTION = firm.REST_VELOCITY_RETENTION
-        for _ in range(80):
-            for part in (soft, firm):
-                part.step(root, self.outward, self.rail)
-        lag = [0., 0.]
-        for tick in range(16):
-            moved = root+Vec2(0, (tick+1)*.8)
-            for index, part in enumerate((soft, firm)):
-                part.step(moved, self.outward, self.rail)
-                goals = part.goals(moved, self.outward, self.tip)
-                lag[index] += sum((n.position-g).length() for n, g in zip(part.nodes, goals))/len(goals)
-                self.assertEqual(part.nodes[0].position, moved)
-                self.assertEqual(part.nodes[-1].position, self.tip)
-        self.assertGreater(lag[0], lag[1]*1.1)
-        self.assertLess(lag[0], lag[1]*1.6)
-        for _ in range(300):
-            soft.step(moved, self.outward, self.rail)
-        self.assertTrue(soft.sleeping)
-        resting = soft.path(1)
-        for _ in range(80):
-            self.assertFalse(soft.step(moved, self.outward, self.rail))
-        self.assertEqual(soft.path(1), resting)
+    def test_gravity_always_points_down_on_all_four_edges(self):
+        definition = default_study().tentacles[-1]
+        for side in (Vec2(320, 0), Vec2(640, 240), Vec2(320, 480), Vec2(0, 240)):
+            with self.subTest(side=side):
+                s = self.rail.project(side)
+                tip, _ = self.rail.sample(s)
+                inward = self.rail.normal(s)
+                root = tip+inward*70
+                part = SupportTentacle(definition, root, inward*-1, s, self.rail)
+                part.ROOT_DIRECTION_FORCE = part.BEND_STIFFNESS = 0.
+                for i,node in enumerate(part.nodes):
+                    node.position = node.previous_position = root.lerp(tip,i/(len(part.nodes)-1))
+                middle = part.nodes[len(part.nodes)//2]
+                before = middle.position
+                part.step(root, inward*-1, self.rail)
+                self.assertAlmostEqual(middle.position.x,before.x)
+                self.assertAlmostEqual(middle.position.y-before.y,part.GRAVITY)
+
+    def test_launch_mirrors_horizontally_without_rotating_downward_bias(self):
+        part, _ = self.part(default_study().tentacles[0])
+        root = Vec2(320,240)
+        right = part.preferred_direction(Vec2(1,0),root,root+Vec2(100,-80))
+        left = part.preferred_direction(Vec2(-1,0),root,root+Vec2(-100,-80))
+        top = part.preferred_direction(Vec2(0,-1),root,root+Vec2(-80,-100))
+        self.assertGreater(right.y,0)
+        self.assertAlmostEqual(right.y,left.y)
+        self.assertAlmostEqual(right.x,-left.x)
+        # 长触手在顶部仍先下垂，再回抓上方，不将右边的下垂旋转为侧向
+        self.assertGreater(top.y,0)
+
+    def test_interior_reference_shape_is_not_a_running_force(self):
+        base = default_study().tentacles[0]
+        points = (Vec2(0,0),Vec2(20,0),Vec2(30,30),Vec2(60,30),Vec2(90,0))
+        a = replace(base,points=points,smoothness=0)
+        b = replace(base,points=tuple(Vec2(p.x,-p.y) for p in points),smoothness=0)
+        first, root = self.part(a)
+        second, _ = self.part(b)
+        self.assertAlmostEqual(first.reference_length,second.reference_length)
+        for tick in range(240):
+            moving = root+Vec2(0,min(tick,30)*.5)
+            for part in (first,second):
+                part.step(moving,self.outward,self.rail)
+            self.assertEqual(first.path(1),second.path(1))
+        self.assertGreater(max(p.position.y-first.nodes[-1].position.y for p in first.nodes),5.)
+
+    def test_moving_root_does_not_translate_whole_chain_or_slide_grip(self):
+        part, root = self.part(default_study().tentacles[0])
+        for _ in range(450):
+            part.step(root,self.outward,self.rail)
+        positions = [n.position for n in part.nodes]
+        moved = root+Vec2(0,-2)
+        part.step(moved,self.outward,self.rail)
+        self.assertEqual(part.nodes[0].position,moved)
+        self.assertEqual(part.nodes[-1].position,self.tip)
+        middle = len(part.nodes)//2
+        self.assertLess((part.nodes[middle].position-positions[middle]).length(),(moved-root).length()*.75)
 
 
 class TentacleMotionTests(unittest.TestCase):
@@ -175,7 +192,8 @@ class TentacleMotionTests(unittest.TestCase):
         support.location = support.rail.project(upper)
         self.assertEqual(support.rail.normal(support.location), Vec2(0, -1))
         scene.drag.release()
-        self.assertAlmostEqual(scene.drag.home.y, scene.world.rail_inset+64.)
+        expected = scene.project_target(Vec2(scene.drag.home.x, support.study.motion.body_edge_distance))
+        self.assertAlmostEqual(scene.drag.home.y, expected.y)
 
     def test_world_grips_hold_then_only_one_tentacle_replants(self):
         world = OracleWorld(640, 480, .3)

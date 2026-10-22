@@ -66,7 +66,7 @@ class Preview:
         return cls(size, vector(data.get('origin', [42, 126]), 'preview.origin'),
                    background, scale, data.get('coarse_pixels_4x', True), int(magnify),
                    data.get('show_prince', True),
-                   vector(data.get('back_offset', [5, 4]), 'preview.back_offset'), gaze)
+                   vector(data.get('back_offset', [0, 4]), 'preview.back_offset'), gaze)
 
 
 @lru_cache(maxsize=4)

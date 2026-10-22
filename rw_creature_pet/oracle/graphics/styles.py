@@ -6,7 +6,7 @@ from .prince_robe import draw_lower_robe
 
 
 class CommonStyle:
-    def draw_body_back(self, renderer, painter, scene, alpha):
+    def draw_body_back(self, renderer, painter, scene, alpha, *, density=1.):
         pass
 
     def head_assets_key(self, shape):
@@ -59,8 +59,8 @@ CUSTOM_STYLE = CustomStyle()
 class PrinceStyle(CommonStyle):
     name = 'prince'
 
-    def draw_body_back(self, renderer, painter, scene, alpha):
-        draw_lower_robe(renderer, painter, scene, alpha)
+    def draw_body_back(self, renderer, painter, scene, alpha, *, density=1.):
+        draw_lower_robe(renderer, painter, scene, alpha, density=density)
 
     def head_options(self, renderer, density):
         return (1., 1.), False, None

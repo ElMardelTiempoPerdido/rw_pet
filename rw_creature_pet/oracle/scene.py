@@ -16,6 +16,7 @@ from .graphics.appearance import OracleAppearance
 from .motion.soft_parts import SoftParts
 from .motion.prince import PrincePosture
 from .motion.prince_tentacles import PrinceTentacles
+from .prince_tentacles import default_study
 from .behavior.controller import Activity, OracleBehavior
 from .behavior.eyes import OracleEyes
 from .effects.halo import OracleHalo
@@ -166,8 +167,14 @@ class FixedOracleArm:
     原版 totalLength 是可折叠段的最大跨度，不是四根始终笔直的定长杆。
     这里用阻尼预测 + 距离区间约束，保留上次关节位置和弯折侧。
     """
+    BASE_LENGTHS = (300., 150., 90., 30.)
+
+    @classmethod
+    def reach_for_scale(cls, scale):
+        return (sum(cls.BASE_LENGTHS[:3])*.88-cls.BASE_LENGTHS[3])*scale
+
     def __init__(self, base, tip, normal, corridor, scale):
-        self.lengths = tuple(value * scale for value in (300., 150., 90., 30.))
+        self.lengths = tuple(value * scale for value in self.BASE_LENGTHS)
         # 窄活动带中，长机械臂过角时需要更深地折叠，不能强制维持首批的
         # 固定最小跨度（原版也会随邻段夹角改变最小距离）。
         fold_limit = float('inf')
@@ -323,8 +330,9 @@ class FixedOracleArm:
 class OracleScene:
     TICK_RATE = 40
 
-    def __init__(self, config=OracleConfig()):
+    def __init__(self, config=OracleConfig(), *, prince_study=None):
         self.config = config
+        self.prince_study = prince_study
         self.pearl_playback_curve = None  # 资源层注入；场景步进不读取文件或解码音频。
         self.world = OracleWorld(config.world_width, config.world_height, config.edge_fraction,
                                  body_margin=body_margin(config.arm_scale), allowed_edges=config.allowed_edges)
@@ -367,7 +375,13 @@ class OracleScene:
             rail = RoundedRail(self.world)
             s = rail.project(base)
             base, normal = rail.sample(s)[0], rail.normal(s)
-        start = self.world.corridor(self.anchor.side).clamp(base + normal * 64)
+        depth = 64.
+        if self.config.body_appearance == 'prince':
+            self.prince_study = self.prince_study or default_study()
+            depth = self.prince_study.motion.body_edge_distance-self.world.rail_inset
+            # 与现有导航的可达走廊一致，过大的配置也不能从不可达位置启动
+            depth = min(depth, FixedOracleArm.reach_for_scale(self.config.arm_scale)-16.)
+        start = self.world.corridor(self.anchor.side).clamp(base + normal * depth)
         self.body = OracleBody([MotionPoint.at(start), MotionPoint.at(start - self.desired_direction * 9)])
         self.head = OracleHead.at(start+self.desired_direction
                                   *(OracleHead.NECK_BASE_OFFSET+OracleHead.CONNECTION_LENGTH

@@ -60,7 +60,7 @@ class PrinceRobeTests(unittest.TestCase):
         image = QImage(art.width, art.height, QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(0)
         painter = QPainter(image)
-        draw_lower_robe(None, painter, scene, 1.)
+        draw_lower_robe(OracleRenderer(), painter, scene, 1.)
         painter.end()
         expected = QImage(image.size(), image.format())
         expected.fill(0)

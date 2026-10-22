@@ -151,7 +151,7 @@ class PrinceDragTests(unittest.TestCase):
         self.assertTrue(scene.appearance.prince_robe.settled)
         self.assertEqual(scene.head.position, scene.prince_posture.target)
 
-    def test_four_edges_still_respect_mechanical_arm_reach(self):
+    def test_four_edges_respect_tentacle_reach_for_all_grab_regions(self):
         for side in ('top', 'right', 'bottom', 'left'):
             for index in (0, 1, 4):
                 with self.subTest(side=side, index=index):
@@ -163,10 +163,17 @@ class PrinceDragTests(unittest.TestCase):
                     scene.drag.move(scene.base+scene.base_normal()*3000.)
                     for _ in range(180):
                         scene.step()
-                        self.assertLessEqual((scene.arm.joints[-1].position-scene.base).length(),
-                                             scene.drag.reach+1e-6)
+                        # Prince 已由触手支撑，隐藏机械臂不再是有效的限长依据
+                        support = scene.prince_tentacles
+                        self.assertGreaterEqual(sum(p.attached for p in support.parts), 1)
+                        self.assertLessEqual(sum(not p.attached for p in support.parts), 2)
+                        self.assertTrue(support.guard.attached)
+                        for part in support.parts:
+                            self.assertLessEqual(part.path(1).length,
+                                                 part.reference_length*support.MAX_DRAG_STRETCH+1e-6)
+                            if part.attached:
+                                self.assertEqual(part.nodes[-1].position, part.grip)
                         self.assertTrue(scene.drag.outer.contains(scene.body.chunks[0].position, .001))
-                        self.assertLess(scene.arm.constraint_error, .2)
                     scene.drag.release(cancel=True)
 
     def test_switching_character_during_drag_clears_old_body_handle(self):
