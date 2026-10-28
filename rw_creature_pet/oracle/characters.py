@@ -7,13 +7,12 @@ class Character:
     palette: str
     has_eyes: bool = True
     has_hands: bool = True
-    has_voice: bool = False
     outfits: bool = True
     neck_extension: float = 0.  # 固定颈根的额外逻辑长度，不放大头部摆动段
 
 
 CHARACTERS = {
-    'bell': Character('colors', has_voice=True),
+    'bell': Character('colors'),
     'custom': Character('custom_colors'),
     # 基础头高为 14px + 额外颈长，Prince 的弓身和头部惯性单独在 motion/prince.py 中处理
     'prince': Character('prince_colors', has_eyes=False, has_hands=False, outfits=False, neck_extension=5.),

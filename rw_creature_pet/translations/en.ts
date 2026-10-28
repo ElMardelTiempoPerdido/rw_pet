@@ -484,7 +484,7 @@ Original names, characters and assets belong to their respective owners. Please 
     <message>
       <location filename="../oracle/ui/profile_presets.py" line="14" />
       <source>【角色设置】包含迭代器的【外观】与【影响行动风格的设置项】</source>
-      <translation>Character settings include appearance and behavior. Personal changes leave the shared file unchanged.</translation>
+      <translation>Character settings include appearance and behavior.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/drift_settings.py" line="37" />
@@ -2405,12 +2405,12 @@ Please review your settings. The old file will be backed up when you save.</tran
     </message>
     <message>
       <location filename="../oracle/ui/preset_dialogs.py" line="14" />
-      <source>检测到本地存在旧版的角色配置（当您下载过仅包含手势之铃的桌宠版本时，会出现这种情况）
-请单击[确认]来进行配置的自动合并，这将会：
-保留您调整过的部分设置(如桌宠活动范围和隐藏线缆)作为全局设置；
-并将其余设置(影响角色个性的设置，如移动和鼠标拖动反应的风格)作为手势之铃的角色设置</source>
-      <translation>Settings from an earlier version were found.
-Confirm to keep them as personal adjustments for Bell.</translation>
+      <source>旧版角色的外观和行动设置已迁入各自的角色目录
+已保留用户调整，并备份原 settings 和引用图片
+活动范围、音量等本机设置仍保存在 settings 中</source>
+      <translation>Legacy appearance and behavior settings have been moved into each character's folder.
+Your adjustments are preserved, with backups of the original settings and referenced images.
+Device preferences such as activity area and volume remain in settings.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/ear_editor.py" line="15" />
@@ -3871,6 +3871,178 @@ The first launch takes a little time to prepare game assets.</translation>
       <location filename="../oracle/ui/space.py" line="36" />
       <source>；建议降低显示倍率以留出活动余量</source>
       <translation>; lower the display scale to allow more movement</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/settings.py" line="1123" />
+      <location filename="../oracle/ui/behavior_settings.py" line="25" />
+      <source>不使用语音</source>
+      <translation>No voice</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="29" />
+      <source>使用的语音</source>
+      <translation>Voice</translation>
+    </message>
+    <message>
+      <location filename="../oracle/config.py" line="327" />
+      <source>oracle.voice 必须为 bell / none</source>
+      <translation>oracle.voice must be bell / none</translation>
+    </message>
+    <message>
+      <source>角色工作目录缺少有效的历史索引路径</source>
+      <translation>The character folder has no valid history index path</translation>
+    </message>
+    <message>
+      <source>角色目录无法读取，请先修复；原文件未改动：{path}</source>
+      <translation>Cannot read the character folder. Repair it before continuing; the original files are unchanged: {path}</translation>
+    </message>
+    <message>
+      <source>找不到唯一对应的角色目录，请恢复原目录或检查重复角色</source>
+      <translation>Cannot identify a unique character folder. Restore the original folder or check for duplicate characters</translation>
+    </message>
+    <message>
+      <source>角色历史文件过大</source>
+      <translation>The character history file is too large</translation>
+    </message>
+    <message>
+      <source>不支持的角色工作目录版本</source>
+      <translation>Unsupported character folder version</translation>
+    </message>
+    <message>
+      <source>当前角色与 original 的 ID 不一致</source>
+      <translation>The current character ID does not match the original defaults</translation>
+    </message>
+    <message>
+      <source>角色文件已被修改，请重新载入后保存</source>
+      <translation>The character file has changed. Reload it before saving</translation>
+    </message>
+    <message>
+      <source>角色工作目录格式或 ID 无效</source>
+      <translation>Invalid character folder format or ID</translation>
+    </message>
+    <message>
+      <source>不支持的角色工作目录格式</source>
+      <translation>Unsupported character folder format</translation>
+    </message>
+    <message>
+      <source>角色工作目录 ID 不一致</source>
+      <translation>The character folder ID does not match</translation>
+    </message>
+    <message>
+      <source>角色历史引用的贴图不存在</source>
+      <translation>An image referenced by character history is missing</translation>
+    </message>
+    <message>
+      <source>旧版角色</source>
+      <translation>Legacy character</translation>
+    </message>
+    <message>
+      <source>（旧版恢复）</source>
+      <translation> (recovered version)</translation>
+    </message>
+    <message>
+      <source>角色 {name} 迁移未完成，旧数据及备份已保留：{error}</source>
+      <translation>Migration of {name} is incomplete. Legacy data and backups have been preserved: {error}</translation>
+    </message>
+    <message>
+      <source>角色引用 ID 与工作目录不一致</source>
+      <translation>The character reference ID does not match its folder</translation>
+    </message>
+    <message>
+      <source>导出分享此角色</source>
+      <translation>Export character for sharing</translation>
+    </message>
+    <message>
+      <source>强烈建议使用此按钮分享角色；自行压缩角色文件夹可能遗漏资源或包含历史设置</source>
+      <translation>We strongly recommend this button for sharing. Manually zipped folders may omit resources or include historical settings.</translation>
+    </message>
+    <message>
+      <source>角色设置 (*.zip *.json)</source>
+      <translation>Character settings (*.zip *.json)</translation>
+    </message>
+    <message>
+      <source>从 ZIP 或 JSON 文件导入…</source>
+      <translation>Import from ZIP or JSON…</translation>
+    </message>
+    <message>
+      <source>从角色文件夹导入…</source>
+      <translation>Import from character folder…</translation>
+    </message>
+    <message>
+      <source>选择角色文件夹</source>
+      <translation>Choose character folder</translation>
+    </message>
+    <message>
+      <source>角色分享包 (*.zip)</source>
+      <translation>Character share package (*.zip)</translation>
+    </message>
+    <message>
+      <source>已导出分享包：{path}</source>
+      <translation>Share package exported to: {path}</translation>
+    </message>
+    <message>
+      <source>分享文件必须使用 .zip 扩展名</source>
+      <translation>Share files must use the .zip extension</translation>
+    </message>
+    <message>
+      <source>角色压缩包过大或包含过多文件</source>
+      <translation>The character archive is too large or contains too many files</translation>
+    </message>
+    <message>
+      <source>请选择只包含一个角色的文件夹或压缩包</source>
+      <translation>Choose a folder or archive containing exactly one character</translation>
+    </message>
+    <message>
+      <source>角色文件路径超出了压缩包目录</source>
+      <translation>The character file path is outside the archive folder</translation>
+    </message>
+    <message>
+      <source>分享副本与默认设置不一致</source>
+      <translation>The shared snapshot does not match its defaults</translation>
+    </message>
+    <message>
+      <source>角色压缩包包含无效文件名</source>
+      <translation>The character archive contains an invalid file name</translation>
+    </message>
+    <message>
+      <source>角色压缩包包含重复路径或链接</source>
+      <translation>The character archive contains duplicate paths or links</translation>
+    </message>
+    <message>
+      <source>分享压缩包校验失败</source>
+      <translation>Share archive verification failed</translation>
+    </message>
+    <message>
+      <source>已存在同 ID 的不同角色设置，请选择导入处理方式</source>
+      <translation>Different settings already exist for this character ID. Choose how to import them</translation>
+    </message>
+    <message>
+      <source>角色压缩包损坏或格式无效</source>
+      <translation>The character archive is damaged or invalid</translation>
+    </message>
+    <message>
+      <source>处理角色导入冲突</source>
+      <translation>Resolve character import conflict</translation>
+    </message>
+    <message>
+      <source>已存在角色「{name}」，导入包与本地的当前配置或默认配置不同</source>
+      <translation>Character "{name}" already exists. The imported current settings or defaults differ from the local copy.</translation>
+    </message>
+    <message>
+      <source>使用导入版本（备份并替换本地配置）</source>
+      <translation>Use imported version (back up and replace local settings)</translation>
+    </message>
+    <message>
+      <source>保留本地版本</source>
+      <translation>Keep local version</translation>
+    </message>
+    <message>
+      <source>导入为新角色</source>
+      <translation>Import as a new character</translation>
+    </message>
+    <message>
+      <source>继续</source>
+      <translation>Continue</translation>
     </message>
   </context>
 </TS>

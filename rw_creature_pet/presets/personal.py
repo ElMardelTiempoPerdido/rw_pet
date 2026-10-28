@@ -1,4 +1,4 @@
-"""分享文件的只读默认值、本机调整和有界外观历史，不依赖 Qt 控件"""
+"""角色编辑会话、旧版快照读取和有界外观历史，不依赖 Qt 控件"""
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..config import AppConfig
 from ..ui_config import UiConfig
+from ..oracle.audio.voice import legacy_voice
 from .appearance import appearance_paths, apply_appearance
 from .common import get_value, replace_fields, set_value
 from .editing import ALL_PATHS, PresetLink, scope_paths
@@ -57,6 +58,8 @@ def normalized(values):
 
 def complete_snapshot(values, kind, base):
     """旧快照缺失的新字段使用代码默认值，不能沿用切换前的角色参数"""
+    if kind == 'profile' and 'oracle.voice' not in values:
+        values = {**values, 'oracle.voice': legacy_voice(values.get('oracle.body_appearance', base.oracle.body_appearance))}
     config = apply_values(base, values)
     completed = {path: get_value(config, path)
                  for path in scope_paths(kind, config.oracle.body_appearance)}
@@ -122,6 +125,9 @@ class PersonalEntry:
         if any(key not in allowed for key in (*defaults, *overrides)):
             raise ValueError('个人调整包含不属于外观或角色设置的字段')
         config = AppConfig(ui=UiConfig('en'))
+        if kind == 'profile' and 'oracle.voice' not in defaults and 'oracle.voice' not in overrides:
+            if 'oracle.body_appearance' in overrides:
+                overrides = {**overrides, 'oracle.voice': legacy_voice(overrides['oracle.body_appearance'])}
         defaults = complete_snapshot(defaults, kind, config)
         apply_values(config, {**defaults, **overrides})
         history = deepcopy(data.get('history', []))[:HISTORY_LIMIT]
@@ -145,12 +151,45 @@ def read_link(source):
 
 
 class PersonalState:
-    def __init__(self, data=None):
+    def __init__(self, data=None, *, library=None, runtime=None):
         data = data or {}
         self.autosave = data.get('autosave', True) is not False
         self.character_setup = deepcopy(data.get('character_setup', {}))
         self.entries = {}
+        self.unavailable = {}
         self.active = 'current'
+        self.workspace = data.get('version') == 3
+        if self.workspace:
+            from .workspace import read_entry, resolve_reference, values_from_profile
+            from .profile import load_profile
+            self.active = data.get('active', 'current')
+            selected = self.active
+            for key, value in data.get('entries', {}).items():
+                try:
+                    entry = read_entry(resolve_reference(value['source'], library))
+                    if entry.source.id != value['source']['id']:
+                        raise ValueError('角色引用 ID 与工作目录不一致')
+                except (OSError, ValueError, TypeError):
+                    if key != selected:
+                        self.unavailable[key] = deepcopy(value)
+                        continue
+                    if runtime is None:
+                        raise
+                    # 运行中的人偶仍可切换到健康角色，不恢复或改写损坏目录
+                    source = read_link(value['source'])
+                    values = {path: get_value(runtime, path) for path in ALL_PATHS}
+                    try:
+                        defaults = values_from_profile(load_profile(source.path.parent/'original/profile.json'))
+                    except (OSError, ValueError):
+                        defaults = values
+                    entry = PersonalEntry('profile', source, defaults,
+                        {path: item for path, item in values.items() if item != defaults.get(path)})
+                resolved_key = self.key('profile', entry.source)
+                self.entries[resolved_key] = entry
+                if key == selected:
+                    self.active = resolved_key
+            for key, value in data.get('pending', {}).items():
+                self.entries[key] = PersonalEntry.read(value)
         if data.get('version') == 2:
             for key, value in data.get('entries', {}).items():
                 self.entries[key] = PersonalEntry.read(value)
@@ -158,10 +197,16 @@ class PersonalState:
 
     @staticmethod
     def key(kind, preset):
+        if kind == 'profile' and (preset.path.parent/'character.json').exists():
+            return f'profile:{preset.id}:{preset.path.parent.name}'
         # 同 ID 的新版有自己的调整，不会误套旧版字段；旧版本仍可恢复
         return f'{kind}:{preset.id}:{preset.revision}'
 
     def from_preset(self, kind, preset, config, directory):
+        if kind == 'profile' and self.workspace:
+            from .workspace import ensure_workspace, read_entry
+            preset = ensure_workspace(preset.path)
+            return self.key(kind, preset), read_entry(preset.path)
         key = self.key(kind, preset)
         if key in self.entries:
             return key, deepcopy(self.entries[key])
@@ -171,6 +216,16 @@ class PersonalState:
                                   appearance_name=appearance.name, appearance_source=PresetLink.of(appearance))
 
     def serialize(self, key=None, entry=None):
+        if self.workspace:
+            entries = {**deepcopy(self.unavailable), **{name: {'kind': 'profile', 'source': item.source.serialize()}
+                       for name, item in self.entries.items()}}
+            result = {'version': 3, 'autosave': self.autosave, 'active': key or self.active,
+                      'entries': entries, 'character_setup': deepcopy(self.character_setup)}
+            if entry is not None:
+                entries[key] = {'kind': 'profile', 'source': entry.source.serialize()}
+                # 仅为本次提交携带草稿，SettingsStore 不把 pending 写入磁盘
+                result['pending'] = {key: entry.serialize()}
+            return result
         entries = {name: item.serialize() for name, item in self.entries.items()}
         if entry is not None:
             entries[key] = entry.serialize()

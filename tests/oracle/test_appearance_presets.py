@@ -31,6 +31,8 @@ class AppearancePresetUiTests(unittest.TestCase):
         self.library = AppearanceLibrary(self.root/'presets')
         self.enterContext(patch('rw_creature_pet.presets.library.default_appearance_directory',
                                 return_value=self.library.directory))
+        self.enterContext(patch('rw_creature_pet.presets.profile_library.default_profile_directory',
+                                return_value=self.root/'characters'))
         self.store = SettingsStore(self.root/'user/settings.json')
         self.config = AppConfig(game_dir=self.game, ui=UiConfig('zh'))
         self.custom = replace(self.config, oracle=replace(self.config.oracle, body_appearance='custom',

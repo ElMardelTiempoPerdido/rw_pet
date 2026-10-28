@@ -123,7 +123,9 @@ class ProfilePresetTests(unittest.TestCase):
         self.rewrite(preset, lambda data: data.update(config={}))
         loaded = load_profile(preset.path)
         actual = apply_profile(self.config, loaded, self.root/'cache')
-        self.assertEqual(profile_mapping(actual), profile_mapping(AppConfig(ui=UiConfig('en'))))
+        defaults = AppConfig(ui=UiConfig('en'))
+        defaults = replace(defaults, oracle=replace(defaults.oracle, voice='none'))
+        self.assertEqual(profile_mapping(actual), profile_mapping(defaults))
         self.assertEqual(actual.oracle.custom_colors.skin, '#123456')
 
     def test_local_appearance_and_unknown_behavior_fields_are_rejected(self):

@@ -109,8 +109,11 @@ def read_document(path, *, format, version, extra_fields=()):
                       parse_constant=_invalid_number)
     if not isinstance(data, dict) or data.get('type') != format:
         raise ValueError('配置类型不匹配，请选择对应类型的文件')
-    if type(data.get('version')) is not int or data['version'] != version:
+    versions = version if isinstance(version, tuple) else (version,)
+    if type(data.get('version')) is not int or data['version'] not in versions:
         raise ValueError('不支持此配置文件版本，请使用匹配版本的桌宠')
+    if isinstance(extra_fields, dict):
+        extra_fields = extra_fields[data['version']]
     if set(data) != {'type', 'version', 'id', 'name', 'updated_at', 'config', *extra_fields}:
         raise ValueError('配置文件字段不完整或包含未知字段')
     validate_metadata(data['id'], data['name'], data['updated_at'])
@@ -188,8 +191,13 @@ def scan_library(directory, manifest, loader):
     root = Path(directory).resolve()
     if not root.exists():
         return LibraryScan((), (), ())
-    for path in sorted(root.rglob(manifest), key=lambda p: (str(p).casefold(), str(p))):
-        if any(part.startswith('.staging-') for part in path.relative_to(root).parts):
+    candidates = set(root.rglob(manifest))
+    if manifest == 'profile.json':
+        candidates.update(path.parent.parent/manifest for path in tuple(candidates)
+                          if path.parent.name.casefold() == 'original')
+    for path in sorted(candidates, key=lambda p: (str(p).casefold(), str(p))):
+        if any(part.startswith('.staging-') or part.casefold() in ('original', 'history', 'recovery')
+               for part in path.relative_to(root).parts[:-1]):
             continue
         try:
             if not path.resolve().is_relative_to(root):

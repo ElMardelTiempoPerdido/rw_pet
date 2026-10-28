@@ -7,6 +7,7 @@ from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter, QPe
 
 from ..model import clamp, perpendicular, unit
 from .hologram import LensHologramRenderer
+from .filaments import rounded_paths
 from .friend.body import ROOT_COLOR, draw_body as draw_friend_body
 from .friend.head import draw_head as draw_friend_head
 from .friend.light import draw_light as draw_friend_light, draw_pixels as draw_friend_pixels
@@ -181,15 +182,14 @@ class OverseerRenderer:
                       for i in range(len(strand))]
             # Mycelium.UpdateColor 把末端两个顶点覆盖为纯蓝；朋友？保留紫色至蓝色的渐变
             colors[-1] = QColor(friend_filaments.TIP_COLOR if is_friend else '#0000ff')
-            for i, (a, b) in enumerate(zip(strand, strand[1:])):
-                start, end = point(a.sample(alpha)), point(b.sample(alpha))
+            for i, (start, end, path) in enumerate(rounded_paths([p.sample(alpha) for p in strand])):
                 gradient = QLinearGradient(start, end)
                 gradient.setColorAt(0, colors[i])
                 gradient.setColorAt(1, colors[i+1])
                 pen = QPen(QBrush(gradient), .85,
                            Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
                 painter.setPen(pen)
-                painter.drawLine(start, end)
+                painter.drawPath(path)
         painter.setPen(Qt.PenStyle.NoPen)
 
     @staticmethod

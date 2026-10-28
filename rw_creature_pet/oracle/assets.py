@@ -26,7 +26,7 @@ def prepare_oracle_assets(config):
     except (AtlasError, OSError, ValueError) as exc:
         message = f'珍珠投影不可用：{exc}'
     paths, error = prepare_bell_voice(config)
-    playback_error = prepare_pearl_playback(config.game_dir, renderer)
+    playback_error = prepare_pearl_playback(renderer)
     projection_error = prepare_projection(config.game_dir, renderer)
     message = ' / '.join(str(item) for item in (message, playback_error, projection_error) if item)
     return OracleAssets(renderer, message, paths, error)

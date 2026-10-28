@@ -206,7 +206,7 @@ class OracleDesktopWindow(QWidget):
                 self.asset_message = f'珍珠投影不可用：{exc}'
             from ..pearls.playback_assets import prepare_pearl_playback
             self.asset_message = ' / '.join(filter(None, (self.asset_message,
-                prepare_pearl_playback(config.game_dir, renderer))))
+                prepare_pearl_playback(renderer))))
             from ..effects.projection_assets import prepare_projection
             projection_error = prepare_projection(config.game_dir, renderer)
             self.asset_message = ' / '.join(str(item) for item in (self.asset_message, projection_error) if item)

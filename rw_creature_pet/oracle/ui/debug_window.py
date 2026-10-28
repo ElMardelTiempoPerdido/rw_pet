@@ -428,7 +428,7 @@ class OracleDebugWindow(QMainWindow):
         if load_atlas:
             from ..pearls.playback_assets import prepare_pearl_playback
             self.asset_message = ' / '.join(filter(None, (self.asset_message,
-                prepare_pearl_playback(config.game_dir, self.renderer))))
+                prepare_pearl_playback(self.renderer))))
         self.scene.pearl_playback_curve = self.renderer.playback_curve
         if load_atlas:
             from ..effects.projection_assets import prepare_projection

@@ -38,6 +38,7 @@ class PrinceTests(unittest.TestCase):
         cls.app.setQuitOnLastWindowClosed(False)
 
     def scene(self, body='prince', **values):
+        values.setdefault('voice', 'bell' if body == 'bell' else 'none')
         return OracleScene(OracleConfig(body_appearance=body, hide_cords=True, physics_backend='python', **values))
 
     def paint(self, scene, renderer=None, scale=2.):
@@ -246,20 +247,31 @@ class PrinceSettingsTests(unittest.TestCase):
         self.assertEqual({key.rsplit('.', 1)[1] for key in dialog.controls if key.startswith('oracle.prince_colors.')},
                          set(PRINCE_COLOR_NAMES))
         self.assertFalse(dialog.controls['oracle.drag_reactions.gesture_probability'].isEnabled())
+        voice = dialog.controls['oracle.voice']
+        self.assertEqual(voice.currentData(), 'none')
+        voice.setCurrentIndex(voice.findData('bell'))
+        self.assertTrue(dialog.controls['oracle.drag_reactions.voice_probability'].isEnabled())
         dialog.controls['oracle.prince_colors.skin'].setValue('#654321')
         dialog.projection_colors['oracle.prince_colors.pearl_glyph'].setValue('#fedcba')
         self.assertTrue(dialog.preset_workflow.flush())
         self.assertEqual(self.window.renderer.colors.skin, '#654321')
         self.assertEqual(self.window.renderer.colors.pearl_glyph, '#fedcba')
+        self.assertEqual(self.window.motion.scene.config.voice, 'bell')
         self.assertEqual(original, (self.prince.path.read_bytes(), self.prince.appearance.path.read_bytes()))
         menu.choose(self.bell)
+        voice.setCurrentIndex(voice.findData('none'))
+        self.assertTrue(dialog.preset_workflow.flush())
+        self.assertEqual(self.window.motion.scene.config.voice, 'none')
         self.assertEqual(len(self.window.motion.scene.appearance.hands), 2)
         self.assertNotEqual(self.window.renderer.colors.skin, '#654321')
         menu.choose(self.prince)
+        self.assertEqual(voice.currentData(), 'bell')
+        self.assertEqual(self.window.motion.scene.config.voice, 'bell')
         self.assertEqual(self.window.renderer.colors.skin, '#654321')
         restarted = prepare_character(self.store.load(), self.store)
         self.assertEqual(restarted.config.oracle.body_appearance, 'prince')
         self.assertEqual(restarted.config.oracle.prince_colors.skin, '#654321')
+        self.assertEqual(restarted.config.oracle.voice, 'bell')
 
 
 if __name__ == '__main__':

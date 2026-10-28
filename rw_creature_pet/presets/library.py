@@ -13,13 +13,13 @@ def default_appearance_directory():
     return default_library_directory('appearances')
 
 
-def write_appearance(directory, oracle, name, identifier, updated_at, resolve_image):
+def write_appearance(directory, oracle, name, identifier, updated_at, resolve_image, *, full=False):
     """写入调用方的暂存目录，完整预设复用此处的资源复制及引用改写"""
     validate_metadata(identifier, name, updated_at)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    data = appearance_mapping(oracle)
-    for key in image_paths(oracle):
+    data = appearance_mapping(oracle, full=full)
+    for key in image_paths(oracle, full=full):
         reference = get_value(data, key)
         if not reference:
             continue
@@ -29,7 +29,7 @@ def write_appearance(directory, oracle, name, identifier, updated_at, resolve_im
         target.parent.mkdir(exist_ok=True)
         target.write_bytes(payload)
         set_value(data, key, target.relative_to(directory).as_posix())
-    write_document(directory/MANIFEST, dict(type=FORMAT, version=VERSION, id=identifier,
+    write_document(directory/MANIFEST, dict(type=FORMAT, version=2 if full else VERSION, id=identifier,
                    name=name, updated_at=updated_at, config=data))
 
 

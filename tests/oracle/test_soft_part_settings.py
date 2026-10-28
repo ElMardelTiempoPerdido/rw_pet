@@ -228,13 +228,13 @@ class SoftPartSettingsTests(unittest.TestCase):
         for source in sources:
             source.unlink()
         look = d.appearance_presets.export_current('柔性外观')
-        role = d.profile_presets.export_current('柔性角色')
+        role = d.profile_presets.export_current('柔性角色', destination=self.root/'soft-role.zip')
         self.assertIsNotNone(look)
         self.assertIsNotNone(role)
         self.assertTrue(look.oracle.custom_appearance.soft_part_1.image_path.startswith('images/'))
         self.assertFalse(look.oracle.custom_appearance.soft_part_2.enabled)
         # 经接收方角色库复制一份，实际面板导入入口再读入
-        imported_role = ProfileLibrary(self.root/'received-roles').import_file(role.path)
+        imported_role = ProfileLibrary(self.root/'received-roles').import_file(role)
         imported_look = AppearanceLibrary(self.root/'received-looks').import_file(look.path)
         empty = ProfileLibrary().export(replace(self.config, oracle=replace(self.config.oracle,
                          custom_appearance=CustomAppearance())), '无附件')
@@ -251,14 +251,16 @@ class SoftPartSettingsTests(unittest.TestCase):
         self.assertFalse(first.value().enabled)
         d.preset_workflow.restore_history(0)
         self.assertEqual(first.value().width, 9.5)
-        self.assertTrue(d.profile_presets.import_file(imported_role.path))
+        self.assertTrue(d.profile_presets.import_file(imported_role.path, conflict='replace'))
         first.parameter_controls['length'].setValue(55.)
         self.assertTrue(d.preset_workflow.flush())
         d.preset_workflow.restore_defaults('appearance')
         self.assertEqual(first.value().length, expected[0].length)
-        updated = d.profile_presets.export_current('柔性角色', target=role)
+        original = (d.profile_presets.loaded.path.parent/'original/profile.json').read_bytes()
+        updated = d.profile_presets.export_current('柔性角色', destination=self.root/'soft-role-new.zip')
         self.assertIsNotNone(updated)
-        self.assertTrue(updated.path.with_suffix('.json.bak').is_file())
+        self.assertTrue(updated.is_file())
+        self.assertEqual((d.profile_presets.loaded.path.parent/'original/profile.json').read_bytes(), original)
 
     def test_invalid_png_or_failed_save_preserves_selection_and_draft(self):
         d = self.dialog()

@@ -56,7 +56,9 @@ class CharacterStartupUiTests(unittest.TestCase):
         self.assertEqual(running.oracle.pearl_matrix_count, 0)
         state = self.store.load_preset_state()
         self.assertTrue(state['character_setup']['complete'])
-        self.assertEqual(state['entries'][state['active']]['defaults']['oracle.pearl_matrix_count'], 7)
+        from rw_creature_pet.presets.personal import PersonalState
+        loaded = PersonalState(state)
+        self.assertEqual(loaded.entries[loaded.active].defaults['oracle.pearl_matrix_count'], 7)
         self.launch()
         self.notice.assert_called_once()
 

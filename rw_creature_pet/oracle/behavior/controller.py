@@ -311,7 +311,9 @@ class OracleBehavior:
                 depth = self.random.uniform(.35, .65)
                 point = (Vec2(box.left+(box.right-box.left)*depth, point.y) if edge % 2 else
                          Vec2(point.x, box.top+(box.bottom-box.top)*depth))
-                if not source_box.contains(point) and self.matrix_clear(scene, point):
+                if scene.prince_tentacles is not None:
+                    point = scene.project_target(point)
+                if box.contains(point) and not source_box.contains(point) and self.matrix_clear(scene, point):
                     route = planner.adjacent(start, point, source, edge, scene.body.chunks[0].velocity)
                     candidates.append((edge, point, route))
                     break

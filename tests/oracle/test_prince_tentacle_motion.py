@@ -244,7 +244,7 @@ class TentacleMotionTests(unittest.TestCase):
                     self.assertLess((part.nodes[0].position-support.part_root(part.definition)).length(), 1e-8)
                     for node in part.nodes:
                         self.assertTrue(isfinite(node.position.x) and isfinite(node.position.y))
-                    if not part.transferring:
+                    if part.attached:
                         margins = (part.grip.x, world.width-part.grip.x,
                                    part.grip.y, world.height-part.grip.y)
                         self.assertAlmostEqual(min(margins), rail.inset)

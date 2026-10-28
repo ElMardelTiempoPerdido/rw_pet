@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "characters": [
+    {"id": "797805d8-a9eb-4729-983e-32d7c0923f6f", "directory": "profile-bell-382b9acb591d48feb94d7fc69a668110"},
+    {"id": "296457e8-88c0-4b61-93ed-59ebb951ca92", "directory": "profile-dust-a231679e098c4a488ca272956965c75a"},
+    {"id": "6acc3887-c4cf-44f1-a826-38ce4b4123ed", "directory": "profile-moon-f2dbd48e85c34f6b82bac1dfaa0e3263"},
+    {"id": "2466730e-c7e8-431b-a807-4f49f0b3b878", "directory": "profile-moondown-66bc717d62d747768c20f5b1638f856a"},
+    {"id": "67cbd80d-d9db-4f4f-8f23-7985cc6a74b0", "directory": "profile-pebbles-93675a46c95e4b6e9c656fb24203dd55"},
+    {"id": "90fc64fe-b159-4f43-8af9-a5f6a93a607f", "directory": "profile-prince-2fa828866b0f4634942a0ce31e6d35a6"},
+    {"id": "c667448b-ba22-4532-a392-5682ce8aa492", "directory": "profile-sig-0afdbb9d603a4f1e9f4c0a9ae5cc6139"},
+    {"id": "72e93f37-aaba-470e-85cf-4f5be68d8ce6", "directory": "profile-straw-67e3bbee5b614f09a70d504736df17e2"},
+    {"id": "e110a7a8-4780-42dd-9a40-4798120d5146", "directory": "profile-sunny-52ea7b97a5054761a7d47680b90a793d"}
+  ]
+}

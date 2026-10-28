@@ -27,27 +27,28 @@ def appearance_paths(body):
     return tuple(path for path in paths_for(FieldScope.APPEARANCE) if not path.startswith(excluded))
 
 
-def appearance_mapping(oracle):
+def appearance_mapping(oracle, *, full=False):
     source, result = {'oracle': asdict(oracle)}, {}
-    for path in appearance_paths(oracle.body_appearance):
+    for path in paths_for(FieldScope.APPEARANCE) if full else appearance_paths(oracle.body_appearance):
         set_value(result, path, get_value(source, path))
     return result
 
 
-def validate_config(data):
+def validate_config(data, *, full=False):
     if not isinstance(data, dict) or not isinstance(data.get('oracle'), dict):
         raise ValueError('外观配置必须包含 oracle 对象')
     body = data['oracle'].get('body_appearance')
-    allowed = appearance_paths(body)
+    allowed = paths_for(FieldScope.APPEARANCE) if full else appearance_paths(body)
     # 缺失字段使用格式对应的代码默认值，不能继承上一个角色或用户修改过的 TOML
-    defaults = appearance_mapping(replace(OracleConfig(), body_appearance=body))
+    defaults = appearance_mapping(replace(OracleConfig(), body_appearance=body), full=full)
     for path, value in scoped_leaves(data, allowed):
         set_value(defaults, path, value)
     return OracleConfig.from_mapping(defaults['oracle'])
 
 
-def image_paths(oracle):
-    return tuple(path for path in appearance_paths(oracle.body_appearance) if path.endswith('.image_path'))
+def image_paths(oracle, *, full=False):
+    paths = paths_for(FieldScope.APPEARANCE) if full else appearance_paths(oracle.body_appearance)
+    return tuple(path for path in paths if path.endswith('.image_path'))
 
 
 def checked_image(path, decal=None):
@@ -65,6 +66,7 @@ class AppearancePreset:
     oracle: OracleConfig
     path: Path
     revision: str = ''
+    full: bool = False
 
     @property
     def timestamp(self):
@@ -74,7 +76,7 @@ class AppearancePreset:
         path = package_path(self.path.parent, reference)
         # 同一 PNG 可被多个部件引用，各部件仍按自己的尺寸限制校验
         source = {'oracle': self.oracle}
-        decals = [get_value(source, key.removesuffix('.image_path')) for key in image_paths(self.oracle)
+        decals = [get_value(source, key.removesuffix('.image_path')) for key in image_paths(self.oracle, full=self.full)
                   if get_value(source, key) == reference]
         for decal in decals or [None]:
             checked_image(path, decal)
@@ -83,11 +85,12 @@ class AppearancePreset:
 
 def load_appearance(path):
     path = Path(path).resolve()
-    data = read_document(path, format=FORMAT, version=VERSION)
-    oracle = validate_config(data['config'])
-    preset = AppearancePreset(data['id'], data['name'], data['updated_at'], oracle, path)
+    data = read_document(path, format=FORMAT, version=(1, 2))
+    full = data['version'] == 2
+    oracle = validate_config(data['config'], full=full)
+    preset = AppearancePreset(data['id'], data['name'], data['updated_at'], oracle, path, full=full)
     source = {'oracle': oracle}
-    for key in image_paths(oracle):
+    for key in image_paths(oracle, full=full):
         reference = get_value(source, key)
         if reference:
             preset.image(reference)
@@ -95,15 +98,15 @@ def load_appearance(path):
             decal = get_value(source, key.removesuffix('.image_path'))
             if decal.enabled and getattr(decal, 'kind', 'png') == 'png':
                 raise ValueError(Message('已启用的部件缺少贴图：{path}', path=key))
-    resources = [preset.image(get_value(source, key)) for key in image_paths(oracle) if get_value(source, key)]
+    resources = [preset.image(get_value(source, key)) for key in image_paths(oracle, full=full) if get_value(source, key)]
     return replace(preset, revision=revision_for([path, *resources]))
 
 
 def apply_appearance(config, preset, asset_directory):
     """先验证并缓存全部引用，再返回新配置；失败不会改写当前设置"""
     from ..oracle.graphics.face_assets import import_face_png
-    values = appearance_mapping(preset.oracle)
-    for path in image_paths(preset.oracle):
+    values = appearance_mapping(preset.oracle, full=preset.full)
+    for path in image_paths(preset.oracle, full=preset.full):
         reference = get_value(values, path)
         if reference:
             decal = get_value({'oracle': preset.oracle}, path.removesuffix('.image_path'))
@@ -111,6 +114,6 @@ def apply_appearance(config, preset, asset_directory):
             # 缓存只改变路径，不改变原本关闭的开关、名称及 PNG 以外的耳机形状
             set_value(values, path, imported.image_path)
     merged = {'oracle': asdict(config.oracle)}
-    for path in appearance_paths(preset.oracle.body_appearance):
+    for path in paths_for(FieldScope.APPEARANCE) if preset.full else appearance_paths(preset.oracle.body_appearance):
         set_value(merged, path, get_value(values, path))
     return replace(config, oracle=OracleConfig.from_mapping(merged['oracle']))

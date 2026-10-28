@@ -35,6 +35,7 @@ class PresetFieldTests(unittest.TestCase):
 
     def test_hidden_behavior_and_user_preferences_have_different_scopes(self):
         for path in (
+            'oracle.voice',
             'oracle.base_speed', 'oracle.pearl_follow_width', 'oracle.pearl_follow_height',
             'oracle.drag_reactions.enabled', 'oracle.drag_reactions.gesture_probability',
             'oracle.drag_reactions.flutter_probability',

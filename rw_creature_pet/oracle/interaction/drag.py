@@ -111,12 +111,13 @@ class OracleDrag:
         center = self.scene.base+direction*self.scene.arm.lengths[3]
         support = self.scene.prince_tentacles
         if support is not None:
-            point = support.project_drag(self.scene, point, choose=choose_support)
+            point = support.project_drag(self.scene, point, choose=choose_support, for_target=choose_support)
         for _ in range(12):
             point = self.outer.clamp(point)
-            point = center+limited(point-center, self.reach)
             if support is not None:
-                point = support.project_drag(self.scene, point)
+                point = support.project_drag(self.scene, point, for_target=choose_support)
+            else:
+                point = center+limited(point-center, self.reach)
         return point
 
     def prince_grab(self):
@@ -143,11 +144,11 @@ class OracleDrag:
         desired_upper = requested+(upper.position-s.body.chunks[selected].position)
         if s.navigator:
             # 共用底座的圆角、加速度与换向滞回；它不会瞬移到鼠标所在边。
-            base_target = (s.prince_tentacles.project_drag(s, desired_upper, choose=True)
+            base_target = (s.prince_tentacles.project_drag(s, desired_upper, choose=True, for_target=True)
                            if s.prince_tentacles is not None else desired_upper)
             # 隐藏的导航锚点跟随实际可达位置，不能追着超出触手范围的鼠标跨到另一边
             # 恢复时允许隐藏锚点追上已经换边的触手，否则旧机械臂跨度会把两者卡在不同边
-            base_reach = float('inf') if s.prince_tentacles is not None and self.recovering else self.reach+4
+            base_reach = float('inf') if s.prince_tentacles is not None else self.reach+4
             s.navigator.base.step(base_target, upper.position-direction*s.arm.lengths[3], base_reach)
         safe_upper = self.project_upper(desired_upper, direction, choose_support=True)
         if prince is not None:

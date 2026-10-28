@@ -538,7 +538,7 @@ class FloatNavigator:
         self.distance = distance
         return True
 
-    def step(self, body, reach, *, speed_limit=None):
+    def step(self, body, reach, *, speed_limit=None, can_advance=None):
         remaining = max(0., self.route.length - self.distance)
         preview = self.route.sample(self.distance + min(60., reach*.28))
         self.base.step(preview, body, reach)
@@ -551,6 +551,8 @@ class FloatNavigator:
         advance = min(remaining, self.speed)
         candidate = self.route.sample(self.distance + advance)
         self.waiting_for_base = (candidate - self.base.position).length() > reach - 8
+        if can_advance is not None and not can_advance(candidate):
+            self.waiting_for_base = True
         if self.waiting_for_base:
             advance = 0.
             self.speed = 0.

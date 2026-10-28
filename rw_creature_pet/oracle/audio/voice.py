@@ -41,6 +41,12 @@ def _playback_clips():
 
 
 BELL_VOICE_CLIPS = tuple(_playback_clips())
+VOICE_CLIPS = {'bell': BELL_VOICE_CLIPS, 'none': ()}
+
+
+def legacy_voice(body_appearance):
+    """仅补齐旧配置的缺省选项，显式选择语音后不再依据主体外观推断"""
+    return 'bell' if body_appearance == 'bell' else 'none'
 
 
 def bell_voice_paths(config, config_path=None):

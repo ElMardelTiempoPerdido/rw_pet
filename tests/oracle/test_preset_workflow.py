@@ -65,17 +65,20 @@ class PresetWorkflowTests(unittest.TestCase):
         panel.refresh(preset.id)
         return panel.choose(panel.selector.currentIndex())
 
-    def test_autosave_keeps_share_file_and_source_name(self):
+    def test_autosave_updates_current_and_keeps_original_defaults_and_name(self):
         preset = self.profiles.export(self.config, '角色 A')
-        original = preset.path.read_bytes(), preset.appearance.path.read_bytes()
         d = self.dialog()
         self.assertTrue(d.personal_controls.autosave.isChecked())
         self.assertTrue(self.select(d.profile_presets, preset))
+        from rw_creature_pet.presets.profile import load_profile
+        baseline = load_profile(preset.path.parent/'original/profile.json')
+        original = baseline.path.read_bytes(), baseline.appearance.path.read_bytes()
         d.controls['oracle.colors.skin'].setValue('#654321')
         self.assertIn('角色 A', d.profile_presets.selector.currentText())
         QTest.qWait(750)
         self.assertEqual(self.store.load().oracle.colors.skin, '#654321')
-        self.assertEqual(original, (preset.path.read_bytes(), preset.appearance.path.read_bytes()))
+        self.assertEqual(original, (baseline.path.read_bytes(), baseline.appearance.path.read_bytes()))
+        self.assertEqual(load_profile(preset.path).appearance.oracle.colors.skin, '#654321')
         self.assertFalse(d.preset_workflow.dirty)
         self.assertEqual(d.appearance_owner.text(), '正在调整：角色 A')
         self.assertTrue(d.appearance_presets.selection_panel.isHidden())
@@ -91,6 +94,26 @@ class PresetWorkflowTests(unittest.TestCase):
                 QTest.qWait(750)
                 self.assertEqual(apply.call_count, 1)
             prepare.assert_not_called()
+
+    def test_repeated_png_autosaves_survive_generation_cleanup_after_reopen(self):
+        png = self.root/'face.png'
+        image = QImage(5, 5, QImage.Format.Format_ARGB32)
+        image.fill(QColor('red'))
+        image.save(str(png))
+        shape = replace(self.config.oracle.custom_appearance, forehead=replace(
+            self.config.oracle.custom_appearance.forehead, enabled=True, image_path=str(png)))
+        role = self.profiles.export(replace(self.config, oracle=replace(self.config.oracle,
+            body_appearance='custom', custom_appearance=shape)), 'PNG')
+        first = self.dialog()
+        self.select(first.profile_presets, role)
+        self.assertTrue(first.preset_workflow.flush())
+        first.preset_workflow.timer.stop()
+        reopened = self.dialog(self.store.load())
+        for color in ('#123456', '#234567', '#345678', '#456789'):
+            reopened.controls['oracle.custom_colors.skin'].setValue(color)
+            self.assertTrue(reopened.preset_workflow.flush())
+            self.assertTrue(Path(reopened.candidate().oracle.custom_appearance.forehead.image_path).is_file())
+        self.assertEqual(self.store.load().oracle.custom_colors.skin, '#456789')
 
     def test_autosave_does_not_commit_local_draft(self):
         d = self.dialog()
@@ -249,10 +272,10 @@ class PresetWorkflowTests(unittest.TestCase):
         for path in role.appearance.path.parent.glob('images/*.png'): path.unlink()
         reopened=self.dialog(self.store.load()); reopened.preset_workflow.restore_history(0)
         self.assertTrue(Path(reopened.candidate().oracle.custom_appearance.forehead.image_path).is_file())
-        self.assertEqual(reopened.candidate().oracle.body_appearance,'bell')
+        self.assertEqual(reopened.candidate().oracle.body_appearance,'custom')
         prior = next(entry for entry in reopened.preset_workflow.state.entries.values()
                      if entry.source and entry.source.id == role.id)
-        self.assertTrue(any(item['values']['oracle.body_appearance'] == 'custom' for item in prior.history))
+        self.assertTrue(any(item['values']['oracle.body_appearance'] == 'bell' for item in prior.history))
 
     def test_export_current_values_become_new_defaults_without_changing_active_role(self):
         role=self.profiles.export(self.config,'A'); d=self.dialog(); self.select(d.profile_presets,role)
@@ -261,9 +284,15 @@ class PresetWorkflowTests(unittest.TestCase):
         self.assertEqual(look.oracle.colors.skin,'#654321')
         self.assertEqual(d.profile_presets.loaded.id,role.id)
         self.assertEqual(d.preset_workflow.entry.defaults['oracle.colors.skin'],self.config.oracle.colors.skin)
-        new=d.profile_presets.export_current('新角色')
-        self.assertEqual(d.profile_presets.loaded.id,new.id)
-        self.assertEqual(d.preset_workflow.entry.defaults['oracle.colors.skin'],'#654321')
+        before = len(self.profiles.scan().presets)
+        archive=d.profile_presets.export_current('分享角色', destination=self.root/'shared.zip')
+        from rw_creature_pet.presets.sharing import open_profile
+        with open_profile(archive) as shared:
+            self.assertEqual(shared.id, role.id)
+            self.assertEqual(shared.appearance.oracle.colors.skin, '#654321')
+        self.assertEqual(d.profile_presets.loaded.id, role.id)
+        self.assertEqual(d.preset_workflow.entry.defaults['oracle.colors.skin'],self.config.oracle.colors.skin)
+        self.assertEqual(len(self.profiles.scan().presets), before)
 
     def test_new_version_has_separate_defaults_and_old_adjustments_survive(self):
         old=self.profiles.export(self.config,'旧'); d=self.dialog(); self.select(d.profile_presets,old)
@@ -280,12 +309,12 @@ class PresetWorkflowTests(unittest.TestCase):
         self.assertFalse(d.appearance_presets.import_file(bad))
         self.assertEqual(d.candidate().oracle.colors.skin,'#654321')
 
-    def test_old_settings_migrate_behavior_only_and_keep_bell_file_defaults(self):
+    def test_old_settings_migrate_appearance_and_behavior_and_keep_original_defaults(self):
         role = self.profiles.export(self.config, 'Bell', preset_id=BELL_PROFILE_ID)
         self.store.save(self.other)
         d = self.dialog(self.store.load())
         self.assertEqual(d.profile_presets.loaded.id, role.id)
-        self.assertEqual(d.candidate().oracle.colors.skin, self.config.oracle.colors.skin)
+        self.assertEqual(d.candidate().oracle.colors.skin, self.other.oracle.colors.skin)
         self.assertEqual(d.candidate().oracle.float_speed, 1.2)
         self.assertTrue(d._migration_notice)
         d.preset_workflow.reset_parameter('oracle.float_speed')

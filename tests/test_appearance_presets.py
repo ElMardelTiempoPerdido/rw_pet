@@ -143,7 +143,7 @@ class AppearancePresetTests(unittest.TestCase):
             load_appearance(preset.path)
 
     def test_invalid_metadata_values_and_duplicate_keys_are_rejected(self):
-        for changes in ({'version': True}, {'version': 2}, {'id': 'not-a-uuid'},
+        for changes in ({'version': True}, {'version': 999}, {'id': 'not-a-uuid'},
                         {'name': ''}, {'updated_at': '2020-01-01'}, {'extra': 'unknown'}):
             with self.subTest(changes=changes):
                 preset = self.library.export(self.config, '错误信息')

@@ -1119,6 +1119,8 @@ class OracleSettingsDialog(QDialog):
         for editor in (*self.image_editors, *self.eye_editors.values()):
             editor.refresh()
         self.refresh_space()
+        voice = self.controls['oracle.voice']
+        voice.setItemText(voice.findData('none'), tr('不使用语音'))
         mode = self.controls['overseer.appearance_mode']
         for key, label in (('random', '随机出现'), ('resident', '常驻')):
             mode.setItemText(mode.findData(key), tr(label))

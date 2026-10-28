@@ -11,7 +11,7 @@ from ...settings_store import SettingsStore
 
 def runtime_character(config, store):
     """运行期间保留已载入角色，即使用户移动或删除了它的分享文件"""
-    state = PersonalState(store.load_preset_state())
+    state = PersonalState(store.load_preset_state(), runtime=config)
     entry = state.entries.get(state.active)
     if entry is not None and entry.kind == 'profile' and entry.source is not None:
         return CharacterInitialization(config, state)

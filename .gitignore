@@ -6,4 +6,6 @@ __pycache__/
 artifacts/
 build/
 dist/
+presets/migration-archive/
+presets/migration-repair/
 

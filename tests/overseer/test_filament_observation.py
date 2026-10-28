@@ -24,7 +24,7 @@ def forward_tips(model):
 
 class FilamentObservationTests(unittest.TestCase):
     def test_observing_reaches_forward_and_closing_recovers_without_changing_head_or_rng(self):
-        for appearance in ('standard', 'friend'):
+        for appearance in ('standard',):
             for size in (.5, 1.):
                 with self.subTest(appearance=appearance, size=size):
                     resting, observing = [make_model(appearance, size=size) for _ in range(2)]
@@ -49,8 +49,28 @@ class FilamentObservationTests(unittest.TestCase):
                             model.step(target)
                     self.assertEqual(observing.lens.up, 0.)
                     self.assertLess(sum(forward_tips(observing)), sum(opened)-observing.filament_length*.5)
-                    if appearance == 'friend':
-                        self.assertTrue(all(tip < 0 for tip in forward_tips(observing)))
+
+    def test_friend_observes_with_rear_filaments_and_preserves_light_and_resting_curves(self):
+        for size in (.5, 1.):
+            for edge in Edge:
+                with self.subTest(size=size, edge=edge):
+                    model = make_model('friend', edge, size)
+                    target = model.root+model.local_vector(Vec2(-200, 180))
+                    for _ in range(180):
+                        model.step(target)
+                    model.lens.remaining = 6
+                    for _ in range(140):
+                        model.step(target)
+                        self.assertTrue(all(tip < 0 for tip in forward_tips(model)))
+                    self.assertEqual(model.lens.up, 1.)
+                    self.assertGreater(model.lens.remaining, 0)
+                    self.assertIsNotNone(model.friend_light_pixels)
+                    self.assertTrue(all(len(s) == 5 for s in model.filaments))
+                    model.lens.remaining = 0
+                    for _ in range(120):
+                        model.step(target)
+                    self.assertEqual(model.lens.up, 0.)
+                    self.assertTrue(all(tip < 0 for tip in forward_tips(model)))
 
     def test_four_edge_equivalence_and_continuity_through_turning_and_withdrawal(self):
         for appearance in ('standard', 'friend'):

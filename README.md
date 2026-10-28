@@ -2,7 +2,9 @@
 
 开发中：白蜥蜴 / 手势之铃，**未完成，可能存在各种bug和性能问题**
 
-**如果您希望直接获取桌宠游玩，而非自行修改，请直接下载release中的.exe文件，而非source code.zip**
+**如果您希望直接获取桌宠游玩，请下载 Release 中的发行 ZIP，将 EXE 与 presets 一起解压，而非下载 source code.zip**
+
+已有用户的覆盖升级、角色分享和备份方法见 [角色升级与分享](docs/profile-upgrade-sharing.md)
 
 ---
 

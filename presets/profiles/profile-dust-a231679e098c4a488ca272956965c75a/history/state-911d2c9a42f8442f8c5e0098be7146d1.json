@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "history": [],
+  "appearance_name": "dust",
+  "appearance_source": {
+    "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
+    "name": "dust",
+    "updated_at": "2026-10-15T10:51:52.365185+00:00",
+    "path": "D:\\CODES\\PY\\rw_creature_pet\\presets\\profiles\\profile-dust-a231679e098c4a488ca272956965c75a\\appearance\\appearance.json",
+    "revision": "7168fe30dcae9adb30deb937ffb13d64f556e9770676eb0833458dcd9f7af9f2"
+  },
+  "migration_key": "b50742ee48c2da3e31b92e9c1438c6c8919bfb713ea826a2dbd51f5fb01ccd25"
+}

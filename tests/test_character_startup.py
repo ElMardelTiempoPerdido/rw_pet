@@ -26,7 +26,8 @@ class CharacterStartupTests(unittest.TestCase):
                                  library=self.library, defaults=self.defaults)
 
     def save(self, result):
-        with self.store.preset_state(result.state.serialize()):
+        key = result.state.active
+        with self.store.preset_state(result.state.serialize(key, result.state.entries[key])):
             self.store.save(result.config)
 
     def test_fresh_install_selects_bundled_bell_by_id_even_if_renamed(self):
@@ -63,9 +64,10 @@ class CharacterStartupTests(unittest.TestCase):
         with patch('rw_creature_pet.settings_store.load_defaults', return_value=self.defaults):
             loaded, first, _ = self.store.startup()
             self.assertFalse(first)
-            pending = self.store.load_preset_state()['character_setup']['pending']
+            pending = self.store.load_preset_state()['directory_migration']['raw_values']
             self.assertEqual(set(pending), {'oracle.pearl_matrix_count',
-                'oracle.drag_reactions.voice_probability', 'interaction.hover_avoidance_enabled'})
+                'oracle.drag_reactions.voice_probability', 'interaction.hover_avoidance_enabled',
+                'oracle.colors.skin'})
             # 模拟在配置自动补齐后退出，再启动时仍使用原始字段集合
             loaded, _, _ = SettingsStore(self.store.path).startup()
         result = self.prepare(loaded)
@@ -74,14 +76,13 @@ class CharacterStartupTests(unittest.TestCase):
         self.assertEqual(result.config.oracle.drag_reactions.voice_probability, 0.)
         self.assertFalse(result.config.interaction.hover_avoidance_enabled)
         self.assertEqual(result.config.oracle.float_speed, 1.3)  # 未提供的字段采用角色默认值
-        self.assertEqual(result.config.oracle.colors.skin, '#123456')  # 不迁移旧外观
+        self.assertEqual(result.config.oracle.colors.skin, '#abcdef')  # 当前迁移同时保留旧外观
         self.assertEqual(result.config.desktop.scale, 2.)
         self.assertEqual(result.config.audio.volume, .17)
         entry = result.state.entries[result.state.active]
         self.assertEqual(entry.defaults['oracle.pearl_matrix_count'], 7)
         self.assertEqual(entry.overrides['oracle.pearl_matrix_count'], 0)
-        self.assertFalse(any(path.startswith(('oracle.colors.', 'oracle.custom_colors.',
-                                             'oracle.custom_appearance.')) for path in entry.overrides))
+        self.assertEqual(entry.overrides['oracle.colors.skin'], '#abcdef')
         self.save(result)
         second = self.prepare(self.store.load())
         self.assertFalse(second.notice)
@@ -90,7 +91,10 @@ class CharacterStartupTests(unittest.TestCase):
         second.config = replace(second.config, oracle=replace(second.config.oracle, pearl_matrix_count=7))
         self.save(second)
         self.assertEqual(self.prepare(self.store.load()).config.oracle.pearl_matrix_count, 7)
-        self.assertEqual(original, (bell.path.read_bytes(), bell.appearance.path.read_bytes()))
+        from rw_creature_pet.presets.profile import load_profile
+        baseline = load_profile(bell.path.parent/'original/profile.json')
+        self.assertEqual(baseline.appearance.oracle.colors.skin, '#123456')
+        self.assertEqual(baseline.config.oracle.pearl_matrix_count, 7)
 
     def test_saved_character_and_overrides_take_priority_over_bell(self):
         self.library.export(self.bell_config, 'Bell', preset_id=BELL_PROFILE_ID)
@@ -105,16 +109,15 @@ class CharacterStartupTests(unittest.TestCase):
         self.assertEqual(restored.state.entries[restored.state.active].source.id, other.id)
         self.assertEqual(restored.config.oracle.float_speed, 1.1)
 
-    def test_deleted_character_falls_back_and_corrupt_files_are_not_overwritten(self):
+    def test_corrupt_current_is_reported_without_replacing_user_character(self):
         result = self.prepare()
         self.save(result)
         source = self.library.scan().presets[0].path
         source.write_text('{}', encoding='utf-8')
-        recovered = self.prepare(self.store.load())
-        self.assertEqual(recovered.state.entries[recovered.state.active].source.id, BELL_PROFILE_ID)
-        self.assertNotEqual(recovered.state.entries[recovered.state.active].source.path, source)
+        with self.assertRaises(ValueError):
+            self.prepare(self.store.load())
         self.assertEqual(source.read_text(encoding='utf-8'), '{}')
-        self.assertEqual(len(self.library.scan().presets), 1)
+        self.assertEqual(len(self.library.scan().errors), 1)
 
     def test_failed_save_does_not_mark_pending_upgrade_complete(self):
         self.store.path.parent.mkdir(parents=True)

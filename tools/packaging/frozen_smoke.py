@@ -50,10 +50,23 @@ def main(argv):
         assert dialog.result() == QDialog.DialogCode.Accepted, dialog.status.text()
         assets = dialog.prepared_assets
         assert assets.renderer.glyphs is not None, assets.message
+        assert assets.renderer.playback_curve is not None, assets.message
         assert len(assets.voice_paths) == 10 and not assets.voice_error, assets.voice_error
         config = dialog.saved_config
         assert store.startup()[0] == config and store.startup()[1] is False
-        report.update(atlas=True, glyphs=True, voice_clips=len(assets.voice_paths), settings_roundtrip=True)
+        report.update(atlas=True, glyphs=True, pearl_playback=True,
+                      voice_clips=len(assets.voice_paths), settings_roundtrip=True)
+        from rw_creature_pet.presets.personal import PersonalState
+        from rw_creature_pet.presets.profile_library import ProfileLibrary
+        from rw_creature_pet.presets.workspace import read_entry
+        state = PersonalState(store.load_preset_state())
+        active = state.entries[state.active].source
+        shared = ProfileLibrary().export_share(config, output/'character.zip', name=active.name, preset_id=active.id)
+        imported = ProfileLibrary(output/'imported-characters').import_file(shared)
+        restored = read_entry(imported.path)
+        assert imported.id == active.id and restored.values['oracle.voice'] == config.oracle.voice
+        assert restored.values['oracle.body_appearance'] == config.oracle.body_appearance
+        report['character_zip_roundtrip'] = True
         solver = compiled_rope_solver()  # 必须真实编译成功，不能悄悄回退到 Python。
         assert solver.signatures
         report['numba'] = True

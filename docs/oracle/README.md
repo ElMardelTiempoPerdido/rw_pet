@@ -29,6 +29,7 @@ python run_pet.py --creature oracle
 
 新设备安装项目依赖并设置 `config.toml` 的 `game_dir` 后，保留
 `[oracle] voice_directory = 'auto'` 即可在首次启动时自动提取、切分并处理 Bell 语音。
+设置 → 行为 → 使用的语音由每个角色独立保存，对应 `[oracle] voice = 'bell' / 'none'`。所有角色均可选择 Bell 语音，包括自定义和 Prince；现有角色配置中仅 Bell 默认使用语音。选择“不使用语音”会停止当前播放并取消待播请求，常规页的语音总开关和音量仍为本机共用设置
 缓存保存于用户目录，后续直接复用，无需复制开发机的 `artifacts`；
 自定义音频目录和具体处理参数见 [语音播放与准备](../interaction/README.md#语音播放与准备)。
 
@@ -525,9 +526,11 @@ pearl_bubble_color = '#ff0000'
 
 尺寸公式为 `6 + (pearl_bubble_max_size - 6) × 强度`，最小直径保持 6px；默认值仍为上文的 6～12px。颜色使用 `#RRGGBB`，透明度仍叠加频谱强度、首尾淡入淡出和投影不透明度。设置菜单保存后生效并在下次启动时复用；预览脚本读取 TOML 中的同一组参数。
 
-首次准备资源时从 `RainWorld_Data/StreamingAssets/AssetBundles/music_songs` 的 `RW_121 - Soft Gesture` 提取音频（同名散装 MP3 可能是空占位）。独立 FMOD `NOSOUND_NRT` 系统仅解码、读取 PCM，不创建播放通道。对左声道使用 2048 点 Hamming 窗 FFT，取前 1024 个频段，以 `abs(rfft)/2048` 归一化，再按原版 `clamp(sum/0.25, 0, 1)` 得到强度，每秒记录 40 次。此为离线近似原版频谱结构，不承诺与 Unity 混音器不同输出采样率下逐帧一致。当前本机曲目约 66.325 秒，共 2653 个 float32 值，数据约 10.4 KiB。
+珍珠动画直接读取随程序分发的 `oracle/pearls/data/playback/strength.npy` 和 `manifest.json`，不读取游戏音乐或旧用户缓存，不要求安装 Watcher / Downpour。曲线沿用此前从 `RW_121 - Soft Gesture` 生成的数据：约 66.325 秒、每秒 40 次，共 2653 个 float32 强度值，数据约 10.4 KiB。包内仅包含强度曲线和算法元数据，不包含音频、完整频谱或本机安装路径，wheel 与 PyInstaller 均收集这两个文件
 
-曲线及校验清单保存在 `%LOCALAPPDATA%/rw_creature_pet/pearl-playback/`，不缓存音乐本体；源文件或算法版本变化、缓存损坏时重建。资源缺失时显示资源提示并保留普通阅读。运行期只做数组插值，使用原版 `LizardBubble6`（16×16）红色精灵，缩放为强度 × 0.75，不透明度为 `(0.25 + 强度 × 0.65) × 投影不透明度`；作为半透明投影，不加入外发光。本体和线缆缓存不因该动画重新生成，结束后珍珠恢复休眠。
+加载时检查数据版本、SHA-256、数组格式、样本数量及数值范围；包内数据丢失或损坏时提示错误并保留普通阅读，不尝试从游戏重建。旧 `%LOCALAPPDATA%/rw_creature_pet/pearl-playback/` 缓存不再使用。运行期仍只做数组插值，使用原版 `LizardBubble6`（16×16）红色精灵，不透明度为 `(0.25 + 强度 × 0.65) × 投影不透明度`；作为半透明投影，不加入外发光。本体和线缆缓存不因该动画重新生成，结束后珍珠恢复休眠
+
+开发时可运行 `python tools/oracle/prepare_pearl_playback.py --game-dir "游戏目录"` 重新生成，也可用 `--from-cache "旧曲线缓存目录"` 复用通过校验的旧数据；`--output` 可指定其他输出目录。只有此开发工具会解码游戏的 `AssetBundles/music_songs`，使用独立 FMOD `NOSOUND_NRT` 无声系统和左声道 2048 点 Hamming 窗 FFT，再按 `clamp(sum(abs(rfft)/2048)/0.25, 0, 1)` 得到每秒 40 次的强度曲线。此为原版频谱结构的离线近似，不承诺与 Unity 混音器逐帧一致
 
 可运行 `python tools/oracle/review_pearl_playback.py` 生成整首曲目的无声预览：`artifacts/pearl-playback/soft-gesture-pearl.gif`，包含 2× 人偶阅读场景和 8× 珍珠细节；正式行为不会强制播放整首。测试入口为 `python -m unittest tests.oracle.test_pearl_playback -v`。
 

@@ -387,14 +387,14 @@ class Overseer:
         lengths = self.filament_lengths
         opening = self.lens.up
         opening = opening*opening*(3-2*opening)
-        idle_forward = 0. if self.appearance == 'friend' else self.FILAMENT_IDLE_FORWARD
-        # 桌面适配：观察时逐渐增强原版的前向力，平时保留朋友？的 C/S 弧
+        is_friend = self.appearance == 'friend'
+        # 普通外观观察时增强前向力；朋友？保留后侧 C/S 弧，避免混入观察光束
         # 使用头部的屏幕投影，不归一化；接近正视时自然减弱，不突然倒向一侧
-        gaze = self.head_gaze()[0]
-        forward = gaze*(idle_forward+(self.FILAMENT_OBSERVE_FORWARD-idle_forward)*opening)
+        forward = (Vec2() if is_friend else self.head_gaze()[0]*(self.FILAMENT_IDLE_FORWARD
+                   +(self.FILAMENT_OBSERVE_FORWARD-self.FILAMENT_IDLE_FORWARD)*opening))
         friend_orbit = (self.filament_motion.ring_offsets(self, 2,
             self.filament_motion.radius*self.config.size*FilamentMotion.FRIEND_ORBIT_SCALE)
-            if self.appearance == 'friend' and opening > 0 else None)
+            if is_friend and opening > 0 else None)
         # 收拢过程中允许节点退到墙内；绘制仍由边框裁剪。
         inset = 1-(1-self.extended)*self.reach
         safe = Bounds(self.bounds.left+inset, self.bounds.top+inset,
@@ -403,12 +403,9 @@ class Overseer:
         shrink = min(1., self.extended/self.last_extended) if self.last_extended > 0 else 1.
         for index, (strand, tip) in enumerate(zip(self.filaments, self._filament_tips())):
             segment_length = lengths[index]*self.extended/(len(strand)-1)
-            if self.appearance == 'friend':
-                # 观察时松开后向姿态引导，避免长须被原有 S 弧一直留在身后
-                observe_tip = base+gaze*(lengths[index]*.8)
-                if friend_orbit is not None:
-                    observe_tip += friend_orbit[index]*self.extended
-                tip = tip.lerp(observe_tip, opening*.85)
+            if friend_orbit is not None:
+                # 只在原后侧目标附近小幅绕转，不再转向脸盘前方
+                tip += friend_orbit[index]*(self.extended*opening*.85)
             # 仅在重合点初次展开时使用局部方向，避免归一化零向量后无法撑开。
             angle = index*pi/2 if self.appearance == 'friend' else index*2*pi/len(self.filaments)
             radial = self.tangent*cos(angle)+self.normal*sin(angle)
@@ -427,7 +424,7 @@ class Overseer:
                 steering += unfurl*(.12*(1-fraction)*self.extended)
                 steering += forward*(fraction*fraction)
                 if bends is not None:
-                    steering += bends[i]*(1-.75*opening)
+                    steering += bends[i]
                 if i > 1:
                     # 轻微抵抗折叠，参考 Mycelium 对隔一个节点的排斥。
                     steering += unit(point.position-strand[i-2].previous, unfurl)*(.2*self.extended)

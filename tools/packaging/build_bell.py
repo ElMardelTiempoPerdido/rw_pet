@@ -1,4 +1,4 @@
-"""在已安装依赖的 Windows 环境生成 dist/BellPet.exe。"""
+"""生成 Windows EXE，并整理只包含 original 的预设发行目录和 ZIP"""
 from pathlib import Path
 import argparse
 import os
@@ -38,6 +38,10 @@ def main():
     parser.add_argument('--full', action='store_true', help='保留 Qt 自动收集的附加组件，供对照/回退')
     parser.add_argument('--upx-dir', type=Path, help='可选：UPX 所在目录；由 PyInstaller 压缩包内二进制')
     parser.add_argument('--name', default='BellPet', help='输出文件名，不含 .exe')
+    parser.add_argument('--release-dir', type=Path, default=ROOT/'dist/release', help='发行目录，同时生成同名 ZIP')
+    parser.add_argument('--profiles', type=Path, default=ROOT/'presets/profiles')
+    parser.add_argument('--catalog', type=Path, default=ROOT/'presets/release.json')
+    parser.add_argument('--overrides', type=Path, action='append', default=[], help='以新导出的分享包更新发行默认值')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_-]+', args.name):
         parser.error('--name 只允许英文字母、数字、下划线和连字符')
@@ -59,6 +63,13 @@ def main():
                    cwd=ROOT, env=environment, check=True)
     exe = ROOT/'dist'/f'{args.name}.exe'
     print(f'{exe} ({exe.stat().st_size/1024**2:.1f} MiB)')
+    # 复用同一整理入口，禁止手动复制整个角色库进发布包
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools.packaging.release import build_release
+    result = build_release(exe, args.release_dir, profiles=args.profiles, catalog=args.catalog,
+                           overrides=args.overrides)
+    print(f'{result}\n{result.with_name(result.name+".zip")}')
 
 
 if __name__ == '__main__':

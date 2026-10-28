@@ -11,7 +11,7 @@ from ..shared.geometry import Bounds, Vec2
 from ..interaction.config import InteractionConfig
 from .config import OracleConfig
 from .space import body_margin
-from .motion.navigation import EdgeRegion, FloatNavigator, RoundedRail
+from .motion.navigation import EdgePlanner, EdgeRegion, FloatNavigator, RoundedRail
 from .graphics.appearance import OracleAppearance
 from .motion.soft_parts import SoftParts
 from .motion.prince import PrincePosture
@@ -362,6 +362,12 @@ class OracleScene:
             return self.navigator.rail.normal(base.previous_s + (base.s - base.previous_s) * alpha)
         return self.world.normal(self.anchor.side)
 
+    @property
+    def movement_reach(self):
+        if self.config.body_appearance == 'prince':
+            return PrinceTentacles.navigation_reach(self.prince_study or default_study())
+        return self.arm.maximum_reach
+
     def reset(self):
         drag_enabled = self.drag.enabled if hasattr(self, 'drag') else False
         previous_projection = getattr(self, 'projection', None)
@@ -380,7 +386,7 @@ class OracleScene:
             self.prince_study = self.prince_study or default_study()
             depth = self.prince_study.motion.body_edge_distance-self.world.rail_inset
             # 与现有导航的可达走廊一致，过大的配置也不能从不可达位置启动
-            depth = min(depth, FixedOracleArm.reach_for_scale(self.config.arm_scale)-16.)
+            depth = min(depth, self.movement_reach-16.)
         start = self.world.corridor(self.anchor.side).clamp(base + normal * depth)
         self.body = OracleBody([MotionPoint.at(start), MotionPoint.at(start - self.desired_direction * 9)])
         self.head = OracleHead.at(start+self.desired_direction
@@ -391,7 +397,7 @@ class OracleScene:
         corridor = self.arm_region if self.sliding_base else self.world.corridor(self.anchor.side, False)
         self.arm = FixedOracleArm(base, tip, normal, corridor, self.config.arm_scale)
         if self.sliding_base:
-            self.navigator = FloatNavigator(self.world, start, base, self.arm.maximum_reach,
+            self.navigator = FloatNavigator(self.world, start, base, self.movement_reach,
                                             self.config.float_speed, self.config.base_speed)
         self.requested_target = self.target = start
         self.travel_speed = None
@@ -475,12 +481,18 @@ class OracleScene:
         if self.navigator:
             options = [safe.clamp(point) for physical, safe in zip(self.body_region.boxes, self.navigator.region.boxes)
                        if physical.contains(point)]
-            return min(options, key=lambda p: (p - point).length()) if options else self.navigator.region.clamp(point)
-        box = self.world.corridor(self.anchor.side)
-        point = box.clamp(point)
-        for _ in range(8):
-            point = self.base + limited(point - self.base, self.arm.maximum_reach)
+            point = min(options, key=lambda p: (p - point).length()) if options else self.navigator.region.clamp(point)
+        else:
+            box = self.world.corridor(self.anchor.side)
             point = box.clamp(point)
+            for _ in range(8):
+                point = self.base + limited(point - self.base, self.movement_reach)
+                point = box.clamp(point)
+        support = getattr(self, 'prince_tentacles', None)
+        if support is not None and not (getattr(self, 'drag', None) and self.drag.controlling):
+            point = support.project_destination(self, point)
+            region = self.navigator.region if self.navigator else self.body_region
+            point = region.clamp(point)
         return point
 
     def set_target(self, point):
@@ -501,6 +513,8 @@ class OracleScene:
             point = self.mouse_reaction.avoidance.neutral_position(self)
         self.requested_target = point
         self.target = self.project_target(point)
+        if self.prince_tentacles is not None and (self.target-point).length() > .001:
+            route = None
         self.travel_speed = speed
         if self.navigator:
             upper = self.body.chunks[0]
@@ -743,10 +757,18 @@ class OracleScene:
                     self.base_normal(), self.arm.corridor, self.config.arm_scale)
             # 设置面板可能在暂停时切换角色，同步替换支撑层而不等待下一次物理步
             self.prince_tentacles = PrinceTentacles(self) if prince else None
+            if self.navigator:
+                self.navigator.region = EdgeRegion(self.world, reach=self.movement_reach)
+                self.navigator.planner = EdgePlanner(self.world, self.navigator.region)
+                if self.navigator.region.contains(self.body.chunks[0].position):
+                    self._move_to(self.target)
+                else:
+                    # 新角色的范围可能更窄，先由正常运动约束收回，不能从区域外规划路径
+                    from .motion.navigation import CurveRoute
+                    self.target = self.project_target(self.target)
+                    self.navigator.set_route(CurveRoute([], self.target))
         self.eyes.set_enabled(self.config.character.has_eyes)
-        if not self.config.character.has_hands and (self.drag_reactions.active
-                or self.drag_reactions.gesturing or self.projection.busy):
-            self.drag_reactions.end(self, cancel=True)
+        self.drag_reactions.sync_capabilities(self)
 
     def step(self):
         self.sync_character()
@@ -766,8 +788,20 @@ class OracleScene:
         previous_direction = self.body.direction
         guide, feedforward = self.target, Vec2()
         if self.navigator:
-            self.navigator.step(self.body.chunks[0].position, self.arm.maximum_reach,
-                                speed_limit=self.travel_speed)
+            support = self.prince_tentacles
+            if (support is not None and self.navigator.waiting_for_base
+                    and not any(p.transferring for p in support.parts)):
+                # 换点后实际支撑范围可能改变；收回不可达的终点，不能永久等待隐藏底座
+                target = self.project_target(self.target)
+                if (target-self.target).length() > .1:
+                    self.target = target
+                    self.navigator.set_route(self.navigator.planner.plan(
+                        self.body.chunks[0].position, target, self.body.chunks[0].velocity))
+            can_advance = (None if support is None else
+                           lambda p: (support.project_motion(self, p)-p).length() < .01)
+            self.navigator.step(self.body.chunks[0].position,
+                                float('inf') if support is not None else self.movement_reach,
+                                speed_limit=self.travel_speed, can_advance=can_advance)
             guide, feedforward = self.navigator.guide, self.navigator.velocity
         self.pose.step(self)
         direction = self.desired_direction
@@ -810,10 +844,18 @@ class OracleScene:
         upper.position = upper.position+pivot_shift
         lower.position = lower.position+pivot_shift
         if self.navigator:
-            candidate = self.base + limited(upper.position - self.base, self.arm.maximum_reach)
-            safe = self.navigator.region.safe_move(upper.previous_position, candidate)
+            candidate = (upper.position if self.prince_tentacles is not None else
+                         self.base + limited(upper.position - self.base, self.arm.maximum_reach))
+            region = self.navigator.region
+            # 切换到可达范围更小的角色时，旧位置可能已不在新走廊内
+            safe = (region.safe_move(upper.previous_position, candidate) if region.contains(upper.previous_position)
+                    else region.clamp(candidate))
         else:
             safe = self.project_target(upper.position)
+        if self.prince_tentacles is not None:
+            safe = self.prince_tentacles.project_motion(self, safe)
+            region = self.navigator.region if self.navigator else self.body_region
+            safe = region.safe_move(upper.previous_position, safe)
         if self.behavior.drift_active and self.navigator:
             # 普通漫游锁在当前边；明确跨边时只开放起点边和目标邻边。
             # 仍保留上方的逐段禁区检查和人偶外形余量。

@@ -145,6 +145,7 @@ class SupportTentacle:
         self.motion = 0.
         self.free_length = self.reference_length
         self.free_direction = None
+        self.passive = False
         self.free_search = FreeTipSearch(search_seed)
         self.wall_probe = WallProbe(search_seed)
         # 中心线包围盒的统一余量，囊肿即使偏心或旋转也不会被清除范围裁掉
@@ -229,8 +230,10 @@ class SupportTentacle:
         self.sleeping = False
         self.quiet_ticks = 0
 
-    def detach(self):
+    def detach(self, *, passive=None):
         """不可达时保持松开，不把已经够不到的屏幕点继续当作固定端"""
+        if passive is not None:
+            self.passive = passive
         self.free_search.begin()
         self.wall_probe.begin()
         self.free_length = max(self.reference_length, path_length([p.position for p in self.nodes]))
@@ -296,8 +299,12 @@ class SupportTentacle:
                 if self.length_limit is not None:
                     length = min(length, self.length_limit)
             else:
-                goal = self.free_target(root, outward, rail)
-                extension, strength = self.wall_probe.weight, self.wall_probe.value.strength
+                if self.passive:
+                    # 自主移动时只保留惯性、重力及根部出发方向，不运行朝墙探寻时钟
+                    goal = root
+                else:
+                    goal = self.free_target(root, outward, rail)
+                    extension, strength = self.wall_probe.weight, self.wall_probe.value.strength
                 length = self.reference_length
             # 回抓的拉伸余量逐步展开，不能在进入可达范围的一帧突然增长
             rate = self.reference_length*self.FREE_LENGTH_RETURN
@@ -364,7 +371,7 @@ class SupportTentacle:
             speed = max(speed, node.velocity.length())
         tolerance = self.shape_length_limit(root, tip)/last*self.SEGMENT_TOLERANCE
         quiet = (speed < self.SETTLE_SPEED and error < tolerance and movement < .0001
-                 and not was_moving and not free_tip)
+                 and not was_moving and (not free_tip or self.passive))
         self.quiet_ticks = self.quiet_ticks+1 if quiet else 0
         if self.quiet_ticks >= self.SETTLE_TICKS:
             # 在当前受力姿态休眠，不吸回参考图或另一条目标曲线
@@ -399,6 +406,17 @@ class PrinceTentacles:
     BACK_DOWN = 4.
     MAX_DRAG_STRETCH = 1.20
     DRAG_ROOT_MARGIN = 12.  # 为下一帧胸部弯曲、惯性与根部转动留余量
+    DRAG_TARGET_ROOT_FOLLOW = .10  # 目标边界缓随胸部，避免柔性身体与限位互相激振
+    AUTO_REACH = .90  # 常规移动至少保留 10% 自然长度，不使用拖拽拉伸余量
+    AUTO_REGRIP = .82  # 回抓比松开更早留余量，避免在临界距离反复抓放
+    AUTO_ROOT_MARGIN = 12.
+
+    @classmethod
+    def navigation_reach(cls, study):
+        definitions = tuple(d for d in study.tentacles if d.enabled) or study.tentacles
+        lengths = [d.length if d.length is not None else make_path(d).length
+                   for d in definitions]
+        return max(1., max(lengths, default=1.)*cls.AUTO_REACH-cls.AUTO_ROOT_MARGIN)
 
     def __init__(self, scene, study=None):
         self.rail = GripRail(scene.world)
@@ -406,6 +424,7 @@ class PrinceTentacles:
         self.location = self.rail.project(scene.appearance.upper, self.rail.project(scene.base))
         self.outward = self.rail.normal(self.location)*-1.
         self.root = self.attachment(scene)
+        self.body_position = (scene.body.chunks[0].position if hasattr(scene, 'body') else scene.appearance.upper)
         self.parts = []
         backend = getattr(getattr(scene, 'config', None), 'physics_backend', 'python')
         for definition in self.study.tentacles:
@@ -414,11 +433,33 @@ class PrinceTentacles:
             root = self.part_root(definition)
             s = self.ideal_grip(definition, root)
             self.parts.append(SupportTentacle(definition, root, self.outward, s, self.rail, backend=backend))
+        # 初始离边距离较大时也要先选择舒适抓点，不能第一帧就把所有短链拉直
+        primary = max(self.parts, key=lambda p: p.reference_length, default=None)
+        for part in self.parts:
+            root = self.part_root(part.definition)
+            reach = (part.reference_length*self.AUTO_REACH-self.AUTO_ROOT_MARGIN if part is primary
+                     else part.reference_length*self.AUTO_REGRIP)
+            target = self.reachable_target(part, part.grip_s, reach=max(1., reach))
+            part.passive = True
+            part.length_limit = part.reference_length
+            if target is None:
+                if part is not primary:
+                    part.detach(passive=True)
+                    part.solve_chain(root, part.grip, self.rail)
+            elif abs(self.rail.delta(part.grip_s, target)) > .0001:
+                part.grip_s = part.target_s = target
+                part.grip = self.rail.sample(target)[0]
+                points = part.initial_points(root, self.outward, part.grip, len(part.nodes)-1)
+                for node, point in zip(part.nodes, points):
+                    node.position = node.previous_position = point
+            for node in part.nodes:
+                node.previous_position = node.position
         self.revision = 0
         self.cooldown = 0
         self.travel = 0.
         self.guard = None
         self.drag_limited = False
+        self.drag_root_offset = self.root-self.body_position
 
     def attachment(self, scene):
         frame = scene.prince_posture.frame(scene.appearance.upper, scene.appearance.direction)
@@ -445,7 +486,7 @@ class PrinceTentacles:
 
     @property
     def settled(self):
-        return all(p.sleeping and p.attached and not p.transferring for p in self.parts)
+        return all(p.sleeping and (p.attached or p.passive) and not p.transferring for p in self.parts)
 
     @property
     def visual_key(self):
@@ -453,12 +494,16 @@ class PrinceTentacles:
 
     def begin_drag(self):
         self.drag_limited = True
+        self.drag_root_offset = self.root-self.body_position
         for part in self.parts:
+            if part.passive and part.free:
+                part.detach(passive=False)
+            part.passive = False
             part.length_limit = part.reference_length*self.MAX_DRAG_STRETCH
             part.sleeping = False
             part.quiet_ticks = 0
 
-    def project_drag(self, scene, point, *, choose=False):
+    def project_drag(self, scene, point, *, choose=False, for_target=False):
         """只由仍抓住的触手限制人偶，不受较短、已经松开的触手牵制"""
         if not self.parts:
             return point
@@ -468,19 +513,24 @@ class PrinceTentacles:
         if choose or self.guard not in attached:
             if not attached:
                 return point
-            shift = point-scene.body.chunks[0].position
+            shift = point-self.body_position
             self.guard = max(attached, key=lambda p: p.length_limit-(
                 self.part_root(p.definition)+shift-p.grip).length())
-        offset = self.part_root(self.guard.definition)-scene.body.chunks[0].position
+        # 根部与身体必须来自同一次物理步，不能用上一帧根部减去本帧已积分的身体
+        # 同一帧多次投影共用此偏移，避免限位本身跟着校正来回移动
+        offset = self.part_root(self.guard.definition)-self.body_position
+        if for_target:
+            # 鼠标目标不逐帧追逐胸部回摆；身体的即时限长仍使用上面的真实根部
+            offset = self.part_root(self.guard.definition)-self.root+self.drag_root_offset
         center = self.guard.grip-offset
         return center+limited(point-center, max(1., self.guard.length_limit-self.DRAG_ROOT_MARGIN))
 
-    def reachable_target(self, part, ideal):
-        if part.length_limit is None:
+    def reachable_target(self, part, ideal, *, root=None, reach=None):
+        if reach is None and part.length_limit is None:
             return self.rail.bounded(ideal)
-        root = self.part_root(part.definition)
+        root = self.part_root(part.definition) if root is None else root
         nearest = self.rail.project(root, part.grip_s)
-        reach = part.length_limit*.92
+        reach = part.length_limit*.92 if reach is None else reach
         if (self.rail.sample(nearest)[0]-root).length() > reach:
             return None
         distance = self.rail.delta(nearest, self.rail.bounded(ideal))
@@ -495,6 +545,31 @@ class PrinceTentacles:
                 hi = t
         return self.rail.bounded(nearest+distance*lo)
 
+    def project_motion(self, scene, point):
+        """最长触手换点时身体等待，其他时间保持它的自然松弛余量"""
+        if not self.parts:
+            return point
+        guard = max(self.parts, key=lambda p: p.reference_length)
+        if not guard.attached:
+            return self.body_position
+        offset = self.part_root(guard.definition)-self.body_position
+        center = guard.grip-offset
+        return center+limited(point-center, max(1., guard.reference_length*self.AUTO_REACH-self.AUTO_ROOT_MARGIN))
+
+    def project_destination(self, scene, point):
+        """只有长触手够得着的深处，终点必须仍在当前支撑点的松弛范围内"""
+        if not self.parts:
+            return point
+        longest = max(self.parts, key=lambda p: p.reference_length)
+        shift = point-scene.body.chunks[0].position
+        alternatives = [p for p in self.parts if p is not longest]
+        can_support = any(self.reachable_target(p, p.grip_s,
+            root=self.part_root(p.definition)+shift, reach=p.reference_length*self.AUTO_REGRIP) is not None
+            for p in alternatives)
+        if longest.attached and not can_support:
+            return self.project_motion(scene, point)
+        return point
+
     def step(self, scene):
         drag = getattr(scene, 'drag', None)
         controlling = drag is not None and drag.controlling
@@ -504,7 +579,13 @@ class PrinceTentacles:
             self.drag_limited = False
             self.guard = None
             for part in self.parts:
-                part.length_limit = None
+                part.length_limit = part.reference_length
+        for part in self.parts:
+            if not controlling:
+                if not part.passive and part.free:
+                    part.wall_probe.begin()
+                part.passive = True
+                part.length_limit = part.reference_length
         previous_s = self.location
         # 由身体的边缘投影决定换点，不能跟随隐藏底座；固定底座模式也能行走
         self.location = self.rail.project(scene.appearance.upper, previous_s)
@@ -521,17 +602,23 @@ class PrinceTentacles:
         if (self.outward-target_outward).length() < .0001:
             self.outward = target_outward
         self.root = self.attachment(scene)
+        self.body_position = (scene.body.chunks[0].position if hasattr(scene, 'body') else scene.appearance.upper)
+        offset = self.root-self.body_position
+        self.drag_root_offset = (self.drag_root_offset.lerp(offset, self.DRAG_TARGET_ROOT_FOLLOW)
+                                 if controlling else offset)
         self.cooldown = max(0, self.cooldown-1)
         active_before = [p for p in self.parts if p.transferring]
-        budget = min(len(self.parts)-1, 2 if controlling else 1)
+        budget = min(len(self.parts)-1, 2)
         lead = max(-self.LEAD_DISTANCE, min(self.LEAD_DISTANCE, self.travel*18.))
         # 松手后仍按一次一条重新抓回，不在同一帧把两条悬空触手直接贴回边缘
         transfers = 2 if drag is not None and drag.active else 1
+        primary = max(self.parts, key=lambda p: p.reference_length, default=None)
         for part in self.parts:
             if part.attached or part.transferring or sum(p.transferring for p in self.parts) >= transfers:
                 continue
             ideal = self.ideal_grip(part.definition, self.part_root(part.definition), part.reference_length)+lead
-            target = self.reachable_target(part, ideal)
+            target = self.reachable_target(part, ideal, reach=(
+                None if controlling else part.reference_length*self.AUTO_REGRIP))
             if target is not None:
                 part.release(target, self.rail)
         while sum(not p.attached for p in self.parts) < budget:
@@ -541,11 +628,29 @@ class PrinceTentacles:
                     continue
                 ideal = self.ideal_grip(part.definition, self.part_root(part.definition), part.reference_length)
                 offset = self.rail.delta(part.grip_s, ideal)
-                strained = (part.length_limit is not None and (
-                    part.grip-self.part_root(part.definition)).length() > part.length_limit*.94)
+                distance = (part.grip-self.part_root(part.definition)).length()
+                if not controlling and any(p.transferring for p in self.parts):
+                    if part is not primary and distance > part.reference_length*self.AUTO_REACH:
+                        candidates.append((True, distance, -i, part, None))
+                    continue
+                strained = (distance > part.length_limit*.94 if controlling else
+                            distance > part.reference_length*self.AUTO_REGRIP)
                 if strained or (abs(offset) > self.REPLANT_DISTANCE and part.cooldown == 0
                                 and self.cooldown == 0):
-                    target = self.reachable_target(part, ideal+lead)
+                    target = self.reachable_target(part, ideal+lead, reach=(
+                        None if controlling else part.reference_length*self.AUTO_REGRIP))
+                    if not controlling and part is primary:
+                        # 长触手不可悬空等待；换点前必须已有另一条保持舒适支撑
+                        alternate = any(p is not part and p.attached and
+                            (p.grip-self.part_root(p.definition)).length() < p.reference_length*self.AUTO_REACH
+                            for p in self.parts)
+                        if target is None or not alternate:
+                            continue
+                    if (not controlling and target is not None and strained
+                            and distance <= part.reference_length*self.AUTO_REACH
+                            and (self.rail.sample(target)[0]-self.part_root(part.definition)).length() >= distance-2.):
+                        # 已处于回抓后的舒适位置，不因浮点误差反复松开同一个点
+                        continue
                     # 偏好可能超出长度限制；已抓住裁剪后的落点时，不反复松开原地抓取
                     if (not strained and target is not None
                             and abs(self.rail.delta(part.grip_s, target)) <= self.REPLANT_DISTANCE):

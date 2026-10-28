@@ -9,9 +9,12 @@
 | Oracle / Bell 的操作、外观、行为、珍珠、配置与验证记录 | [oracle/README.md](oracle/README.md) |
 | 默认 TOML、用户配置升级与设置面板初始值 | [设置升级说明](settings-upgrades.md) |
 | 外观、角色设定与本机字段的归属登记和覆盖检查 | [配置字段归属](preset-field-scopes.md) |
+| 游戏本体、DLC、随包与用户素材的来源、加载条件及关联设置 | [资源归属与设置影响](resource-catalog.md) |
 | 外观配置的保存、分享、导入和重复版本处理 | [外观配置](appearance-presets.md) |
 | 角色设定的行为参数、随包外观与本机偏好保留 | [角色设定](profile-presets.md) |
 | 自动保存、单项恢复、角色内外观副本与切换历史 | [个人调整与外观历史](personal-adjustments.md) |
+| 覆盖升级、旧数据迁移、分享冲突、备份与完整链路验收 | [角色升级与分享](profile-upgrade-sharing.md) |
+| EXE 构建、角色分享替换源与保留用户数据的覆盖更新 | [发行打包](packaging.md) |
 | 中英文切换、译文维护与翻译资源 | [界面语言](localization.md) |
 | 目录分工、依赖关系、测试与回放入口 | [开发指南](development.md) |
 

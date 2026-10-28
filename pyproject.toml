@@ -22,3 +22,5 @@ include = ["rw_creature_pet*"]
 
 [tool.setuptools.package-data]
 rw_creature_pet = ["ico/*.png", "translations/*.qm", "translations/*.ts", "skin/maid/*.png", "skin/friend/*.png", "skin/prince/*.png", "skin/prince/*.toml", "fonts/*.ttf"]
+"rw_creature_pet.oracle.pearls" = ["data/playback/*.json", "data/playback/*.npy"]
+"rw_creature_pet.resources" = ["catalog.toml"]

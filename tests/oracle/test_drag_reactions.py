@@ -289,7 +289,7 @@ class VoicePreparationTests(unittest.TestCase):
         seen, previous = set(), None
         for _ in range(200):
             reaction.voice.cancel()
-            reaction._try_voice()
+            reaction._try_voice(scene.config.voice)
             cue = reaction.voice.take_pending()
             self.assertIsNotNone(cue)
             self.assertNotEqual(cue.clip_id, previous)

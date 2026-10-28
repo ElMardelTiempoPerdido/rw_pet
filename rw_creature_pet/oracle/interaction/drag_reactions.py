@@ -5,7 +5,7 @@ from random import Random
 from ...interaction.drag import limited
 from ...interaction.voice import VoiceCue, VoiceCueChannel
 from ...shared.geometry import Vec2
-from ..audio.voice import BELL_VOICE_CLIPS
+from ..audio.voice import VOICE_CLIPS
 from ..effects.projection import OracleProjection
 
 
@@ -52,7 +52,8 @@ class OracleDragReactions:
         return self.LABELS.get(self.gesture, '放松')
 
     def begin(self, scene):
-        if not self.config.enabled or not scene.config.character.has_hands:
+        character = scene.config.character
+        if not self.config.enabled or not (character.has_hands or character.has_eyes or scene.config.voice != 'none'):
             return
         self.active = True
         self.gesture = None
@@ -143,23 +144,31 @@ class OracleDragReactions:
         self.eye_remaining = self.eye_random.uniform(1.5, 3.) if opened else 0.
         self.eye_wait = self.eye_remaining+self.eye_random.uniform(.9, 2.)
 
-    def _try_voice(self):
-        if self.voice.remaining > 0:
+    def _try_voice(self, source):
+        clips = VOICE_CLIPS[source]
+        if not clips or self.voice.remaining > 0:
             return
         if self.voice_random.random() < self.config.voice_probability:
-            pool = [clip for clip in BELL_VOICE_CLIPS if clip.clip_id != self.last_clip]
+            pool = [clip for clip in clips if clip.clip_id != self.last_clip] or clips
             clip = self.voice_random.choice(pool)
             if self.voice.request(VoiceCue(clip.clip_id, clip.duration, 'drag')):
                 self.last_clip = clip.clip_id
         self.voice_wait = self.voice.remaining+self.voice_random.uniform(1.8, 3.8)
 
-    def step(self, scene):
-        if not scene.config.character.has_voice:
+    def sync_capabilities(self, scene):
+        character = scene.config.character
+        if scene.config.voice == 'none':
             self.voice.cancel()
-        if not scene.config.character.has_hands:
-            if self.active or self.gesturing or self.projection.busy:
+        if not character.has_hands:
+            self.gesture = None
+            self.weight = 0.
+            if self.projection.busy:
+                self.projection.stop(cancel=True)
+            if not character.has_eyes and scene.config.voice == 'none' and self.active:
                 self.end(scene, cancel=True)
-            return
+
+    def step(self, scene):
+        self.sync_capabilities(scene)
         self.voice.step(self.DT)
         self.projection.step(scene)
         if not self.active and not self.gesturing:
@@ -179,7 +188,7 @@ class OracleDragReactions:
                 self.weight = 0.
         if not self.active:
             return
-        if not self.gesturing and not self.projection.busy:
+        if scene.config.character.has_hands and not self.gesturing and not self.projection.busy:
             self.gesture_wait -= self.DT
             if self.gesture_wait <= 0:
                 self._try_gesture(scene)
@@ -191,8 +200,8 @@ class OracleDragReactions:
         if self.eye_wait <= 0:
             self._try_eyes(scene)
         self.voice_wait -= self.DT
-        if self.voice_wait <= 0 and scene.config.character.has_voice:
-            self._try_voice()
+        if self.voice_wait <= 0:
+            self._try_voice(scene.config.voice)
 
     def hand_weight(self, index):
         if self.projection.busy:

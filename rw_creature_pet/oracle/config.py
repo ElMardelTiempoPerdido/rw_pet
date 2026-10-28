@@ -12,6 +12,7 @@ from .clothing_config import CLOTHING_DECAL_FIELDS, ClothingDecal
 from .behavior_config import DailyActivityConfig, ReadingConfig
 from .drift_config import DriftConfig
 from .mouse_avoidance_config import MouseAvoidanceConfig
+from .audio.voice import VOICE_CLIPS, legacy_voice
 from dataclasses import dataclass, fields, replace
 from math import isfinite
 from pathlib import Path
@@ -281,6 +282,7 @@ class OracleConfig:
     glow_radius: float = 2.  # 外发光扩散半径，逻辑像素；跟随桌宠显示倍率。
     glow_opacity: float = .4  # 仅调节柔光合成强度；0 隐藏，1 为完整强度。
     drag_reactions: DragReactionConfig = DragReactionConfig()
+    voice: str = 'bell'  # 角色行为选项，与主体外观、眼睛和手臂能力无关
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
     daily_activity: DailyActivityConfig = DailyActivityConfig()
     reading: ReadingConfig = ReadingConfig()
@@ -321,6 +323,8 @@ class OracleConfig:
             raise ValueError('oracle.pixel_mode 必须为 classic / adaptive')
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
             raise ValueError('oracle.voice_directory 必须为非空路径字符串')
+        if not isinstance(self.voice, str) or self.voice not in VOICE_CLIPS:
+            raise ValueError('oracle.voice 必须为 bell / none')
         if type(self.halo_enabled) is not bool:
             raise ValueError('oracle.halo_enabled 必须为布尔值')
         if type(self.halo_arcs_enabled) is not bool:
@@ -417,6 +421,7 @@ class OracleConfig:
         if not isinstance(data, dict):
             raise ValueError('oracle 必须为配置表')
         data = dict(data)
+        data.setdefault('voice', legacy_voice(data.get('body_appearance', 'bell')))
         # 旧 TOML 仅有共用配色时，将它作为两套配色的初始值
         data['custom_colors'] = OracleColors(**data.get('custom_colors', data.get('colors', {})))
         data['colors'] = OracleColors(**data.get('colors', {}))

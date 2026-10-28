@@ -1,10 +1,13 @@
-"""离线频谱、缓存、矩阵阅读分支、收尾休眠和投影绘制。"""
+"""内置曲线、无音乐资源初始化、离线生成、矩阵阅读和收尾休眠"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
+from hashlib import sha256
 import io
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import wave
@@ -15,7 +18,8 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.pearls.playback import PearlPlayback, SpectrumCurve
-from rw_creature_pet.oracle.pearls.playback_assets import load_pearl_playback, precompute_strength
+from rw_creature_pet.oracle.pearls.playback_assets import load_pearl_playback, prepare_pearl_playback
+from tools.oracle.prepare_pearl_playback import precompute_strength, export_curve
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.shared.timing import FixedStepper
@@ -63,20 +67,79 @@ class PearlPlaybackTests(unittest.TestCase):
         self.assertEqual(meta['channel'], 0)
         self.assertAlmostEqual(audible.sample(.5125), (audible.values[20]+audible.values[21])/2)
 
-    def test_cache_hot_load_never_decodes_and_corruption_is_rebuilt(self):
+    def test_bundled_curve_needs_no_game_audio_or_user_cache(self):
         with TemporaryDirectory() as temp:
-            game, cache = Path(temp)/'game', Path(temp)/'cache'
-            source = game/'RainWorld_Data/StreamingAssets/AssetBundles/music_songs'
-            source.parent.mkdir(parents=True)
-            source.write_bytes(b'fixture')
-            with patch('rw_creature_pet.oracle.pearls.playback_assets._decode_source', return_value=wav_bytes()) as decode:
-                curve, root = load_pearl_playback(game, cache_root=cache)
-                self.assertEqual(load_pearl_playback(game, cache_root=cache)[0], curve)
-                self.assertEqual(decode.call_count, 1)
-                (root/'strength.npy').write_bytes(b'broken')
-                self.assertEqual(load_pearl_playback(game, cache_root=cache)[0], curve)
-                self.assertEqual(decode.call_count, 2)
+            with patch.dict(os.environ, {'LOCALAPPDATA': temp}), \
+                    patch.dict('sys.modules', {'UnityPy': None, 'fmod_toolkit': None}):
+                curve, root = load_pearl_playback()
+                renderer = SimpleNamespace(playback_curve=None)
+                self.assertEqual(prepare_pearl_playback(renderer), '')
+            self.assertEqual(renderer.playback_curve, curve)
+            self.assertEqual(len(curve.values), 2653)
+            self.assertAlmostEqual(curve.duration, 66.32489795918367)
+            self.assertEqual(curve.rate, 40)
+            self.assertGreater(max(curve.values)-min(curve.values), .9)
+            self.assertEqual(list(Path(temp).iterdir()), [])
             self.assertEqual({p.name for p in root.iterdir()}, {'manifest.json', 'strength.npy'})
+
+    def test_missing_or_corrupt_bundled_data_keeps_plain_reading(self):
+        _, source = load_pearl_playback()
+        original_manifest = json.loads((source/'manifest.json').read_text(encoding='utf-8'))
+        original_raw = (source/'strength.npy').read_bytes()
+        for case in ('missing', 'checksum', 'version', 'samples', 'values'):
+            with self.subTest(case=case), TemporaryDirectory() as temp:
+                root = Path(temp)
+                manifest, raw = dict(original_manifest), original_raw
+                if case == 'checksum':
+                    raw = b'corrupt'
+                elif case == 'version':
+                    manifest['format_version'] = -1
+                elif case == 'samples':
+                    manifest['samples'] += 1
+                elif case == 'values':
+                    stream = io.BytesIO()
+                    np.save(stream, np.full(manifest['samples'], float('nan'), dtype='<f4'), allow_pickle=False)
+                    raw = stream.getvalue()
+                    manifest['sha256'] = sha256(raw).hexdigest()
+                if case != 'missing':
+                    (root/'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
+                    (root/'strength.npy').write_bytes(raw)
+                renderer = SimpleNamespace(playback_curve=object())
+                with patch('rw_creature_pet.oracle.pearls.playback_assets.CURVE_ROOT', root):
+                    self.assertIn('珍珠播放动画不可用', prepare_pearl_playback(renderer))
+                self.assertIsNone(renderer.playback_curve)
+
+    def test_asset_preparation_keeps_curve_when_optional_game_resources_are_missing(self):
+        from rw_creature_pet.config import AppConfig
+        from rw_creature_pet.oracle.assets import prepare_oracle_assets
+        with TemporaryDirectory() as temp:
+            config = AppConfig(game_dir=Path(temp)/'missing-game')
+            with patch('rw_creature_pet.oracle.assets.extract_atlas'), \
+                    patch('rw_creature_pet.oracle.assets.Atlas'), \
+                    patch('rw_creature_pet.oracle.assets.OracleRenderer', return_value=OracleRenderer()), \
+                    patch('rw_creature_pet.oracle.assets.load_pearl_glyphs', side_effect=OSError('missing glyphs')):
+                assets = prepare_oracle_assets(config)
+            self.assertTrue(assets.voice_error)
+            self.assertEqual(assets.voice_paths, {})
+            self.assertEqual(assets.renderer.projection_images, ())
+            self.assertIsNotNone(assets.renderer.playback_curve)
+            scene = self.scene()
+            scene.pearl_playback_curve = assets.renderer.playback_curve
+            self.assertIsNotNone(self.observe(scene).playback)
+            self.assertEqual(list(Path(temp).iterdir()), [])
+
+    def test_export_keeps_only_curve_metadata_and_loads_without_source(self):
+        with TemporaryDirectory() as temp:
+            output = Path(temp)/'data'
+            with patch('tools.oracle.prepare_pearl_playback.decode_source', return_value=wav_bytes()):
+                export_curve(output, game_dir=Path(temp)/'missing-game')
+            manifest = json.loads((output/'manifest.json').read_text(encoding='utf-8'))
+            self.assertNotIn('identity', manifest)
+            self.assertNotIn(temp, json.dumps(manifest))
+            self.assertEqual({p.name for p in output.iterdir()}, {'manifest.json', 'strength.npy'})
+            with patch('rw_creature_pet.oracle.pearls.playback_assets.CURVE_ROOT', output):
+                curve, _ = load_pearl_playback()
+            self.assertEqual(curve, precompute_strength(wav_bytes())[0])
 
     def test_only_matrix_observation_triggers_once_and_returns_to_sleep(self):
         scene = self.scene()

@@ -15,6 +15,7 @@ from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.presets.library import AppearanceLibrary
 from rw_creature_pet.presets.profile import profile_mapping
 from rw_creature_pet.presets.profile_library import ProfileLibrary
+from rw_creature_pet.presets.sharing import open_profile
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.ui_config import UiConfig
 
@@ -106,14 +107,14 @@ class ProfilePresetUiTests(unittest.TestCase):
         d.game_dir.setText('')
         d.controls['oracle.float_speed'].setValue(1.1)
         d.controls['oracle.colors.skin'].setValue('#123456')
-        preset = d.profile_presets.export_current('当前草稿')
-        self.assertIsNotNone(preset)
-        self.assertEqual(preset.config.oracle.float_speed, 1.1)
-        self.assertEqual(preset.appearance.oracle.colors.skin, '#123456')
-        self.assertEqual(d._appearance_source.id, preset.appearance.id)
-        second = d.profile_presets.export_current('当前草稿', target=preset)
-        self.assertEqual(preset.id, second.id)
-        self.assertEqual(preset.appearance.id, second.appearance.id)
+        previous = d.profile_presets.loaded
+        archive = d.profile_presets.export_current('当前草稿', destination=self.root/'draft.zip')
+        self.assertIsNotNone(archive)
+        with open_profile(archive) as preset:
+            self.assertEqual(preset.config.oracle.float_speed, 1.1)
+            self.assertEqual(preset.appearance.oracle.colors.skin, '#123456')
+            self.assertEqual(preset.id, previous.id)
+        self.assertEqual(d.profile_presets.loaded, previous)
         self.assertFalse(self.store.path.exists())
 
     def test_broken_reference_keeps_all_current_draft_values(self):
@@ -138,9 +139,54 @@ class ProfilePresetUiTests(unittest.TestCase):
         panel.choose(panel.selector.currentIndex())
         self.assertEqual(profile_mapping(d.candidate()), profile_mapping(self.profile))
         self.assertEqual(d.candidate().oracle.body_appearance, 'bell')
-        result = d.profile_presets.export_current('角色新版')
-        self.assertEqual(result.appearance.id, bell.id)
-        self.assertEqual(result.appearance.oracle.body_appearance, 'bell')
+        result = d.profile_presets.export_current('角色新版', destination=self.root/'new.zip')
+        with open_profile(result) as shared:
+            self.assertEqual(shared.appearance.id, bell.id)
+            self.assertEqual(shared.appearance.oracle.body_appearance, 'bell')
+
+    def test_native_share_dialog_does_not_offer_local_file_update(self):
+        d = self.dialog()
+        destination = self.root/'shared.zip'
+        with patch('rw_creature_pet.oracle.ui.profile_presets.QFileDialog.getSaveFileName',
+                   return_value=(str(destination), '')), patch(
+                       'rw_creature_pet.oracle.ui.preset_panel.PresetSaveDialog') as legacy:
+            self.assertTrue(d.profile_presets.choose_export())
+        legacy.assert_not_called()
+        self.assertEqual(d.profile_presets.export_button.text(), '导出分享此角色')
+        self.assertIn('强烈建议', d.profile_presets.share_hint.text())
+        self.assertTrue(destination.is_file())
+        language_manager().set_language('en')
+        self.assertEqual(d.profile_presets.export_button.text(), 'Export character for sharing')
+        self.assertEqual(d.profile_presets.import_actions[0][0].text(), 'Import from ZIP or JSON…')
+        language_manager().set_language('zh')
+
+    def test_import_conflict_cancel_keeps_draft_and_local_files(self):
+        role = self.library.export(self.config, 'Local')
+        incoming = ProfileLibrary(self.root/'external').export(self.profile, 'Incoming', preset_id=role.id)
+        d = self.dialog()
+        self.select(d, role)
+        d.controls['oracle.colors.skin'].setValue('#654321')
+        before = role.path.read_bytes()
+        with patch.object(d.profile_presets, 'resolve_conflict', return_value=None) as prompt:
+            self.assertFalse(d.profile_presets.import_file(incoming.path))
+        prompt.assert_called_once()
+        self.assertEqual(role.path.read_bytes(), before)
+        self.assertEqual(d.candidate().oracle.colors.skin, '#654321')
+
+    def test_import_older_same_id_uses_explicit_incoming_choice(self):
+        role = self.library.export(self.config, 'Local')
+        incoming = ProfileLibrary(self.root/'external').export(self.profile, 'Incoming', preset_id=role.id)
+        import json
+        data = json.loads(incoming.path.read_text(encoding='utf-8'))
+        data['updated_at'] = '2000-01-01T00:00:00+00:00'
+        incoming.path.write_text(json.dumps(data), encoding='utf-8')
+        d = self.dialog()
+        self.select(d, role)
+        with patch.object(d.profile_presets, 'resolve_conflict', return_value='replace'):
+            self.assertTrue(d.profile_presets.import_file(incoming.path))
+        self.assertEqual(d.candidate().oracle.float_speed, self.profile.oracle.float_speed)
+        self.assertEqual(d.profile_presets.loaded.id, role.id)
+        self.assertTrue(list((role.path.parent/'history/imports').glob('*/profile.json')))
 
     def test_newer_external_appearance_is_not_selected_when_loading_profile(self):
         old = self.appearances.export(self.config, '外观旧版')

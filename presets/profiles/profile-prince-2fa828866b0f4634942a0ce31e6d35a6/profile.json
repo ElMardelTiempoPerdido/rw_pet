@@ -1,9 +1,9 @@
 {
   "type": "rw-creature-pet.profile",
-  "version": 1,
+  "version": 2,
   "id": "90fc64fe-b159-4f43-8af9-a5f6a93a607f",
   "name": "prince",
-  "updated_at": "2026-10-19T10:06:04.755045+00:00",
+  "updated_at": "2026-10-27T06:51:44.162579+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -100,7 +100,7 @@
         "speed_min": 1.8
       },
       "pearl_bubble_max_size": 12.0,
-      "pearl_fixed_count": 2,
+      "pearl_fixed_count": 0,
       "pearl_follow_height": 280.0,
       "pearl_follow_width": 360.0,
       "pearl_inner_count": 4,
@@ -114,11 +114,13 @@
       "projection_opacity": 0.5,
       "reading": {
         "start_probability": 0.25
-      }
+      },
+      "voice": "none"
     }
   },
+  "state": "history/state-27741655d4b04eb1ac26f14b7cf7c950.json",
   "appearance": {
     "id": "bd979bc0-ceda-4133-9c9d-3dab72214199",
-    "path": "appearance/appearance.json"
+    "path": "appearance/27741655d4b04eb1ac26f14b7cf7c950/appearance.json"
   }
 }

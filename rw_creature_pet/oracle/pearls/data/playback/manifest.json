@@ -1,0 +1,19 @@
+{
+  "track": "RW_121 - Soft Gesture",
+  "duration": 66.32489795918367,
+  "sample_rate": 44100,
+  "channels": 2,
+  "curve_rate": 40,
+  "fft_size": 2048,
+  "window": "Hamming",
+  "channel": 0,
+  "normalization": "abs(rfft)/2048; clamp(sum/0.25, 0, 1)",
+  "samples": 2653,
+  "minimum": 0.0,
+  "maximum": 1.0,
+  "mean": 0.5324588418006897,
+  "saturated_fraction": 0.006784771956275914,
+  "format_version": 1,
+  "processing_version": 1,
+  "sha256": "c549f63ad1fca2b359249b7954b02b1cc4b0bba00a5106acb4a6cd2037cc84a4"
+}

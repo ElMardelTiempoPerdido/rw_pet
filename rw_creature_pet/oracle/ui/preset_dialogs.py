@@ -1,7 +1,7 @@
 """外观与角色设置共用的分享文件另存、更新选择"""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QVBoxLayout)
+                               QMessageBox, QPushButton, QRadioButton, QVBoxLayout)
 
 from ...i18n import tr
 from .inputs import WheelSafeComboBox
@@ -11,10 +11,9 @@ from .settings_style import apply_settings_style
 def acknowledge_character_upgrade(parent=None):
     box = QMessageBox(parent)
     box.setWindowTitle(tr('保留原有设置'))
-    box.setText(tr('检测到本地存在旧版的角色配置（当您下载过仅包含手势之铃的桌宠版本时，会出现这种情况）\n'
-                   '请单击[确认]来进行配置的自动合并，这将会：\n'
-                   '保留您调整过的部分设置(如桌宠活动范围和隐藏线缆)作为全局设置；\n'
-                   '并将其余设置(影响角色个性的设置，如移动和鼠标拖动反应的风格)作为手势之铃的角色设置'))
+    box.setText(tr('旧版角色的外观和行动设置已迁入各自的角色目录\n'
+                   '已保留用户调整，并备份原 settings 和引用图片\n'
+                   '活动范围、音量等本机设置仍保存在 settings 中'))
     box.setStandardButtons(QMessageBox.StandardButton.Ok)
     box.button(QMessageBox.StandardButton.Ok).setText(tr('确认'))
     apply_settings_style(box)
@@ -126,6 +125,39 @@ class NewCharacterDialog(QDialog):
             self.error.setText(tr('无法新建角色：{error}', error=exc))
             return
         self.accept()
+
+
+class ProfileConflictDialog(QDialog):
+    """同 ID 的不同角色设置必须明确选择，不根据时间戳替用户决定"""
+    def __init__(self, parent, name):
+        super().__init__(parent)
+        self.setWindowTitle(tr('处理角色导入冲突'))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+        hint = QLabel(tr('已存在角色「{name}」，导入包与本地的当前配置或默认配置不同', name=name))
+        hint.setWordWrap(True)
+        hint.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(hint)
+        self.choices = {}
+        for value, label in (('replace', '使用导入版本（备份并替换本地配置）'),
+                             ('keep', '保留本地版本'), ('new', '导入为新角色')):
+            button = QRadioButton(tr(label))
+            self.choices[value] = button
+            layout.addWidget(button)
+        self.choices['keep'].setChecked(True)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr('继续'))
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr('取消'))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        apply_settings_style(self)
+        self.resize(560, self.sizeHint().height())
+
+    @property
+    def selection(self):
+        return next(key for key, button in self.choices.items() if button.isChecked())
 
 
 class PresetSaveDialog(QDialog):

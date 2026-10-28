@@ -77,7 +77,7 @@ class VoiceWindowTests(unittest.TestCase):
             qInstallMessageHandler(previous)
         self.assertFalse([text for text in messages if 'addMetaMethod' in text], messages)
 
-    def test_custom_characters_never_play_and_keep_audio_preferences(self):
+    def test_disabling_selected_voice_stops_playback_and_keeps_audio_preferences(self):
         for window_type in (OracleDesktopWindow, OracleDebugWindow):
             with self.subTest(window=window_type.__name__), patch(
                     'rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
@@ -88,16 +88,16 @@ class VoiceWindowTests(unittest.TestCase):
                     scene = w.scene if window_type is OracleDebugWindow else w.motion.scene
                     advance = w.on_timer if window_type is OracleDebugWindow else w.advance
                     reactions = scene.drag_reactions
-                    reactions._try_voice()
+                    reactions._try_voice(scene.config.voice)
                     advance()
                     self.assertEqual(len(sound.paths), 1)
-                    scene.config = replace(scene.config, body_appearance='custom')
+                    scene.config = replace(scene.config, voice='none')
                     advance()
                     self.assertIsNone(w.voice_player.current)
                     self.assertEqual(sound.state, 'idle')
                     for enabled in (False, True):
                         w.voice_player.configure(enabled=enabled, volume=1.)
-                        reactions._try_voice()  # 即使强制注入请求，窗口播放入口仍须拦截
+                        reactions._try_voice('bell')  # 即使强制注入请求，窗口播放入口仍须拦截
                         advance()
                         self.assertIsNone(reactions.voice.pending)
                         self.assertEqual(len(sound.paths), 1)
@@ -107,15 +107,37 @@ class VoiceWindowTests(unittest.TestCase):
                     for _ in range(400):
                         reactions.step(scene)
                     self.assertEqual(reactions.voice.request_count, count)
-                    scene.config = replace(scene.config, body_appearance='bell')
+                    scene.config = replace(scene.config, voice='bell')
                     advance()
                     self.assertEqual(len(sound.paths), 1)  # 切回不补播旧请求
-                    reactions._try_voice()
+                    reactions._try_voice(scene.config.voice)
                     advance()
                     self.assertEqual(len(sound.paths), 2)
                 finally:
                     w.close()
                     self.app.processEvents()
+
+    def test_every_character_can_play_bell_voice_on_drag(self):
+        for body in ('bell', 'custom', 'prince'):
+            config = replace(self.config, oracle=replace(self.config.oracle, body_appearance=body, voice='bell'))
+            for window_type in (OracleDesktopWindow, OracleDebugWindow):
+                with self.subTest(body=body, window=window_type.__name__), patch(
+                        'rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True):
+                    w = (window_type(config, renderer=OracleRenderer()) if window_type is OracleDesktopWindow
+                         else window_type(config, load_atlas=False))
+                    try:
+                        sound = self.attach_sound(w)
+                        scene = w.scene if window_type is OracleDebugWindow else w.motion.scene
+                        self.grab(scene)
+                        self.wait_for_voice(w)
+                        self.assertEqual(len(sound.paths), 1)
+                        if body == 'prince':
+                            self.assertFalse(scene.drag_reactions.gesturing)
+                            self.assertFalse(scene.projection.busy)
+                            self.assertEqual(scene.eyes.openness, 0.)
+                    finally:
+                        w.close()
+                        self.app.processEvents()
 
     def test_lost_release_cancels_pending_cues_but_finishes_active_clip(self):
         for recovery in ('move', 'watch'):
@@ -133,7 +155,7 @@ class VoiceWindowTests(unittest.TestCase):
                         inp.mousePressEvent(QMouseEvent(QEvent.Type.MouseButtonPress, local, global_,
                             Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
                         self.assertTrue(scene.drag.active)
-                        scene.drag_reactions._try_voice()
+                        scene.drag_reactions._try_voice(scene.config.voice)
                         count = scene.drag_reactions.voice.request_count
                         self.assertEqual(count, 1)
                         if playing:

@@ -30,14 +30,18 @@ class ProfileLibrary:
             appearance_source.id if appearance_source else str(uuid4()), updated_at,
             lambda reference: Path(reference).expanduser().resolve())
 
-    def import_file(self, source):
-        preset = load_profile(source)
-        if preset.path.is_relative_to(self.directory.resolve()) and preset.path.name == MANIFEST:
-            return preset
-        appearance = preset.appearance
-        return self._write(preset.config, preset.name, preset.id, preset.updated_at,
-                           appearance.oracle, appearance.name, appearance.id,
-                           appearance.updated_at, appearance.image)
+    def import_file(self, source, *, conflict=None):
+        with self.import_transaction(source, conflict=conflict) as installed:
+            return installed
+
+    def import_transaction(self, source, *, conflict=None):
+        from .sharing import import_transaction
+        return import_transaction(self, source, conflict=conflict)
+
+    def export_share(self, config, destination, *, name, preset_id, appearance_source=None):
+        from .sharing import export_share
+        return export_share(config, destination, name=name, identifier=preset_id,
+                            appearance=appearance_source)
 
     def _write(self, config, name, identifier, updated_at, oracle, appearance_name,
                appearance_id, appearance_time, resolve_image, *, target=None):

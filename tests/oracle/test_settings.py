@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QDialog
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, CustomAppearance, OracleColors, OracleConfig
+from rw_creature_pet.oracle.characters import PRINCE_COLOR_NAMES
 from rw_creature_pet.i18n import language_manager, tr
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopWindow, current_anchor
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
@@ -105,8 +106,8 @@ class OracleSettingsTests(unittest.TestCase):
     def test_bubble_color_syncs_appearance_and_pearl_editors_and_enabled_state(self):
         d = self.dialog()
         key = 'oracle.pearl_bubble_color'
-        appearance, custom, pearl = d.color_editors[key]
-        for editor in (appearance, custom):
+        appearance, prince, custom, pearl = d.color_editors[key]
+        for editor in (appearance, prince, custom):
             self.assertTrue(d.pages['appearance'].isAncestorOf(editor))
         self.assertTrue(d.pages['pearls'].isAncestorOf(pearl))
         appearance.setValue('#123456')
@@ -120,7 +121,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(d.candidate().oracle.pearl_bubble_color, '#abcdef')
         config = replace(self.config, oracle=replace(self.config.oracle, pearl_bubble_color='#456789'))
         d.fill_preset(config, (key,))
-        self.assertTrue(all(editor.value() == '#456789' for editor in (appearance, custom, pearl)))
+        self.assertTrue(all(editor.value() == '#456789' for editor in (appearance, prince, custom, pearl)))
         d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
         d.controls['oracle.pearl_matrix_count'].setValue(4)
         for probability, enabled in ((0, False), (25, True)):
@@ -140,12 +141,33 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertTrue(set(paths_for('profile')).issubset(d.controls))
         actual = {key for key, control in d.controls.items() if d.pages['behavior'].isAncestorOf(control)}
         self.assertEqual(actual, set(paths_for('profile')) - visual_fields)
-        self.assertEqual(len(actual), 86)
+        self.assertEqual(len(actual), 87)
         self.assertEqual([label.text() for label in d.pages['behavior'].findChildren(SectionHeading)
                           if label.text() in ('移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动')],
                          ['移动与漫游', '鼠标观察与避让', '拖动反应', '珍珠互动'])
         for key in ('interaction.drag_enabled', 'desktop.autonomous', 'audio.enabled', 'audio.volume'):
             self.assertTrue(d.pages['general'].isAncestorOf(d.controls[key]))
+
+    def test_voice_choice_is_available_for_every_body_and_translates_without_changing_value(self):
+        d = self.dialog(assets=self.assets)
+        c = d.controls
+        choice = c['oracle.voice']
+        self.assertEqual([choice.itemData(i) for i in range(choice.count())], ['bell', 'none'])
+        for body in ('bell', 'custom', 'prince'):
+            c['oracle.body_appearance'].setValue(body)
+            for source in ('none', 'bell'):
+                choice.setCurrentIndex(choice.findData(source))
+                self.assertTrue(choice.isEnabled())
+                self.assertEqual(d.candidate().oracle.voice, source)
+                self.assertEqual(c['oracle.drag_reactions.voice_probability'].isEnabled(), source == 'bell')
+                self.assertEqual(c['oracle.drag_reactions.gesture_probability'].isEnabled(), body != 'prince')
+        try:
+            choice.setCurrentIndex(choice.findData('none'))
+            language_manager().set_language('en')
+            self.assertEqual(choice.currentText(), 'No voice')
+            self.assertEqual(choice.currentData(), 'none')
+        finally:
+            language_manager().set_language('zh')
 
     def test_drag_reaction_dependencies_preserve_values_and_keep_projection_independent_of_gestures(self):
         d = self.dialog()
@@ -1292,6 +1314,7 @@ class OracleSettingsTests(unittest.TestCase):
         palette = fields(OracleColors)
         self.assertEqual(set(d.color_editors), {'oracle.colors.' + f.name for f in palette}
                          | {'oracle.custom_colors.'+name for name in CUSTOM_COLOR_NAMES}
+                         | {'oracle.prince_colors.'+name for name in PRINCE_COLOR_NAMES}
                          | {'oracle.pearl_bubble_color', 'oracle.custom_appearance.cape.color',
                             'oracle.custom_appearance.cape.hem_trim_color'})
         self.assertCountEqual([name for name in BELL_COLOR_ORDER if name is not None],

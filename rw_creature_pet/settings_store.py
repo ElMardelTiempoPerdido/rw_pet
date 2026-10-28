@@ -111,8 +111,17 @@ class SettingsStore:
         if not isinstance(data.get('config'), dict):
             raise ValueError('配置必须为对象')
         from .presets.startup import stage_character_upgrade
+        from .presets.migration import backup_legacy
+        backup_legacy(self)
         data, character_staged = stage_character_upgrade(data)
+        workspace = data.get('preset_state', {}).get('version') == 3
         user_config = dict(data['config'])
+        from .oracle.audio.voice import legacy_voice
+        oracle = user_config.get('oracle')
+        voice_migrated = isinstance(oracle, dict) and 'voice' not in oracle
+        if voice_migrated:
+            body = oracle.get('body_appearance', defaults['oracle']['body_appearance'])
+            user_config['oracle'] = {**oracle, 'voice': legacy_voice(body)}
         oracle = user_config.get('oracle')
         palette_migrated = isinstance(oracle, dict) and 'custom_colors' not in oracle
         if palette_migrated:
@@ -148,9 +157,16 @@ class SettingsStore:
             user_config['overseer'] = {**watcher, 'slots': [
                 {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
         merged, changed = _fill_missing(user_config, defaults)
-        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged
+        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged or voice_migrated
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
+        if workspace:
+            from .presets.personal import PersonalState, apply_values
+            from .presets.workspace import local_mapping
+            state = PersonalState(data['preset_state'])
+            config = apply_values(config, state.entries[state.active].values)
+            merged = local_mapping(merged)
+            changed = merged != data['config']
         if merged['ui']['language'] != config.ui.language:
             merged['ui'] = {**merged['ui'], 'language': config.ui.language}
             changed = True
@@ -160,7 +176,12 @@ class SettingsStore:
         data = _mapping(config)
         AppConfig.from_mapping(data)
         state = self.load_preset_state() if self._preset_state is None else self._preset_state
-        self._write({'version': 1, 'config': data, 'preset_state': state})
+        if state.get('version') == 3:
+            from .presets.workspace import commit_pending, local_mapping
+            with commit_pending(state) as references:
+                self._write({'version': 1, 'config': local_mapping(data), 'preset_state': references})
+        else:
+            self._write({'version': 1, 'config': data, 'preset_state': state})
 
     def _write(self, data):
         payload = json.dumps(data, ensure_ascii=False, indent=2)+'\n'

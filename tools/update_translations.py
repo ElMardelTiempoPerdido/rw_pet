@@ -22,6 +22,8 @@ FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py'
          'oracle/ui/appearance_presets.py', 'presets/appearance.py', 'presets/library.py',
          'oracle/ui/preset_panel.py', 'oracle/ui/profile_presets.py', 'presets/common.py',
          'presets/profile.py', 'presets/profile_library.py', 'presets/startup.py',
+         'presets/workspace.py', 'presets/migration.py',
+         'presets/sharing.py',
          'oracle/ui/preset_dialogs.py', 'oracle/ui/preset_workflow.py',
          'oracle/ui/preset_controls.py', 'presets/personal.py',
          'oracle/ui/face_editor.py', 'oracle/ui/face_preview.py', 'oracle/face_config.py',

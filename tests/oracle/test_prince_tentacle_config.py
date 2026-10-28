@@ -113,7 +113,8 @@ grip_reach = { left = 0.8, bottom = 0.6, right = 0.4, top = 0.2 }
                 host = host_at(world, rail, rail.project(point))
                 support = PrinceTentacles(host, replace(study, tentacles=(part,)))
                 root = support.part_root(part)
-                grip = support.parts[0].grip
+                # 配置给出理想抓点；实际初始化会为长触手保留松弛余量
+                grip = rail.sample(support.ideal_grip(part, root))[0]
                 delta = grip-root
                 along_edge = delta.x*directions[i].x+delta.y*directions[i].y
                 self.assertAlmostEqual(along_edge, 200*ratios[i])
@@ -132,7 +133,7 @@ grip_reach = { left = 0.8, bottom = 0.6, right = 0.4, top = 0.2 }
         support.outward = Vec2(.5, -.5)
         middle = rail.sample(support.ideal_grip(part, root))[0]
         # 混合顶部 (0, -40) 与右侧 (160, 0) 的偏移，再投影到内缩抓附边
-        self.assertAlmostEqual(middle.x, 624)
+        self.assertAlmostEqual(middle.x, world.width-rail.inset)
         self.assertAlmostEqual(middle.y, 60)
         support.outward = Vec2(.499, -.501)
         before = rail.sample(support.ideal_grip(part, root))[0]
@@ -163,6 +164,10 @@ grip_reach = { left = 0.8, bottom = 0.6, right = 0.4, top = 0.2 }
             point = scene.body.chunks[0].position
             self.assertTrue(scene.body_region.contains(point))
             self.assertLess((scene.project_target(point)-point).length(), 1e-6)
+            support = scene.prince_tentacles
+            longest = max(support.parts, key=lambda p: p.reference_length)
+            self.assertLessEqual((longest.grip-support.part_root(longest.definition)).length(),
+                                 longest.reference_length*support.AUTO_REACH)
         config = replace(scene.config, body_appearance='bell', base_side='right')
         bell = OracleScene(config, prince_study=study)
         self.assertAlmostEqual(bell.world.width-bell.body.chunks[0].position.x, bell.world.rail_inset+64)
@@ -217,7 +222,7 @@ grip_reach = { left = 0.8, bottom = 0.6, right = 0.4, top = 0.2 }
             support = PrinceTentacles(host, replace(base, tentacles=(part,)))
             root = support.part_root(part)
             grip = support.parts[0].grip
-            self.assertAlmostEqual(grip.x, 624)
+            self.assertAlmostEqual(grip.x, world.width-rail.inset)
             self.assertAlmostEqual(grip.y-root.y, y*100)
         world = OracleWorld(640, 480, .35, allowed_edges=('left', 'top'))
         rail = GripRail(world)

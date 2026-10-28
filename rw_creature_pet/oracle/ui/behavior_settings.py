@@ -1,6 +1,7 @@
 """行为页的四组参数，复用设置窗口的字段、保存和默认值处理"""
 from PySide6.QtWidgets import QLabel, QSizePolicy
 from ..characters import CHARACTERS
+from .inputs import WheelSafeComboBox
 
 from .settings_style import NOTE_STYLE, PixelRuleThin
 from .daily_activity_settings import build_daily_activity_settings
@@ -19,6 +20,15 @@ DRAG_PROBABILITIES = (
 
 def build_behavior_settings(dialog, form, config):
     o, interaction = config.oracle, config.interaction
+    voice = WheelSafeComboBox()
+    voice.addItem('bell', 'bell')
+    voice.addItem('不使用语音', 'none')
+    voice.setCurrentIndex(voice.findData(o.voice))
+    dialog.controls['oracle.voice'] = voice
+    left, _ = dialog.two_columns(form)
+    left.addRow('使用的语音', voice)
+    voice.currentIndexChanged.connect(dialog.sync_dependencies)
+    form.addRow(PixelRuleThin())
     dialog.section_heading(form, '移动与漫游')
     left, right = dialog.two_columns(form)
     dialog.spin(left, '通常移动速度', 'oracle.float_speed', o.float_speed, .3, 2., decimals=2, step=.1)
@@ -110,15 +120,14 @@ def sync_behavior_dependencies(dialog):
         if key.startswith('oracle.mouse_avoidance.'):
             control.setEnabled(c['interaction.hover_avoidance_enabled'].isChecked())
     prefix = 'oracle.drag_reactions.'
-    enabled = c[prefix+'enabled'].isChecked() and character.has_hands
-    c[prefix+'enabled'].setEnabled(character.has_hands)
+    enabled = c[prefix+'enabled'].isChecked()
     for name, _ in DRAG_PROBABILITIES:
-        c[prefix+name].setEnabled(enabled)
-    gestures = enabled and c[prefix+'gesture_probability'].value() > 0
+        c[prefix+name].setEnabled(enabled and character.has_hands)
+    gestures = enabled and character.has_hands and c[prefix+'gesture_probability'].value() > 0
     c[prefix+'flutter_probability'].setEnabled(gestures)
     c[prefix+'alternating_probability'].setEnabled(gestures and c[prefix+'flutter_probability'].value() > 0)
-    c['oracle.drag_projection_probability'].setEnabled(enabled)
-    c['oracle.drag_projection_cooldown_seconds'].setEnabled(enabled and c['oracle.drag_projection_probability'].value() > 0)
+    c['oracle.drag_projection_probability'].setEnabled(enabled and character.has_hands)
+    c['oracle.drag_projection_cooldown_seconds'].setEnabled(enabled and character.has_hands and c['oracle.drag_projection_probability'].value() > 0)
     c[prefix+'eye_open_probability'].setEnabled(enabled and character.has_eyes)
     c['interaction.hover_open_probability'].setEnabled(character.has_eyes)
-    c[prefix+'voice_probability'].setEnabled(enabled and character.has_voice)
+    c[prefix+'voice_probability'].setEnabled(enabled and c['oracle.voice'].currentData() != 'none')

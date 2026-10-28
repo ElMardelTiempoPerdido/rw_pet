@@ -49,9 +49,21 @@ class PresetPanel(QWidget):
         for button in (self.import_button, self.export_button, self.directory_button):
             button.setAutoDefault(False)
             actions.addWidget(button)
+        share_actions = None
+        if self.texts.get('share_hint'):
+            actions.removeWidget(self.export_button)
+            share_actions = QHBoxLayout()
+            share_actions.addWidget(self.export_button)
+            self.share_hint = QLabel(self.texts['share_hint'])
+            self.share_hint.setWordWrap(True)
+            self.share_hint.setStyleSheet(NOTE_STYLE)
+            self.share_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            share_actions.addWidget(self.share_hint, 1)
         self.refresh_button.setAutoDefault(False)
         actions.addStretch(1)
         layout.addLayout(actions)
+        if share_actions is not None:
+            layout.addLayout(share_actions)
         hint = QLabel(self.texts['hint'])
         hint.setStyleSheet(NOTE_STYLE)
         hint.setWordWrap(True)

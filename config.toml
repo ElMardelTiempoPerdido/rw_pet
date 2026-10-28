@@ -36,6 +36,7 @@ glow_enabled = false            # 不透明部件的外发光
 glow_color = '#a1a6ab'          # 外发光颜色
 glow_radius = 6.0               # 外发光半径，逻辑像素
 glow_opacity = 0.4              # 外发光不透明度，0 隐藏，1 为完整强度
+voice = 'bell'                 # 当前角色使用的语音：bell / none（不使用语音）
 voice_directory = 'auto'        # 首次从 game_dir 提取和处理，缓存至用户目录；也可填写自定义 WAV 目录
 world_width = 960.0
 world_height = 600.0

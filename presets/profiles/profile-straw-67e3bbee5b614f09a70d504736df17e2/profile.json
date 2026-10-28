@@ -1,9 +1,9 @@
 {
   "type": "rw-creature-pet.profile",
-  "version": 1,
+  "version": 2,
   "id": "72e93f37-aaba-470e-85cf-4f5be68d8ce6",
   "name": "straw",
-  "updated_at": "2026-10-18T10:40:25.702733+00:00",
+  "updated_at": "2026-10-27T09:27:14.853742+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -17,6 +17,22 @@
       "antigravity_probability": 0.08,
       "base_speed": 2.8,
       "cross_edge_probability": 0.05,
+      "daily_activity": {
+        "cross_edge_check_seconds": 20.0,
+        "cross_edge_cooldown_seconds": 60.0,
+        "idle_max_seconds": 6.0,
+        "idle_min_seconds": 3.0,
+        "idle_weight": 28.0,
+        "long_idle_max_seconds": 18.0,
+        "long_idle_min_seconds": 7.5,
+        "meditate_max_seconds": 60.0,
+        "meditate_min_seconds": 30.0,
+        "meditate_weight": 12.0,
+        "move_lean_degrees": 20.0,
+        "move_max_distance": 160.0,
+        "move_min_distance": 60.0,
+        "move_weight": 35.0
+      },
       "drag_projection_cooldown_seconds": 45.0,
       "drag_projection_probability": 0.1,
       "drag_reactions": {
@@ -27,10 +43,62 @@
         "gesture_probability": 0.9,
         "voice_probability": 0.55
       },
+      "drift": {
+        "bout_max_seconds": 10.0,
+        "bout_min_seconds": 4.0,
+        "cooldown_seconds": 120.0,
+        "duration_variation": 0.1,
+        "entry_max_seconds": 5.0,
+        "entry_min_seconds": 2.5,
+        "long_bout_max_seconds": 24.0,
+        "long_bout_min_seconds": 12.0,
+        "long_bout_probability": 0.35,
+        "long_pause_max_seconds": 14.0,
+        "long_pause_min_seconds": 7.0,
+        "long_pause_weight": 15.0,
+        "move_max_distance": 100.0,
+        "move_min_distance": 60.0,
+        "normal_pause_max_seconds": 5.5,
+        "normal_pause_min_seconds": 1.8,
+        "normal_pause_weight": 35.0,
+        "resume_max_seconds": 3.0,
+        "resume_min_seconds": 0.5,
+        "short_pause_max_seconds": 1.2,
+        "short_pause_min_seconds": 0.35,
+        "short_pause_weight": 50.0,
+        "speed_max_factor": 1.2,
+        "speed_min_factor": 0.8
+      },
       "drift_speed": 1.0,
       "float_speed": 1.6,
       "halo_arc_max_count": 10,
       "halo_scale": 0.9,
+      "mouse_avoidance": {
+        "delay_max_seconds": 6.0,
+        "delay_min_seconds": 1.0,
+        "enter_distance": 55.0,
+        "exit_distance": 85.0,
+        "impatience_max_seconds": 1.5,
+        "impatience_min_seconds": 1.0,
+        "lean_max_degrees": 60.0,
+        "lean_min_degrees": 30.0,
+        "lean_move_max_distance": 80.0,
+        "lean_move_min_distance": 16.0,
+        "lean_move_probability": 0.95,
+        "lean_sample_power": 2.0,
+        "lean_speed": 90.0,
+        "leave_grace_seconds": 1.5,
+        "move_angle_jitter": 22.0,
+        "move_max_distance": 32.0,
+        "move_min_distance": 18.0,
+        "move_probability": 0.85,
+        "pointer_lag_seconds": 0.35,
+        "probability": 0.95,
+        "retry_max_seconds": 0.3,
+        "retry_min_seconds": 0.1,
+        "speed_max": 3.6,
+        "speed_min": 1.8
+      },
       "pearl_bubble_max_size": 12.0,
       "pearl_fixed_count": 1,
       "pearl_follow_height": 280.0,
@@ -43,11 +111,16 @@
       "pearl_outer_count": 2,
       "pearl_playback_probability": 0.25,
       "pearl_satellite_count": 1,
-      "projection_opacity": 0.3
+      "projection_opacity": 0.3,
+      "reading": {
+        "start_probability": 0.25
+      },
+      "voice": "none"
     }
   },
+  "state": "history/state-b0e71159f3eb4ce5a2f34484bffd8af7.json",
   "appearance": {
     "id": "6312b790-3c6e-423c-a91b-7621a6d99f51",
-    "path": "appearance-e9bd05dc0b7948569eea619e210a88ee/appearance.json"
+    "path": "appearance/b0e71159f3eb4ce5a2f34484bffd8af7/appearance.json"
   }
 }

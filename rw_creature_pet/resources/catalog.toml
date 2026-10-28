@@ -1,0 +1,400 @@
+# 资源来源与设置影响清单 v1
+# origins 是内容来源；sources 是当前交付位置，不能据 origins 推断运行时 DLC 要求
+# required 仅用于正常桌宠启动；调试场景的几何降级由现有入口处理
+# loader/check 为维护说明，不执行其中字符串，也不以文件存在代替加载成功
+format_version = 1
+required = ["main_atlas"]
+
+[origins.base_game]
+title = "Rain World 游戏本体"
+kind = "base_game"
+[origins.downpour]
+title = "Downpour"
+kind = "dlc"
+notes = "当前没有必须从 Downpour 单独获取的已引用资源；保留来源 ID 供后续扩展"
+[origins.watcher]
+title = "The Watcher"
+kind = "dlc"
+[origins.project_bundle]
+title = "桌宠随包素材"
+kind = "bundle"
+notes = "表示交付位置，不代表对原始素材版权或角色设定归属的判断"
+[origins.user]
+title = "用户提供的本地素材"
+kind = "user"
+
+[resources.main_atlas]
+title = "rainWorld 主图集与帧映射"
+origins = ["base_game"]
+delivery = "extract"
+loader = "rw_creature_pet.shared.atlas:extract_atlas / Atlas"
+check = "同名 Texture2D 与 TextAsset 均可读取；图像和 JSON 帧映射完整，调用的 sprite 均存在"
+missing = "正常桌宠启动需要此资源；部分调试入口降级为几何预览"
+cache = "%LOCALAPPDATA%/rw_creature_pet/atlases/<容器路径、大小、mtime 指纹>/rainWorld.png + rainWorld.json"
+notes = "即使已有缓存，当前 extract_atlas 仍要求原始容器存在；game_dir 的文件存在校验只是初筛"
+[[resources.main_atlas.sources]]
+origin = "base_game"
+root = "game"
+paths = ["RainWorld_Data/resources.assets"]
+objects = ["Texture2D:rainWorld", "TextAsset:rainWorld"]
+
+[resources.pearl_glyphs]
+title = "珍珠单字符投影遮罩"
+origins = ["base_game"]
+delivery = "extract"
+loader = "rw_creature_pet.oracle.pearls.glyphs:load_pearl_glyphs"
+check = "glyphs 为 750×15 纹理；15px 单元，使用前 14 个字形；红通道转透明遮罩"
+missing = "只缺少字符投影，珍珠实体、矩阵、环绕及普通阅读仍可工作"
+cache = "主图集缓存目录/pearl-glyphs-mask-v1.png"
+[[resources.pearl_glyphs.sources]]
+origin = "base_game"
+root = "game"
+paths = ["RainWorld_Data/resources.assets"]
+objects = ["Texture2D:glyphs"]
+
+[resources.scan_images]
+title = "蛞蝓猫脑部扫描投影两帧"
+origins = ["base_game"]
+delivery = "files"
+loader = "rw_creature_pet.oracle.effects.projection_assets:prepare_projection"
+check = "两张 PNG 均可解码且各为 250×350，裁取中央 200×300"
+missing = "扫描投影不可用；其余拖动、摆手和语音反应不受影响"
+cache = "启动时载入内存，无磁盘派生缓存"
+[[resources.scan_images.sources]]
+origin = "base_game"
+root = "game"
+paths = ["RainWorld_Data/StreamingAssets/illustrations/aiimg3a.png", "RainWorld_Data/StreamingAssets/illustrations/aiimg3b.png"]
+
+[resources.bell_voice]
+title = "Bell 采访语音片段"
+origins = ["watcher"]
+delivery = "resolved"
+loader = "rw_creature_pet.oracle.audio.assets:prepare_bell_voice"
+check = "以准备函数返回的片段与错误为准；自动提取检查完整双声道 16bit WAV、切片帧数及 SHA256；指定目录目前只检查十个预期文件存在，实际解码仍可能失败"
+missing = "bell 语音选项不可用，不阻止启动、摆手、阅读或其他事件；none 始终可选"
+cache = "%LOCALAPPDATA%/rw_creature_pet/voices/bell-<源文件与处理版本指纹>/，只缓存十段片段与 manifest.json"
+notes = "显式 voice_directory 优先，非旧版兼容路径缺文件时不回退；auto 或失效的旧版 bell-clips 路径走游戏提取。不得仅凭 Watcher 目录、共用音效包或同名占位 WAV 判为可用。选择语音与角色名称无关"
+[[resources.bell_voice.sources]]
+origin = "user"
+root = "setting"
+paths = ["oracle.voice_directory"]
+notes = "当前为 Bell 专用覆盖目录，十个文件名由 BELL_VOICE_CLIPS 定义；不是尚未实现的通用语音目录扫描功能"
+[[resources.bell_voice.sources]]
+origin = "watcher"
+root = "game"
+paths = ["RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_ATalkShow.wav", "RainWorld_Data/StreamingAssets/AssetBundles/loadedsoundeffects"]
+objects = ["container basename:rwtw_atalkshow.wav", "AudioClip:RWTW_ATalkShow"]
+notes = "先尝试有效独立 WAV，再查 AssetBundle；这两个路径是加载器规定的候选，不是全部必需文件"
+
+[resources.pearl_playback_curve]
+title = "珍珠播放动画预生成强度曲线"
+origins = ["watcher"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.pearls.playback_assets:load_pearl_playback"
+check = "manifest 格式版本、SHA256、float32 一维数组与样本数一致"
+missing = "包内数据损坏时仅播放动画不可用，普通阅读仍可进行"
+notes = "来源曲目 RW_121 - Soft Gesture；运行时只读取随包曲线，不读取游戏音乐，不依赖安装 Watcher，不播放该原曲；开发用重新生成工具不属于运行时依赖"
+[[resources.pearl_playback_curve.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["oracle/pearls/data/playback/manifest.json", "oracle/pearls/data/playback/strength.npy"]
+
+[resources.prince_visuals]
+title = "Prince 头部与衣袍贴图"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.graphics.prince / rw_creature_pet.oracle.prince_assets:robe_layout"
+check = "PNG 可解码；两张衣袍贴图尺寸匹配、有效轮廓非空"
+missing = "Prince 对应外观素材损坏；当前绘制路径不保证统一降级，需要资源状态接入时单独处理"
+notes = "不从游戏或 DLC 提取；角色的眼睛、手部、套装能力差异不属于资源缺失"
+[[resources.prince_visuals.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["skin/prince/prince_head_petals.png", "skin/prince/prince_lower_robe_1.png", "skin/prince/prince_lower_robe_2.png"]
+
+[resources.prince_layout]
+title = "Prince 触须布局与物理配置"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.prince_tentacles"
+check = "TOML 可读取且通过现有触须配置校验"
+missing = "由现有触须配置加载器处理，不属于 DLC 缺失"
+[[resources.prince_layout.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["skin/prince/tentacles.toml"]
+
+[resources.friend_head]
+title = "朋友？监视者头部贴图"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.overseer.graphics.friend.head / rw_creature_pet.shared.petal_head"
+check = "头部 PNG 可解码并可构建花瓣投影表面"
+missing = "仅影响朋友？形态；不据此禁用普通监视者"
+notes = "当前读取随包 PNG，外观题材不等于运行时需要 Watcher"
+[[resources.friend_head.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["skin/friend/friend_head_2x.png"]
+
+[resources.maid_images]
+title = "女仆套装五个部件的三档密度贴图"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.graphics.outfit_definition:MAID / outfits:load_outfit_image"
+check = "选中部件所需 PNG 可解码；完整套装应包含所有 1x、1.5x、2x 资源"
+missing = "只影响套装对应部件或密度；未绘制的部件不应使整个人偶不可用"
+[[resources.maid_images.sources]]
+origin = "project_bundle"
+root = "package"
+paths = [
+  "skin/maid/maid_head_1x.png", "skin/maid/maid_head_1.5x.png", "skin/maid/maid_head_2x.png",
+  "skin/maid/maid_lace_1x.png", "skin/maid/maid_lace_1.5x.png", "skin/maid/maid_lace_2x.png",
+  "skin/maid/maid_apron_1x.png", "skin/maid/maid_apron_1.5x.png", "skin/maid/maid_apron_2x.png",
+  "skin/maid/maid_ribbon_up_1x.png", "skin/maid/maid_ribbon_up_1.5x.png", "skin/maid/maid_ribbon_up_2x.png",
+  "skin/maid/maid_ribbon_down_1x.png", "skin/maid/maid_ribbon_down_1.5x.png", "skin/maid/maid_ribbon_down_2x.png",
+]
+
+[resources.custom_images]
+title = "角色自定义 PNG 部件"
+origins = ["user"]
+delivery = "configured"
+loader = "rw_creature_pet.oracle.graphics.face_assets:read_face_png / rw_creature_pet.presets.appearance:image_paths"
+check = "每个已启用且使用 PNG 的槽位独立检查格式、尺寸、动画和文件大小；预设引用先校验目录边界"
+missing = "报告具体角色与具体槽位；不能整体禁用自定义主体，也不能把其他角色的贴图混入当前角色"
+notes = "下列路径是配置引用，不是固定磁盘路径；耳机几何形状无需 PNG；角色目录 original/appearance 中的素材按现有共享与恢复流程管理"
+[[resources.custom_images.sources]]
+origin = "user"
+root = "setting"
+paths = [
+  "oracle.custom_appearance.face.image_path", "oracle.custom_appearance.forehead.image_path",
+  "oracle.custom_appearance.ear_body.image_path", "oracle.custom_appearance.ear_part_1.image_path",
+  "oracle.custom_appearance.ear_part_2.image_path", "oracle.custom_appearance.ear_part_3.image_path",
+  "oracle.custom_appearance.clothing_decal_1.image_path", "oracle.custom_appearance.clothing_decal_2.image_path",
+  "oracle.custom_appearance.clothing_decal_3.image_path",
+  "oracle.custom_appearance.soft_part_1.image_path", "oracle.custom_appearance.soft_part_2.image_path",
+]
+
+[resources.ui_font]
+title = "设置面板像素字体"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.ui.settings_style"
+check = "Qt 可加载随包 TTF"
+missing = "当前 settings_font_family 加载失败会抛出 RuntimeError，可能阻止设置面板打开；属于程序包完整性问题，不是 DLC 缺失"
+[[resources.ui_font.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["fonts/WenQuanYi Bitmap Song 14px.ttf"]
+
+[resources.ui_icons]
+title = "程序与托盘图标"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.oracle.ui.desktop / packaging"
+check = "PNG 可解码"
+missing = "图标外观受影响，不关联 DLC 或人偶行为"
+[[resources.ui_icons.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["ico/bell_icon.png", "ico/bell_icon_dark.png", "ico/bell_icon_16.png", "ico/bell_icon_16_dark.png"]
+
+[resources.ui_translations]
+title = "界面翻译"
+origins = ["project_bundle"]
+delivery = "bundled"
+loader = "rw_creature_pet.i18n"
+check = "Qt 可加载 QM；Qt 自带对话框翻译另由 PySide6 或打包工具提供"
+missing = "翻译不可用时显示源语言，不影响资源或行为"
+[[resources.ui_translations.sources]]
+origin = "project_bundle"
+root = "package"
+paths = ["translations/en.qm"]
+
+# features.resources 为正常运行基础上的额外需求；不隐式沿 origins 扩展依赖
+[features.lizard_visuals]
+title = "白蜥蜴外观"
+resources = ["main_atlas"]
+sprites = [
+  "Circle20",
+  "LizardJaw0.0", "LizardLowerTeeth0.0", "LizardUpperTeeth0.0", "LizardHead0.0", "LizardEyes0.3",
+  "LizardJaw1.0", "LizardLowerTeeth1.0", "LizardUpperTeeth1.0", "LizardHead1.0", "LizardEyes1.3",
+  "LizardJaw2.0", "LizardLowerTeeth2.0", "LizardUpperTeeth2.0", "LizardHead2.0", "LizardEyes2.3",
+  "LizardJaw3.0", "LizardLowerTeeth3.0", "LizardUpperTeeth3.0", "LizardHead3.0", "LizardEyes3.3",
+  "LizardArm_01", "LizardArm_02", "LizardArm_03", "LizardArm_04", "LizardArm_05", "LizardArm_06",
+  "LizardArm_07", "LizardArm_08", "LizardArm_09", "LizardArm_10", "LizardArm_11", "LizardArm_12",
+  "LizardArm_13", "LizardArm_14", "LizardArm_15", "LizardArm_16", "LizardArm_17", "LizardArm_18",
+  "LizardArm_19", "LizardArm_20", "LizardArm_21", "LizardArm_22", "LizardArm_23", "LizardArm_24",
+  "LizardArm_25", "LizardArm_26", "LizardArm_27", "LizardArm_28", "LizardArm_29", "LizardArm_30",
+  "LizardArm_31", "LizardArm_32", "LizardArm_33", "LizardArm_34", "LizardArm_35", "LizardArm_36",
+  "LizardArm_37", "LizardArm_38", "LizardArm_39", "LizardArm_40", "LizardArm_41", "LizardArm_42",
+  "LizardArm_43", "LizardArm_44", "LizardArm_45", "LizardArm_46", "LizardArm_47", "LizardArm_48",
+  "LizardArm_49", "LizardArm_50", "LizardArm_51", "LizardArm_52", "LizardArm_53", "LizardArm_54",
+]
+[features.oracle_visuals]
+title = "人偶通用外观、机械臂与线缆"
+resources = ["main_atlas"]
+sprites = ["Circle20", "pixel", "haloGlyph-1", "MirosLegSmallPart", "deerEyeB", "CentipedeSegment", "JetFishEyeA", "tinyStar"]
+notes = "SPRITES 当前在构造 renderer 时全部预取；haloGlyph-1 用于手脚贴图，不是程序光环依赖"
+[features.overseer_standard]
+title = "普通监视者外观"
+resources = ["main_atlas"]
+sprites = ["Circle20", "pixel"]
+[features.pearls]
+title = "珍珠实体、布局与普通阅读"
+resources = ["main_atlas"]
+sprites = ["JetFishEyeA", "tinyStar"]
+[features.pearl_glyphs]
+title = "珍珠字符投影"
+resources = ["pearl_glyphs"]
+[features.scan_projection]
+title = "拖动时扫描投影事件"
+resources = ["scan_images"]
+[features.voice_bell]
+title = "Bell 语音播放"
+resources = ["bell_voice"]
+[features.voice_none]
+title = "不使用语音"
+resources = []
+[features.pearl_playback]
+title = "珍珠播放动画与气泡"
+resources = ["main_atlas", "pearl_playback_curve"]
+sprites = ["LizardBubble6"]
+[features.halo]
+title = "光环及电弧"
+resources = []
+notes = "计算绘制，不加载原版着色器或音频；缺少扫描图、glyphs、Bell 语音均不影响光环"
+[features.drag_reactions]
+title = "拖动摆手、睁眼等身体反应"
+resources = []
+[features.prince]
+title = "Prince 主体"
+resources = ["prince_visuals", "prince_layout"]
+[features.friend]
+title = "朋友？监视者形态"
+resources = ["friend_head"]
+[features.maid]
+title = "女仆套装"
+resources = ["maid_images"]
+[features.custom_images]
+title = "自定义外观贴图槽位"
+resources = ["custom_images"]
+notes = "只供关联反查；可用性应以角色和槽位为实例检查"
+[features.interface]
+title = "界面字体、图标与翻译"
+resources = ["ui_font", "ui_icons", "ui_translations"]
+
+# effect=unavailable 允许以后按素材结果标注该控件/选项
+# effect=related 只提供关联说明，不能自动禁用整个控件
+# mode=any 表示任一关联功能可用时，共用参数仍然有意义
+[settings.game_directory]
+title = "游戏目录"
+paths = ["game_dir"]
+features = ["lizard_visuals", "oracle_visuals", "overseer_standard", "pearl_glyphs", "scan_projection", "voice_bell"]
+effect = "related"
+notes = "缺失时仍应允许用户操作此输入框修正路径"
+[settings.voice_bell]
+title = "使用的语音 - bell"
+paths = ["oracle.voice"]
+features = ["voice_bell"]
+effect = "unavailable"
+option = "bell"
+[settings.voice_none]
+title = "使用的语音 - 不使用语音"
+paths = ["oracle.voice"]
+features = ["voice_none"]
+effect = "unavailable"
+option = "none"
+[settings.voice_controls]
+title = "语音开关、音量与拖动触发概率"
+paths = ["audio.enabled", "audio.volume", "oracle.drag_reactions.voice_probability"]
+features = ["voice_bell"]
+effect = "related"
+notes = "应按当前选择的语音判断，不硬编码 Watcher；未来新增语音后扩充此关联"
+[settings.voice_directory]
+title = "Bell 语音覆盖目录（配置文件项）"
+paths = ["oracle.voice_directory"]
+features = ["voice_bell"]
+effect = "related"
+[settings.drag_reactions]
+title = "拖动互动总开关"
+paths = ["oracle.drag_reactions.enabled"]
+features = ["drag_reactions", "voice_bell", "scan_projection"]
+effect = "related"
+notes = "素材缺失不能关闭摆手与睁眼等计算动作"
+[settings.scan_projection]
+title = "扫描投影概率与冷却"
+paths = ["oracle.drag_projection_probability", "oracle.drag_projection_cooldown_seconds"]
+features = ["scan_projection"]
+effect = "unavailable"
+[settings.projection_opacity]
+title = "投影不透明度"
+paths = ["oracle.projection_opacity"]
+features = ["pearl_glyphs", "scan_projection", "pearl_playback", "halo"]
+effect = "unavailable"
+mode = "any"
+[settings.pearl_glyph_colors]
+title = "珍珠字符颜色"
+paths = ["oracle.colors.pearl_glyph", "oracle.custom_colors.pearl_glyph", "oracle.prince_colors.pearl_glyph"]
+features = ["pearl_glyphs"]
+effect = "unavailable"
+[settings.pearl_playback]
+title = "珍珠播放概率、气泡大小及颜色"
+paths = ["oracle.pearl_playback_probability", "oracle.pearl_bubble_max_size", "oracle.pearl_bubble_color"]
+features = ["pearl_playback"]
+effect = "unavailable"
+[settings.pearl_layout]
+title = "珍珠矩阵、环绕、固定珠、卫星珠与普通阅读"
+paths = ["oracle.pearl_matrix_enabled", "oracle.pearl_matrix_count", "oracle.pearl_orbits_enabled", "oracle.pearl_inner_count", "oracle.pearl_outer_count", "oracle.pearl_fixed_count", "oracle.pearl_satellite_count", "oracle.pearl_follow_width", "oracle.pearl_follow_height", "oracle.pearl_matrix_avoid_radius", "oracle.reading.start_probability"]
+features = ["pearls"]
+effect = "related"
+notes = "缺字符投影或播放曲线不应关闭这些功能"
+[settings.halo]
+title = "光环尺寸及电弧"
+paths = ["oracle.halo_enabled", "oracle.halo_scale", "oracle.halo_arcs_enabled", "oracle.halo_arc_max_count"]
+features = ["halo"]
+effect = "unavailable"
+[settings.prince]
+title = "主体外观 - Prince"
+paths = ["oracle.body_appearance"]
+features = ["prince"]
+effect = "unavailable"
+option = "prince"
+[settings.friend]
+title = "监视者槽位外观 - 朋友？"
+paths = ["overseer.slots[].appearance"]
+features = ["friend"]
+effect = "unavailable"
+option = "friend"
+[settings.overseer_standard]
+title = "监视者槽位外观 - 普通"
+paths = ["overseer.slots[].appearance"]
+features = ["overseer_standard"]
+effect = "unavailable"
+option = "standard"
+[settings.maid]
+title = "套装 - 女仆"
+paths = ["oracle.outfit"]
+features = ["maid"]
+effect = "related"
+option = "maid"
+notes = "按启用部件和密度检查，不因一张未使用贴图缺失就禁用整个套装；角色是否支持套装另由能力系统决定"
+[settings.maid_components]
+title = "套装部件开关"
+paths = ["oracle.outfit_settings.maid.head.enabled", "oracle.outfit_settings.maid.lace.enabled", "oracle.outfit_settings.maid.apron.enabled", "oracle.outfit_settings.maid.ribbon_up.enabled", "oracle.outfit_settings.maid.ribbon_down.enabled"]
+features = ["maid"]
+effect = "related"
+notes = "部件的偏移、色调、图层等参数共用相应贴图，没有额外资源需求"
+[settings.custom_images]
+title = "自定义贴图路径"
+paths = [
+  "oracle.custom_appearance.face.image_path", "oracle.custom_appearance.forehead.image_path",
+  "oracle.custom_appearance.ear_body.image_path", "oracle.custom_appearance.ear_part_1.image_path",
+  "oracle.custom_appearance.ear_part_2.image_path", "oracle.custom_appearance.ear_part_3.image_path",
+  "oracle.custom_appearance.clothing_decal_1.image_path", "oracle.custom_appearance.clothing_decal_2.image_path",
+  "oracle.custom_appearance.clothing_decal_3.image_path",
+  "oracle.custom_appearance.soft_part_1.image_path", "oracle.custom_appearance.soft_part_2.image_path",
+]
+features = ["custom_images"]
+effect = "related"
+notes = "逐槽报告错误；保留选择、替换贴图的入口；对应部件的开关和变换参数没有额外资源需求"

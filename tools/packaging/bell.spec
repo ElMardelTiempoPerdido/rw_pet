@@ -1,4 +1,4 @@
-"""仅收集程序依赖、默认配置和自绘图标；不包含任何游戏素材或用户缓存。"""
+"""收集程序依赖、配置、自绘素材和动画强度曲线，不包含游戏音频、图集或用户缓存"""
 from pathlib import Path
 import os
 import sys
@@ -14,6 +14,8 @@ datas = [(str(root/'config.toml'), '.'),
          (str(root/'rw_creature_pet/ico'), 'rw_creature_pet/ico'),
          (str(root/'rw_creature_pet/skin'), 'rw_creature_pet/skin'),
          (str(root/'rw_creature_pet/fonts'), 'rw_creature_pet/fonts'),
+         (str(root/'rw_creature_pet/resources/catalog.toml'), 'rw_creature_pet/resources'),
+         (str(root/'rw_creature_pet/oracle/pearls/data'), 'rw_creature_pet/oracle/pearls/data'),
          (str(root/'rw_creature_pet/translations/en.qm'), 'rw_creature_pet/translations'),
          (str(Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))/'qtbase_zh_CN.qm'),
           'rw_creature_pet/translations')]
@@ -34,7 +36,7 @@ if not full:
 a = Analysis(
     [str(root/'tools/packaging/bell_entry.py')],
     pathex=[str(root)], binaries=binaries, datas=datas,
-    hiddenimports=['UnityPy.resources'],
+    hiddenimports=['UnityPy.resources', 'rw_creature_pet.resources'],
     hookspath=[], runtime_hooks=[],
     excludes=excludes,
     noarchive=False,

@@ -1,4 +1,4 @@
-"""预计算 Soft Gesture，并用正式珍珠绘制逻辑导出无声整曲 GIF。"""
+"""读取内置强度曲线，用正式珍珠绘制逻辑导出无声整曲 GIF"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
@@ -30,7 +30,7 @@ def main():
     font = QFont(families[0] if families else app.font().family(), 10)
     app.setFont(font)
     config = AppConfig.load(ROOT/'config.toml')
-    curve, cache = load_pearl_playback(config.game_dir)
+    curve, data_root = load_pearl_playback()
     atlas = Atlas(extract_atlas(config.game_dir))
     renderer = OracleRenderer(atlas, config.oracle.colors,
         glyphs=load_pearl_glyphs(config.game_dir, atlas.root), playback_curve=curve)
@@ -113,8 +113,8 @@ def main():
                    duration=50, loop=0, optimize=False, disposal=1)
     still.save(out/'soft-gesture-pearl.png')
     # 分享可复核的曲线和算法信息，不导出音乐本体。
-    (out/'strength.npy').write_bytes((cache/'strength.npy').read_bytes())
-    metadata = json.loads((cache/'manifest.json').read_text(encoding='utf-8'))
+    (out/'strength.npy').write_bytes((data_root/'strength.npy').read_bytes())
+    metadata = json.loads((data_root/'manifest.json').read_text(encoding='utf-8'))
     metadata.update(preview_frames=len(frames), preview_fps=20, projection_opacity=config.oracle.projection_opacity)
     (out/'manifest.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding='utf-8')
     print(out/'soft-gesture-pearl.gif')

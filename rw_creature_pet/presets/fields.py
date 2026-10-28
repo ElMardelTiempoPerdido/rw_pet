@@ -44,6 +44,7 @@ FIELD_SCOPES = build_registry((
         'halo_enabled', 'halo_arcs_enabled', 'voice_directory',
     )),
     ('oracle', _PROFILE, (
+        'voice',
         'float_speed', 'drift_speed', 'base_speed', 'cross_edge_probability',
         'antigravity_probability', 'antigravity_duration_seconds',
         'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_enabled',
