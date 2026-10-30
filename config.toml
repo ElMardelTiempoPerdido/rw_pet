@@ -376,6 +376,36 @@ flutter_probability = 0.85      # 双手动作占比
 alternating_probability = 0.47  # 双手动作中固定交替摆手占比
 eye_open_probability = 0.65     # 鼠标拖动时睁眼的概率
 voice_probability = 0.55        # 鼠标拖动时触发语音概率
+gesture_delay_min_seconds = 0.15
+gesture_delay_max_seconds = 1.5
+gesture_interval_min_seconds = 0.45
+gesture_interval_max_seconds = 1.35
+gesture_duration_min_seconds = 1.4
+gesture_duration_max_seconds = 2.6
+gesture_speed = 1.0
+gesture_min_amplitude = 0.25
+gesture_max_amplitude = 1.0
+flutter_sync_probability = 0.35
+eye_delay_min_seconds = 0.0
+eye_delay_max_seconds = 0.0
+eye_interval_min_seconds = 0.9
+eye_interval_max_seconds = 2.0
+eye_duration_min_seconds = 1.5
+eye_duration_max_seconds = 3.0
+voice_delay_min_seconds = 0.0
+voice_delay_max_seconds = 3.0
+voice_interval_min_seconds = 1.8
+voice_interval_max_seconds = 3.8
+projection_delay_min_seconds = 0.15
+projection_delay_max_seconds = 1.5
+projection_interval_min_seconds = 0.45
+projection_interval_max_seconds = 1.35
+projection_duration_min_seconds = 8.25
+projection_duration_max_seconds = 8.25
+projection_frame_seconds = 0.375
+projection_lift_delay_seconds = 0.35
+projection_move_min_seconds = 0.65
+projection_move_max_seconds = 1.6
 
 [overseer]
 # 最多 4 个固定编号槽位；size 为体型 0.5～1；filament_count 为普通触须数量 3～5，朋友？固定两条
@@ -422,6 +452,28 @@ move_lean_degrees = 20.0
 start_probability = 0.25
 
 # 漫游节奏；时间为秒，速度浮动乘以 drift_speed
+interval_min_seconds = 0.0
+interval_max_seconds = 0.0
+drift_probability = 1.0
+drift_delay_min_seconds = 12.0
+drift_delay_max_seconds = 24.0
+drift_interval_min_seconds = 20.0
+drift_interval_max_seconds = 40.0
+avoidance_probability = 0.35
+notice_min_seconds = 0.9
+notice_max_seconds = 1.5
+observe_min_seconds = 40.0
+observe_max_seconds = 60.0
+playback_min_seconds = 90.0
+playback_max_seconds = 120.0
+eye_open_probability = 0.1
+matrix_probability = 0.5
+approach_weight = 35.0
+recall_weight = 35.0
+orbit_weight = 30.0
+observe_distance = 50.0
+recall_distance = 38.0
+
 [oracle.drift]
 cooldown_seconds = 120.0
 duration_variation = 0.1

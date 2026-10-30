@@ -408,7 +408,7 @@ class OracleScene:
         if self.prince_posture is not None:
             self.prince_posture.reset_head(self.head)
         self.behavior = OracleBehavior(daily_activity=self.config.daily_activity,
-                                       drift=self.config.drift, tick_rate=self.TICK_RATE)
+                                       drift=self.config.drift, reading=self.config.reading, tick_rate=self.TICK_RATE)
         self.eyes = OracleEyes(enabled=self.config.character.has_eyes)
         self.window_reaction = OracleWindowReaction()
         self.mouse_reaction = OracleMouseReaction(

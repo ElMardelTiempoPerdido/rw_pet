@@ -8,6 +8,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QEvent, QCoreApplication
 from PySide6.QtWidgets import QApplication
 
+from tests.oracle.character_fixture import geometry_assets
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.config import CustomAppearance, OracleColors
@@ -50,7 +51,7 @@ class AppearancePresetUiTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def dialog(self):
-        dialog = OracleSettingsDialog(self.config, self.store, assets=object())
+        dialog = OracleSettingsDialog(self.config, self.store, assets=geometry_assets())
         # 此组验证手动保存边界；默认开启的自动保存由 test_preset_workflow 覆盖
         dialog.preset_workflow.state.autosave = False
         dialog.personal_controls.autosave.blockSignals(True)
@@ -90,7 +91,7 @@ class AppearancePresetUiTests(unittest.TestCase):
         self.assertEqual(self.store.load().oracle.custom_appearance.head_length, 1.234567)
         self.assertEqual(dialog.saved_config.oracle.custom_colors.skin, '#abc123')
         self.assertEqual(dialog.candidate().oracle.custom_appearance.neckline_depth, 5.4321)
-        reopened = OracleSettingsDialog(self.store.load(), self.store, assets=object())
+        reopened = OracleSettingsDialog(self.store.load(), self.store, assets=geometry_assets())
         self.dialogs.append(reopened)
         self.assertEqual(reopened.draft_value('oracle.custom_appearance.head_length'), 1.234567)
 

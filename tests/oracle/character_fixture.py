@@ -5,6 +5,13 @@ from rw_creature_pet.presets.profile_library import ProfileLibrary
 from rw_creature_pet.presets.startup import BELL_PROFILE_ID, prepare_character
 
 
+def geometry_assets():
+    """设置测试使用真实快照类型，但不加载本机游戏与音频"""
+    from rw_creature_pet.oracle.assets import OracleAssets
+    from rw_creature_pet.oracle.graphics.render import OracleRenderer
+    return OracleAssets(OracleRenderer(), '', {}, '')
+
+
 def isolate_characters(case, directory):
     case.enterContext(patch('rw_creature_pet.presets.profile_library.default_profile_directory',
                            return_value=directory/'characters'))

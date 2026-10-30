@@ -64,8 +64,11 @@ class ReleasePackageTests(unittest.TestCase):
         self.assertEqual(before, {p: p.read_bytes() for p in self.role.path.parent.rglob('*') if p.is_file()})
         with ZipFile(result.with_name(result.name+'.zip')) as archive:
             self.assertIn('BellPet.exe', archive.namelist())
+            styles = ('presets/behavior_styles/builtin.toml', 'presets/behavior_styles/README.md')
+            self.assertTrue(all(name in archive.namelist() for name in styles))
+            self.assertNotIn('presets/behavior_styles/local.toml', archive.namelist())
             self.assertTrue(all(name.startswith('presets/profiles/'+self.role.path.parent.name+'/original/')
-                for name in archive.namelist() if name not in ('BellPet.exe', 'release.json')))
+                for name in archive.namelist() if name not in ('BellPet.exe', 'release.json', *styles)))
 
     def test_local_current_changes_are_excluded_until_explicit_share_override(self):
         ensure_workspace(self.role.path)

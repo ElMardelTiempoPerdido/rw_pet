@@ -38,6 +38,8 @@ from .profile_presets import ProfilePresetPanel
 from .behavior_settings import DRAG_PROBABILITIES, build_behavior_settings, sync_behavior_dependencies
 from .drift_settings import DRIFT_PERCENT_FIELDS
 from .mouse_settings import AVOIDANCE_PERCENT_FIELDS
+from .drag_settings import DRAG_PERCENT_FIELDS
+from .reading_settings import READING_PERCENT_FIELDS
 from .outfit_settings import build_outfit_settings, sync_outfit_dependencies
 from .cape_settings import build_cape_settings, sync_cape_settings
 from .preset_workflow import PresetWorkflow
@@ -63,6 +65,8 @@ PERCENTAGES.update(('oracle.custom_appearance.robe_flare', 'oracle.custom_appear
 PERCENTAGES.update('oracle.drag_reactions.'+name for name, _ in DRAG_PROBABILITIES)
 PERCENTAGES.update('oracle.drift.'+name for name in DRIFT_PERCENT_FIELDS)
 PERCENTAGES.update('oracle.mouse_avoidance.'+name for name in AVOIDANCE_PERCENT_FIELDS)
+PERCENTAGES.update('oracle.drag_reactions.'+name for name in DRAG_PERCENT_FIELDS)
+PERCENTAGES.update('oracle.reading.'+name for name in READING_PERCENT_FIELDS)
 
 DISPLAY_UNITS = {key: (100., 0.) for key in PERCENTAGES}
 DISPLAY_UNITS.update({'oracle.custom_appearance.'+name: units for name, units in CUSTOM_LENGTH_UNITS.items()})
@@ -379,7 +383,8 @@ class AssetPreparation(QThread):
 
 
 class OracleSettingsDialog(QDialog):
-    def __init__(self, config, store, *, first_run=False, message='', assets=None, commit=None, initialization=None):
+    def __init__(self, config, store, *, first_run=False, message='', assets=None, commit=None, initialization=None,
+                 resource_commit=None):
         super().__init__(None, Qt.WindowType.Window | Qt.WindowType.WindowStaysOnTopHint
                          | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -392,6 +397,7 @@ class OracleSettingsDialog(QDialog):
         self.original, self.store = config, store
         language_manager().set_language(config.ui.language)
         self.assets, self.commit = assets, commit
+        self.resource_commit = resource_commit
         self.saved_config = self.prepared_assets = self.worker = None
         self.controls = {}
         self.color_editors = {}
@@ -399,6 +405,7 @@ class OracleSettingsDialog(QDialog):
         self._reset_values = {}
         self._appearance_source = None
         self._shutdown = False
+        self._close_after_resource_check = False
         self._drag_offset = None
         self._workarea = None
         self._space_screen = None
@@ -438,6 +445,9 @@ class OracleSettingsDialog(QDialog):
         self.browse_button.clicked.connect(self.browse)
         row.addWidget(self.game_dir, 1)
         row.addWidget(self.browse_button)
+        self.resource_refresh = QPushButton('重新检查资源')
+        self.resource_refresh.setAutoDefault(False)
+        row.addWidget(self.resource_refresh)
         game.addRow('雨世界目录', row)
         hint = _WrappingHint('请选择这台电脑上雨世界的安装目录\n'
                               '一般名称为 Rain World，其中包含 RainWorld_Data、RainWorld.exe 等内容\n'
@@ -469,7 +479,7 @@ class OracleSettingsDialog(QDialog):
         self.controls['oracle.coarse_pixels_4x'].setToolTip('仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素')
         self.check(general, '人偶想去哪去哪', 'desktop.autonomous', config.desktop.autonomous)
 
-        auto_note = QLabel('*勾选时，人偶会自主移动；关闭后仍可原地阅读珍珠、观察窗口变化')
+        auto_note = QLabel('*勾选此项时，人偶会自主移动')
         auto_note.setStyleSheet(NOTE_STYLE)
         auto_note.setWordWrap(True)
         auto_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -717,10 +727,10 @@ class OracleSettingsDialog(QDialog):
             projection_row.addWidget(control)
         right.addRow('投影颜色', self.projection_color_panel)
         self.projection_color_panel.setToolTip('编辑当前主体外观的投影颜色，各角色配色分别保存')
-        opacity_note = QLabel('*此透明度应用于珍珠文字、光环、电弧等全息投影类特效')
-        opacity_note.setStyleSheet(NOTE_STYLE)
-        opacity_note.setWordWrap(True)
-        halo.addRow(opacity_note)
+        # opacity_note = QLabel('*此透明度应用于珍珠文字、光环、电弧等全息投影类特效')
+        # opacity_note.setStyleSheet(NOTE_STYLE)
+        # opacity_note.setWordWrap(True)
+        # halo.addRow(opacity_note)
         halo.addRow(PixelRuleThin())
 
         left, right = self.two_columns(halo)
@@ -790,19 +800,19 @@ class OracleSettingsDialog(QDialog):
                   1, 10000, decimals=1, suffix=' px')
         self.spin(watcher, '缩回后换位概率', 'overseer.relocation_probability', c.relocation_probability * 100,
                   0, 100, decimals=1, suffix=' %')
-        hint = QLabel('*安全距离应当大于缩回距离')
-        hint.setWordWrap(True)
-        hint.setStyleSheet(NOTE_STYLE)
-        watcher.addRow(hint)
+        # hint = QLabel('*安全距离应当大于缩回距离')
+        # hint.setWordWrap(True)
+        # hint.setStyleSheet(NOTE_STYLE)
+        # watcher.addRow(hint)
         watcher.addRow(PixelRuleThin())
         self.spin(watcher, '监视者观察概率', 'overseer.observation_probability', c.observation_probability * 100,
                   0, 100, decimals=1, suffix=' %')
         self.spin(watcher, '间隔时间', 'overseer.observation_interval', c.observation_interval,
                   .1, 86400, decimals=2, suffix=' 秒')
-        note = QLabel('*完全探出并能跟随鼠标时，每隔此时间可能会进行观察')
-        note.setWordWrap(True)
-        note.setStyleSheet(NOTE_STYLE)
-        watcher.addRow(note)
+        # note = QLabel('*完全探出并能跟随鼠标时，每隔此时间可能会进行观察')
+        # note.setWordWrap(True)
+        # note.setStyleSheet(NOTE_STYLE)
+        # watcher.addRow(note)
         self.controls['overseer.enabled'].toggled.connect(self.sync_dependencies)
         mode.currentIndexChanged.connect(self.sync_dependencies)
 
@@ -866,7 +876,8 @@ class OracleSettingsDialog(QDialog):
         self.personal_controls = PersonalControls()
         layout.addWidget(self.personal_controls)
         self._status_message = message or ('点击保存启动桌宠' if first_run else
-                                           '*修改显示大小、珍珠或活动参数时，人偶会重置位置')
+                                           # '*修改显示大小、珍珠或活动参数时，人偶会重置位置')
+                                           '')
         self.status = QLabel()
         self.status.setStyleSheet(NOTE_STYLE)
         self.status.setWordWrap(True)
@@ -903,7 +914,8 @@ class OracleSettingsDialog(QDialog):
                         for widget in editor.dynamic_text_widgets)
         self._texts = WidgetTexts(self, exclude=(self.status, self.space_hint, self.appearance_owner, *dynamic,
                                                 *self.appearance_presets.dynamic_text_widgets,
-                                                *self.profile_presets.dynamic_text_widgets))
+                                                *self.profile_presets.dynamic_text_widgets,
+                                                *self.behavior_styles.dynamic_text_widgets))
         # Qt 会在 LanguageChange 中恢复标准按钮文字，在它处理完后重设自定义标题
         self.buttons.installEventFilter(self)
         language_manager().changed.connect(self.retranslate)
@@ -919,6 +931,9 @@ class OracleSettingsDialog(QDialog):
         self.finished.connect(self.close_face_preview)
         self.finished.connect(self.reset_sections)
         self.preset_workflow = PresetWorkflow(self)
+        from .resource_settings import ResourceSettings
+        self.resource_settings = ResourceSettings(self)
+        self.sync_dependencies()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -972,6 +987,12 @@ class OracleSettingsDialog(QDialog):
         self._appearance_source = source
 
     def fill_preset(self, config, paths):
+        from contextlib import nullcontext
+        workflow = getattr(self, 'preset_workflow', None)
+        with workflow.suspended() if workflow is not None else nullcontext():
+            self._fill_preset(config, paths)
+
+    def _fill_preset(self, config, paths):
         # 未展示字段同样进入草稿基准；仅填入本次范围，保留其他控件中的未保存修改
         self.original = config
         for key, control in self.controls.items():
@@ -979,6 +1000,7 @@ class OracleSettingsDialog(QDialog):
                 continue
             value = get_value(config, key)
             self.fill_control(key, control, value)
+        self.behavior_styles.refresh()
         self.sync_dependencies()
         self.refresh_space()
         self.queue_face_preview()
@@ -1108,12 +1130,15 @@ class OracleSettingsDialog(QDialog):
         self.refresh_space()
 
     def retranslate_texts(self):
+        if hasattr(self, 'resource_settings'):
+            self.resource_settings.restore()
         self._texts.retranslate()
         if hasattr(self, 'preset_workflow'):
             self.preset_workflow.sync_ui()
 
     def retranslate(self):
         self.retranslate_texts()
+        self.behavior_styles.refresh()
         self.appearance_presets.retranslate()
         self.profile_presets.retranslate()
         for editor in (*self.image_editors, *self.eye_editors.values()):
@@ -1155,6 +1180,8 @@ class OracleSettingsDialog(QDialog):
             # 加宽不能把原本靠屏幕右侧的关闭按钮推到工作区外
             self.move(max(rect.left(), min(self.x(), rect.right() - self.width() + 1)),
                       max(rect.top(), min(self.y(), rect.bottom() - self.height() + 1)))
+        if hasattr(self, 'resource_settings'):
+            self.sync_dependencies()
 
     def tab(self, key, title, *, reset=True):
         area = QScrollArea()
@@ -1219,6 +1246,7 @@ class OracleSettingsDialog(QDialog):
             self.set_status(Message('无法读取默认设置：{error}', error=exc))
             return
         page = self.tabs.widget(index) if index is not None else None
+        reset_paths = []
         for key, control in self.controls.items():
             editors = self.color_editors.get(key, (control,))
             if key == 'oracle.body_appearance':
@@ -1228,10 +1256,14 @@ class OracleSettingsDialog(QDialog):
             if (page is not None and page.isAncestorOf(self.projection_color_panel)
                     and key in self.projection_colors and key != self.projection_color_key()):
                 continue
+            reset_paths.append(key)
             value = defaults
             for field in key.split('.'):
                 value = getattr(value, field)
             self.fill_control(key, control, value)
+        self.behavior_styles.reset(reset_paths)
+        if hasattr(self, 'preset_workflow'):
+            self.preset_workflow.changed()
         if page is None or page.isAncestorOf(self.start_edge_group.checkedButton()):
             self.start_edge_buttons[defaults.oracle.base_side].setChecked(True)
             for edge, check in self.edge_checks.items():
@@ -1362,10 +1394,10 @@ class OracleSettingsDialog(QDialog):
         form.addRow('启动时所在边缘', row)
         self.spin(form, '启动时在边上的位置', 'oracle.base_fraction', config.base_fraction * 100,
                   0, 100, decimals=1, step=1, suffix=' %')
-        pos_note = QLabel('*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中')
-        pos_note.setStyleSheet(NOTE_STYLE)
-        pos_note.setWordWrap(True)
-        form.addRow(pos_note)
+        # pos_note = QLabel('*顶部/底部从左到右计算，左侧/右侧从上到下计算，50%为居中')
+        # pos_note.setStyleSheet(NOTE_STYLE)
+        # pos_note.setWordWrap(True)
+        # form.addRow(pos_note)
 
         form.addRow(PixelRuleThin())
 
@@ -1412,6 +1444,8 @@ class OracleSettingsDialog(QDialog):
         return control.value()
 
     def sync_dependencies(self, *args):
+        if hasattr(self, 'resource_settings'):
+            self.resource_settings.restore()
         c = self.controls
         sync_outfit_dependencies(self)
         sync_cape_settings(self)
@@ -1459,12 +1493,16 @@ class OracleSettingsDialog(QDialog):
         c['oracle.halo_arcs_enabled'].setEnabled(halo)
         c['oracle.halo_arc_max_count'].setEnabled(halo and c['oracle.halo_arcs_enabled'].isChecked())
         sync_behavior_dependencies(self)
+        if hasattr(self, 'resource_settings'):
+            self.resource_settings.apply()
+            self.resource_settings.dependencies_changed()
 
     def browse(self):
         path = QFileDialog.getExistingDirectory(self, tr('选择 Rain World 安装目录'), self.game_dir.text(),
                                                 QFileDialog.Option.DontUseNativeDialog)
         if path:
             self.game_dir.setText(path)
+            self.resource_settings.schedule()
 
     def candidate(self):
         text = self.game_dir.text().strip().strip('"')
@@ -1509,7 +1547,8 @@ class OracleSettingsDialog(QDialog):
             self.face_preview.sync_editing()
 
     def save(self, *, close=True):
-        if self.worker is not None:
+        if self.worker is not None or self.resource_settings.worker is not None:
+            self.set_status('正在检查资源，请稍候再保存')
             return
         try:
             self.pending = self.candidate()
@@ -1519,7 +1558,12 @@ class OracleSettingsDialog(QDialog):
         self._close_after_save = close
         self.busy(True)
         self.set_status('正在获取游戏资源，请稍候...')
-        if self.assets is not None and self.pending.game_dir == self.original.game_dir:
+        checked = self.resource_settings.checked_assets
+        if (checked is not None and checked.source_key is not None
+                and checked.reusable(self.pending)):
+            self.finish_save(checked)
+        elif (self.assets is not None and self.pending.game_dir == self.original.game_dir
+                and self.assets.reusable(self.pending)):
             self.finish_save(self.assets)
         else:
             self.worker = AssetPreparation(self.pending, self)
@@ -1554,6 +1598,7 @@ class OracleSettingsDialog(QDialog):
         self.saved_config, self.prepared_assets = self.pending, assets
         # 继续编辑时以本次保存为基准，保留未编辑数值的精度并复用已准备的资源
         self.original, self.assets = self.pending, assets
+        self.resource_settings.install(assets)
         self.controls['overseer.slots'].setValue(self.pending.overseer.slots)
         self.initial_values = {key: self.value(control) for key, control in self.controls.items()}
         self._reset_values.clear()
@@ -1565,17 +1610,22 @@ class OracleSettingsDialog(QDialog):
             self.set_status('已保存并应用')
 
     def reject(self):
-        if self.worker is None and self.preset_workflow.before_close():
+        if self.worker is None and self.resource_settings.worker is None and self.preset_workflow.before_close():
+            if self.resource_settings.has_pending_runtime:
+                self._close_after_resource_check = True
+                self.resource_settings.schedule()
+                return
             super().reject()
 
     def closeEvent(self, event):
-        if self.worker is not None:
+        if self.worker is not None or self.resource_settings.worker is not None:
             event.ignore()
         else:
             super().closeEvent(event)
 
     def shutdown(self):
         self._shutdown = True
+        self.resource_settings.shutdown()
         if self.worker is not None:
             self.worker.finished.disconnect(self.assets_ready)
             self.worker.wait()

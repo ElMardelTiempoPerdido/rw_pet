@@ -1,4 +1,4 @@
-"""漫游节奏参数，不重复登记日常活动中的跨边设置"""
+"""反重力漫游参数，不重复登记日常活动中的跨边设置"""
 from .behavior_fields import number_row, tooltips
 
 DRIFT_PERCENT_FIELDS = ('duration_variation', 'long_bout_probability')

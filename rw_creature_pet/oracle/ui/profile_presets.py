@@ -18,7 +18,7 @@ from .preset_dialogs import ProfileConflictDialog
 
 PROFILE_TEXTS = {
     'label': '当前使用角色', 'import_button': '导入角色设置…', 'export_button': '导出分享此角色',
-    'share_hint': '强烈建议使用此按钮分享角色；自行压缩角色文件夹可能遗漏资源或包含历史设置',
+    'share_hint': '（建议使用此按钮分享角色配置噢！自行压缩文件夹可能会出现奇怪问题',
     'hint': '【角色设置】包含迭代器的【外观】与【影响行动风格的设置项】',
     'read_error': '无法读取角色设置库：{error}', 'current': '当前角色设置（不关联文件）',
     'duplicates': '重复角色设置「{name}」，最新有效版本列在第一项：\n{paths}',

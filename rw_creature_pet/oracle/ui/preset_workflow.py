@@ -89,6 +89,7 @@ class PresetWorkflow:
     def changed(self, key=None):
         if self.filling:
             return
+        self.settings.behavior_styles.edited(key)
         self.dirty = True
         self.settings.set_status('当前调整尚未保存')
         self.sync_ui()
@@ -116,10 +117,13 @@ class PresetWorkflow:
         self.applied = effective
         settings.saved_config, settings.prepared_assets = effective, settings.assets
         self.state.committed(key, entry)
+        if hasattr(settings, 'resource_settings'):
+            settings.resource_settings.ensure_runtime(effective)
 
     def flush(self):
         self.timer.stop()
-        if self.filling or self.settings.worker is not None:
+        if (self.filling or self.settings.worker is not None
+                or (hasattr(self.settings, 'resource_settings') and self.settings.resource_settings.worker is not None)):
             return False
         # 初次启动仍由“保存并启动”完成目录验证与资源准备
         if self.settings.assets is None:
@@ -242,6 +246,13 @@ class PresetWorkflow:
         return self.defaults
 
     def reset_parameter(self, path):
+        try:
+            self._reset_parameter(path)
+        except (OSError, ValueError, TypeError, RuntimeError) as exc:
+            # 单项默认值可能与用户已修改的另一端冲突，不丢弃草稿或暗改关联参数
+            self.settings.set_status(Message('无法恢复此项默认值：{error}', error=exc))
+
+    def _reset_parameter(self, path):
         current = self.draft()
         defaults = self.default_config()
         keys = [key for key in ALL_PATHS if key == path or key.startswith(path+'.')]

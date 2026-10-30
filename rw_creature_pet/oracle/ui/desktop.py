@@ -8,7 +8,6 @@ from PySide6.QtGui import QActionGroup, QCursor, QIcon, QPainter, QScreen
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon, QWidget
 from shiboken6 import isValid
 
-from ...shared.atlas import Atlas, AtlasError, extract_atlas
 from ...shared.desktop import configure_desktop_overlay
 from ...shared.screens import preferred_screen
 from ...shared.paths import PACKAGE_ROOT
@@ -24,7 +23,6 @@ from ...shared.geometry import Vec2
 from ..scene import OracleScene, RailSide
 from ..config import DISPLAY_SCALES
 from ..space import ALL_EDGES, SpaceAssessment, minimum_world_size
-from ..pearls.glyphs import load_pearl_glyphs
 from ..motion.navigation import CurveRoute
 from ..graphics.render import OracleRenderer
 from ..graphics.damage import visual_bounds
@@ -149,6 +147,8 @@ class OracleDesktopMotion:
             self.scene.behavior.pearl_random.setstate(previous.behavior.pearl_random.getstate())
             self.scene.behavior.fixed_random.setstate(previous.behavior.fixed_random.getstate())
             self.scene.behavior.playback_random.setstate(previous.behavior.playback_random.getstate())
+            self.scene.behavior.reading_timing_random.setstate(previous.behavior.reading_timing_random.getstate())
+            self.scene.behavior.reading_wait = previous.behavior.reading_wait
             self.scene.pearl_playback_curve = previous.pearl_playback_curve
             self.scene.behavior.last_matrix_slot = previous.behavior.last_matrix_slot
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
@@ -157,7 +157,7 @@ class OracleDesktopMotion:
             self.scene.mouse_reaction.configure(self.scene, previous.mouse_reaction.config)
             self.scene.mouse_reaction.attention.random.setstate(previous.mouse_reaction.attention.random.getstate())
             self.scene.mouse_reaction.avoidance.random.setstate(previous.mouse_reaction.avoidance.random.getstate())
-            for name in ('random', 'eye_random', 'voice_random'):
+            for name in ('random', 'eye_random', 'eye_timing_random', 'voice_random'):
                 getattr(self.scene.drag_reactions, name).setstate(getattr(previous.drag_reactions, name).getstate())
             self.scene.halo.random.setstate(previous.halo.random.getstate())
             self.scene.halo_arcs.inherit_cooldown(previous.halo_arcs)
@@ -189,6 +189,10 @@ class OracleDesktopWindow(QWidget):
         self.config_store = config_store
         self.settings_dialog = None
         self._space_notices = set()
+        if assets is None and renderer is None:
+            from ..assets import prepare_oracle_assets
+            assets = prepare_oracle_assets(config)
+        self.prepared_resources = assets
         if assets is not None:
             from ...interaction.audio import VoicePlayer
             renderer = assets.renderer
@@ -197,19 +201,6 @@ class OracleDesktopWindow(QWidget):
             self.voice_player = make_bell_voice_player(config, config_path, self, initialize=renderer is None)
         self.requested_scale = scale
         self.asset_message = assets.message if assets is not None else ''
-        if renderer is None:
-            atlas = Atlas(extract_atlas(config.game_dir))
-            renderer = OracleRenderer(atlas, config.oracle.active_colors)
-            try:
-                renderer.glyphs = load_pearl_glyphs(config.game_dir, atlas.root)
-            except (AtlasError, OSError, ValueError) as exc:
-                self.asset_message = f'珍珠投影不可用：{exc}'
-            from ..pearls.playback_assets import prepare_pearl_playback
-            self.asset_message = ' / '.join(filter(None, (self.asset_message,
-                prepare_pearl_playback(renderer))))
-            from ..effects.projection_assets import prepare_projection
-            projection_error = prepare_projection(config.game_dir, renderer)
-            self.asset_message = ' / '.join(str(item) for item in (self.asset_message, projection_error) if item)
         self.renderer = renderer
         configure_desktop_overlay(self)
         self.setWindowTitle('桌宠')
@@ -548,9 +539,11 @@ class OracleDesktopWindow(QWidget):
             if self.config_store is None:
                 self.config_store = SettingsStore()
             config = absolute_paths(self.current_settings(), self.config_path)
-            assets = OracleAssets(self.renderer, self.asset_message, self.voice_player.clips, self.voice_player.asset_error)
+            assets = self.prepared_resources or OracleAssets(
+                self.renderer, self.asset_message, self.voice_player.clips, self.voice_player.asset_error)
             dialog = OracleSettingsDialog(config, self.config_store, assets=assets, commit=self.apply_settings,
-                                          initialization=runtime_character(config, self.config_store))
+                                          initialization=runtime_character(config, self.config_store),
+                                          resource_commit=self.refresh_resource_assets)
             self.settings_dialog = dialog
             dialog.finished.connect(self.settings_closed)
             if workarea is not None and not workarea.isEmpty():
@@ -584,6 +577,22 @@ class OracleDesktopWindow(QWidget):
     def configure_voice(self, **changes):
         self.voice_player.configure(**changes)
         self.persist_settings()
+
+    def refresh_resource_assets(self, assets):
+        """重新检查后替换运行素材，不写配置，也不重置移动和角色行为"""
+        self.prepared_resources = assets
+        self.renderer, self.asset_message = assets.renderer, assets.message
+        self.renderer.colors = self.config.oracle.active_colors
+        self.voice_player.stop()
+        self.voice_player.clips = dict(assets.voice_paths)
+        self.voice_player.asset_error = self.voice_player.error = assets.voice_error
+        if self.motion is not None:
+            self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
+            self.motion.scene.projection.available = bool(self.renderer.projection_images)
+        self._last_revision = None
+        self._next_render_time = 0.
+        self.sync_pause()
+        self.update()
 
     def apply_settings(self, config, assets):
         """先准备新场景、写入配置，再公布运行状态；写入失败不改变当前桌宠。"""
@@ -625,6 +634,7 @@ class OracleDesktopWindow(QWidget):
         self.voice_player.stop()
         self.drag_input.suspend()
         self.config, self.config_path = config, self.config_store.path
+        self.prepared_resources = assets
         self.renderer, self.asset_message = assets.renderer, assets.message
         self.renderer.colors = config.oracle.active_colors
         self.voice_player.clips = dict(assets.voice_paths)

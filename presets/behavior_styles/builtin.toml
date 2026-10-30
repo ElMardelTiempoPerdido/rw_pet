@@ -1,0 +1,666 @@
+# 内置行为风格草稿 v1
+# 设置 > 行为读取此表；选择风格时填入参数，不会自动修改已保存角色
+# 名称、说明、顺序和参数可调整；改名保留 id，新增风格使用新的 id
+# 每个 values 块包含该维度的完整参数，带点的字段路径必须保留引号
+# 概率与幅度用 0～1，秒为真实时间，距离为逻辑像素，速度沿用现有配置单位
+# 七个维度不能相互覆盖；跨边归日常活动，语音来源/音量与珍珠数量不属于此库
+# 同步扑腾与双手交替是不同参数；所有风格继续受运动范围和资源可用性约束
+# 本地实验或新增风格请使用旁边的 local.toml，修改方式见 README.md
+
+format_version = 1
+
+# 日常活动 - daily_activity - 17 个参数
+
+[[styles]]
+id = "daily_activity.still"
+dimension = "daily_activity"
+order = 10
+name_zh = "较少活动"
+name_en = "Quiet"
+description_zh = "更多停留和冥想，偶尔较慢移动"
+description_en = "Mostly rests or meditates"
+
+[styles.values]
+"oracle.float_speed" = 0.9
+"oracle.base_speed" = 2.3
+"oracle.cross_edge_probability" = 0.015
+"oracle.daily_activity.idle_min_seconds" = 12.0
+"oracle.daily_activity.idle_max_seconds" = 28.0
+"oracle.daily_activity.long_idle_min_seconds" = 35.0
+"oracle.daily_activity.long_idle_max_seconds" = 90.0
+"oracle.daily_activity.move_min_distance" = 40.0
+"oracle.daily_activity.move_max_distance" = 85.0
+"oracle.daily_activity.idle_weight" = 65.0
+"oracle.daily_activity.move_weight" = 15.0
+"oracle.daily_activity.meditate_weight" = 20.0
+"oracle.daily_activity.meditate_min_seconds" = 60.0
+"oracle.daily_activity.meditate_max_seconds" = 150.0
+"oracle.daily_activity.cross_edge_cooldown_seconds" = 180.0
+"oracle.daily_activity.cross_edge_check_seconds" = 45.0
+"oracle.daily_activity.move_lean_degrees" = 8.0
+
+[[styles]]
+id = "daily_activity.balanced"
+dimension = "daily_activity"
+order = 20
+name_zh = "适度活动"
+name_en = "Balanced"
+description_zh = "更多停留和冥想，偶尔缓慢移动"
+description_en = "Alternates rest and movement with occasional meditation"
+
+[styles.values]
+"oracle.float_speed" = 1.6
+"oracle.base_speed" = 2.8
+"oracle.cross_edge_probability" = 0.05
+"oracle.daily_activity.idle_min_seconds" = 3.0
+"oracle.daily_activity.idle_max_seconds" = 6.0
+"oracle.daily_activity.long_idle_min_seconds" = 7.5
+"oracle.daily_activity.long_idle_max_seconds" = 18.0
+"oracle.daily_activity.move_min_distance" = 60.0
+"oracle.daily_activity.move_max_distance" = 160.0
+"oracle.daily_activity.idle_weight" = 28.0
+"oracle.daily_activity.move_weight" = 35.0
+"oracle.daily_activity.meditate_weight" = 12.0
+"oracle.daily_activity.meditate_min_seconds" = 30.0
+"oracle.daily_activity.meditate_max_seconds" = 60.0
+"oracle.daily_activity.cross_edge_cooldown_seconds" = 60.0
+"oracle.daily_activity.cross_edge_check_seconds" = 20.0
+"oracle.daily_activity.move_lean_degrees" = 20.0
+
+[[styles]]
+id = "daily_activity.active"
+dimension = "daily_activity"
+order = 30
+name_zh = "经常活动"
+name_en = "Active"
+description_zh = "停留时间较短，经常移动较长距离"
+description_en = "Takes shorter rests and longer same-edge trips"
+
+[styles.values]
+"oracle.float_speed" = 1.9
+"oracle.base_speed" = 3.2
+"oracle.cross_edge_probability" = 0.08
+"oracle.daily_activity.idle_min_seconds" = 1.5
+"oracle.daily_activity.idle_max_seconds" = 4.0
+"oracle.daily_activity.long_idle_min_seconds" = 5.0
+"oracle.daily_activity.long_idle_max_seconds" = 12.0
+"oracle.daily_activity.move_min_distance" = 100.0
+"oracle.daily_activity.move_max_distance" = 220.0
+"oracle.daily_activity.idle_weight" = 20.0
+"oracle.daily_activity.move_weight" = 70.0
+"oracle.daily_activity.meditate_weight" = 10.0
+"oracle.daily_activity.meditate_min_seconds" = 15.0
+"oracle.daily_activity.meditate_max_seconds" = 35.0
+"oracle.daily_activity.cross_edge_cooldown_seconds" = 60.0
+"oracle.daily_activity.cross_edge_check_seconds" = 18.0
+"oracle.daily_activity.move_lean_degrees" = 20.0
+
+# 漫游节奏 - drift - 27 个参数
+
+[[styles]]
+id = "drift.occasional"
+dimension = "drift"
+order = 10
+name_zh = "偶尔漫游"
+name_en = "Occasional"
+description_zh = "偶尔进行漫游，持续时间较短"
+description_en = "Occasionally enters a shorter drift"
+
+[styles.values]
+"oracle.antigravity_probability" = 0.025
+"oracle.antigravity_duration_seconds" = 75.0
+"oracle.drift_speed" = 0.85
+"oracle.drift.cooldown_seconds" = 300.0
+"oracle.drift.duration_variation" = 0.2
+"oracle.drift.entry_min_seconds" = 3.0
+"oracle.drift.entry_max_seconds" = 7.0
+"oracle.drift.resume_min_seconds" = 2.0
+"oracle.drift.resume_max_seconds" = 5.0
+"oracle.drift.short_pause_min_seconds" = 0.7
+"oracle.drift.short_pause_max_seconds" = 1.8
+"oracle.drift.normal_pause_min_seconds" = 3.0
+"oracle.drift.normal_pause_max_seconds" = 7.0
+"oracle.drift.long_pause_min_seconds" = 10.0
+"oracle.drift.long_pause_max_seconds" = 20.0
+"oracle.drift.short_pause_weight" = 35.0
+"oracle.drift.normal_pause_weight" = 40.0
+"oracle.drift.long_pause_weight" = 25.0
+"oracle.drift.bout_min_seconds" = 3.0
+"oracle.drift.bout_max_seconds" = 6.0
+"oracle.drift.long_bout_min_seconds" = 7.0
+"oracle.drift.long_bout_max_seconds" = 12.0
+"oracle.drift.long_bout_probability" = 0.15
+"oracle.drift.move_min_distance" = 45.0
+"oracle.drift.move_max_distance" = 80.0
+"oracle.drift.speed_min_factor" = 0.85
+"oracle.drift.speed_max_factor" = 1.1
+
+[[styles]]
+id = "drift.intermittent"
+dimension = "drift"
+order = 20
+name_zh = "常规漫游"
+name_en = "Common"
+description_zh = "漫游概率适中"
+description_en = "Alternates drifting and pauses"
+
+[styles.values]
+"oracle.antigravity_probability" = 0.08
+"oracle.antigravity_duration_seconds" = 300.0
+"oracle.drift_speed" = 1.0
+"oracle.drift.cooldown_seconds" = 120.0
+"oracle.drift.duration_variation" = 0.1
+"oracle.drift.entry_min_seconds" = 2.5
+"oracle.drift.entry_max_seconds" = 5.0
+"oracle.drift.resume_min_seconds" = 0.5
+"oracle.drift.resume_max_seconds" = 3.0
+"oracle.drift.short_pause_min_seconds" = 0.35
+"oracle.drift.short_pause_max_seconds" = 1.2
+"oracle.drift.normal_pause_min_seconds" = 1.8
+"oracle.drift.normal_pause_max_seconds" = 5.5
+"oracle.drift.long_pause_min_seconds" = 7.0
+"oracle.drift.long_pause_max_seconds" = 14.0
+"oracle.drift.short_pause_weight" = 50.0
+"oracle.drift.normal_pause_weight" = 35.0
+"oracle.drift.long_pause_weight" = 15.0
+"oracle.drift.bout_min_seconds" = 4.0
+"oracle.drift.bout_max_seconds" = 10.0
+"oracle.drift.long_bout_min_seconds" = 12.0
+"oracle.drift.long_bout_max_seconds" = 24.0
+"oracle.drift.long_bout_probability" = 0.35
+"oracle.drift.move_min_distance" = 60.0
+"oracle.drift.move_max_distance" = 100.0
+"oracle.drift.speed_min_factor" = 0.8
+"oracle.drift.speed_max_factor" = 1.2
+
+[[styles]]
+id = "drift.continuous"
+dimension = "drift"
+order = 30
+name_zh = "连续漂浮"
+name_en = "Often and Continuous"
+description_zh = "更常进行漫游，持续时间较长，漫游中经常连续漂浮"
+description_en = "Drifts more often and for longer"
+
+[styles.values]
+"oracle.antigravity_probability" = 0.14
+"oracle.antigravity_duration_seconds" = 450.0
+"oracle.drift_speed" = 1.05
+"oracle.drift.cooldown_seconds" = 90.0
+"oracle.drift.duration_variation" = 0.1
+"oracle.drift.entry_min_seconds" = 0.8
+"oracle.drift.entry_max_seconds" = 2.0
+"oracle.drift.resume_min_seconds" = 0.4
+"oracle.drift.resume_max_seconds" = 1.2
+"oracle.drift.short_pause_min_seconds" = 0.15
+"oracle.drift.short_pause_max_seconds" = 0.7
+"oracle.drift.normal_pause_min_seconds" = 1.0
+"oracle.drift.normal_pause_max_seconds" = 2.5
+"oracle.drift.long_pause_min_seconds" = 5.0
+"oracle.drift.long_pause_max_seconds" = 10.0
+"oracle.drift.short_pause_weight" = 80.0
+"oracle.drift.normal_pause_weight" = 18.0
+"oracle.drift.long_pause_weight" = 2.0
+"oracle.drift.bout_min_seconds" = 12.0
+"oracle.drift.bout_max_seconds" = 24.0
+"oracle.drift.long_bout_min_seconds" = 30.0
+"oracle.drift.long_bout_max_seconds" = 55.0
+"oracle.drift.long_bout_probability" = 0.6
+"oracle.drift.move_min_distance" = 80.0
+"oracle.drift.move_max_distance" = 140.0
+"oracle.drift.speed_min_factor" = 0.85
+"oracle.drift.speed_max_factor" = 1.2
+
+# 鼠标关注 - mouse_attention - 4 个参数
+
+[[styles]]
+id = "mouse_attention.reserved"
+dimension = "mouse_attention"
+order = 10
+name_zh = "偶尔关注"
+name_en = "Occasional"
+description_zh = "鼠标需要靠近并停留较久才可能引起注意"
+description_en = "Notices the cursor only after it stays close for a while"
+
+[styles.values]
+"interaction.hover_radius" = 100.0
+"interaction.hover_dwell_seconds" = 3.0
+"interaction.hover_probability" = 0.25
+"interaction.hover_open_probability" = 0.1
+
+[[styles]]
+id = "mouse_attention.balanced"
+dimension = "mouse_attention"
+order = 20
+name_zh = "适度关注"
+name_en = "Moderate"
+description_zh = "鼠标靠近时关注的概率适中"
+description_en = "May follow the cursor after it stays nearby for a moment"
+
+[styles.values]
+"interaction.hover_radius" = 160.0
+"interaction.hover_dwell_seconds" = 1.5
+"interaction.hover_probability" = 0.6
+"interaction.hover_open_probability" = 0.25
+
+[[styles]]
+id = "mouse_attention.curious"
+dimension = "mouse_attention"
+order = 30
+name_zh = "容易关注"
+name_en = "Curious"
+description_zh = "稍远处的鼠标也容易引起注意"
+description_en = "Readily notices the cursor from farther away and follows it after a shorter wait"
+
+[styles.values]
+"interaction.hover_radius" = 220.0
+"interaction.hover_dwell_seconds" = 0.8
+"interaction.hover_probability" = 0.85
+"interaction.hover_open_probability" = 0.35
+
+# 鼠标躲避 - mouse_avoidance - 25 个参数
+
+[[styles]]
+id = "mouse_avoidance.none"
+dimension = "mouse_avoidance"
+order = 10
+name_zh = "不躲避"
+name_en = "No"
+description_zh = "不主动躲避鼠标"
+description_en = "Does not actively avoid the cursor"
+
+[styles.values]
+"interaction.hover_avoidance_enabled" = false
+"oracle.mouse_avoidance.delay_min_seconds" = 2.0
+"oracle.mouse_avoidance.delay_max_seconds" = 5.0
+"oracle.mouse_avoidance.probability" = 0.65
+"oracle.mouse_avoidance.enter_distance" = 30.0
+"oracle.mouse_avoidance.exit_distance" = 60.0
+"oracle.mouse_avoidance.leave_grace_seconds" = 1.2
+"oracle.mouse_avoidance.pointer_lag_seconds" = 0.55
+"oracle.mouse_avoidance.retry_min_seconds" = 0.4
+"oracle.mouse_avoidance.retry_max_seconds" = 0.9
+"oracle.mouse_avoidance.impatience_min_seconds" = 4.0
+"oracle.mouse_avoidance.impatience_max_seconds" = 7.0
+"oracle.mouse_avoidance.move_probability" = 0.35
+"oracle.mouse_avoidance.move_min_distance" = 10.0
+"oracle.mouse_avoidance.move_max_distance" = 22.0
+"oracle.mouse_avoidance.speed_min" = 0.7
+"oracle.mouse_avoidance.speed_max" = 1.3
+"oracle.mouse_avoidance.lean_move_probability" = 0.25
+"oracle.mouse_avoidance.lean_move_min_distance" = 6.0
+"oracle.mouse_avoidance.lean_move_max_distance" = 16.0
+"oracle.mouse_avoidance.lean_min_degrees" = 5.0
+"oracle.mouse_avoidance.lean_max_degrees" = 25.0
+"oracle.mouse_avoidance.lean_sample_power" = 2.8
+"oracle.mouse_avoidance.lean_speed" = 40.0
+"oracle.mouse_avoidance.move_angle_jitter" = 18.0
+
+[[styles]]
+id = "mouse_avoidance.gentle"
+dimension = "mouse_avoidance"
+order = 20
+name_zh = "可能躲避"
+name_en = "Slightly"
+description_zh = "鼠标太近时可能躲避"
+description_en = "Leans when the cursor gets very close"
+
+[styles.values]
+"interaction.hover_avoidance_enabled" = true
+"oracle.mouse_avoidance.delay_min_seconds" = 2.0
+"oracle.mouse_avoidance.delay_max_seconds" = 5.0
+"oracle.mouse_avoidance.probability" = 0.65
+"oracle.mouse_avoidance.enter_distance" = 30.0
+"oracle.mouse_avoidance.exit_distance" = 60.0
+"oracle.mouse_avoidance.leave_grace_seconds" = 1.2
+"oracle.mouse_avoidance.pointer_lag_seconds" = 0.55
+"oracle.mouse_avoidance.retry_min_seconds" = 0.4
+"oracle.mouse_avoidance.retry_max_seconds" = 0.9
+"oracle.mouse_avoidance.impatience_min_seconds" = 4.0
+"oracle.mouse_avoidance.impatience_max_seconds" = 7.0
+"oracle.mouse_avoidance.move_probability" = 0.35
+"oracle.mouse_avoidance.move_min_distance" = 10.0
+"oracle.mouse_avoidance.move_max_distance" = 22.0
+"oracle.mouse_avoidance.speed_min" = 0.7
+"oracle.mouse_avoidance.speed_max" = 1.3
+"oracle.mouse_avoidance.lean_move_probability" = 0.25
+"oracle.mouse_avoidance.lean_move_min_distance" = 6.0
+"oracle.mouse_avoidance.lean_move_max_distance" = 16.0
+"oracle.mouse_avoidance.lean_min_degrees" = 5.0
+"oracle.mouse_avoidance.lean_max_degrees" = 25.0
+"oracle.mouse_avoidance.lean_sample_power" = 2.8
+"oracle.mouse_avoidance.lean_speed" = 40.0
+"oracle.mouse_avoidance.move_angle_jitter" = 18.0
+
+[[styles]]
+id = "mouse_avoidance.distant"
+dimension = "mouse_avoidance"
+order = 30
+name_zh = "保持距离"
+name_en = "Keep distance"
+description_zh = "警惕地与鼠标保持距离"
+description_en = "Away! Away!"
+
+[styles.values]
+"interaction.hover_avoidance_enabled" = true
+"oracle.mouse_avoidance.delay_min_seconds" = 0.65
+"oracle.mouse_avoidance.delay_max_seconds" = 1.8
+"oracle.mouse_avoidance.probability" = 0.95
+"oracle.mouse_avoidance.enter_distance" = 55.0
+"oracle.mouse_avoidance.exit_distance" = 90.0
+"oracle.mouse_avoidance.leave_grace_seconds" = 1.8
+"oracle.mouse_avoidance.pointer_lag_seconds" = 0.3
+"oracle.mouse_avoidance.retry_min_seconds" = 0.15
+"oracle.mouse_avoidance.retry_max_seconds" = 0.4
+"oracle.mouse_avoidance.impatience_min_seconds" = 1.5
+"oracle.mouse_avoidance.impatience_max_seconds" = 3.0
+"oracle.mouse_avoidance.move_probability" = 0.8
+"oracle.mouse_avoidance.move_min_distance" = 22.0
+"oracle.mouse_avoidance.move_max_distance" = 42.0
+"oracle.mouse_avoidance.speed_min" = 1.2
+"oracle.mouse_avoidance.speed_max" = 2.2
+"oracle.mouse_avoidance.lean_move_probability" = 0.65
+"oracle.mouse_avoidance.lean_move_min_distance" = 10.0
+"oracle.mouse_avoidance.lean_move_max_distance" = 28.0
+"oracle.mouse_avoidance.lean_min_degrees" = 12.0
+"oracle.mouse_avoidance.lean_max_degrees" = 50.0
+"oracle.mouse_avoidance.lean_sample_power" = 2.5
+"oracle.mouse_avoidance.lean_speed" = 75.0
+"oracle.mouse_avoidance.move_angle_jitter" = 25.0
+
+# 拖动反应 - drag_reactions - 38 个参数
+
+[[styles]]
+id = "drag_reactions.quiet"
+dimension = "drag_reactions"
+order = 10
+name_zh = "平静"
+name_en = "Quiet"
+description_zh = "比较安静，被鼠标提起一段时间后偶尔轻微抗议"
+description_en = "May responds after a pause with gentle gestures"
+
+[styles.values]
+"oracle.drag_reactions.enabled" = true
+"oracle.drag_reactions.gesture_probability" = 0.3
+"oracle.drag_reactions.flutter_probability" = 0.55
+"oracle.drag_reactions.alternating_probability" = 0.6
+"oracle.drag_reactions.eye_open_probability" = 0.15
+"oracle.drag_reactions.voice_probability" = 0.1
+"oracle.drag_reactions.gesture_delay_min_seconds" = 0.8
+"oracle.drag_reactions.gesture_delay_max_seconds" = 2.5
+"oracle.drag_reactions.gesture_interval_min_seconds" = 2.5
+"oracle.drag_reactions.gesture_interval_max_seconds" = 6.0
+"oracle.drag_reactions.gesture_duration_min_seconds" = 0.6
+"oracle.drag_reactions.gesture_duration_max_seconds" = 1.3
+"oracle.drag_reactions.gesture_speed" = 0.7
+"oracle.drag_reactions.gesture_min_amplitude" = 0.1
+"oracle.drag_reactions.gesture_max_amplitude" = 0.4
+"oracle.drag_reactions.flutter_sync_probability" = 0.2
+"oracle.drag_reactions.eye_delay_min_seconds" = 0.4
+"oracle.drag_reactions.eye_delay_max_seconds" = 1.5
+"oracle.drag_reactions.eye_interval_min_seconds" = 3.0
+"oracle.drag_reactions.eye_interval_max_seconds" = 6.0
+"oracle.drag_reactions.eye_duration_min_seconds" = 0.7
+"oracle.drag_reactions.eye_duration_max_seconds" = 1.5
+"oracle.drag_reactions.voice_delay_min_seconds" = 1.0
+"oracle.drag_reactions.voice_delay_max_seconds" = 3.0
+"oracle.drag_reactions.voice_interval_min_seconds" = 6.0
+"oracle.drag_reactions.voice_interval_max_seconds" = 12.0
+"oracle.drag_reactions.projection_delay_min_seconds" = 1.0
+"oracle.drag_reactions.projection_delay_max_seconds" = 2.5
+"oracle.drag_reactions.projection_interval_min_seconds" = 1.5
+"oracle.drag_reactions.projection_interval_max_seconds" = 3.0
+"oracle.drag_reactions.projection_duration_min_seconds" = 5.0
+"oracle.drag_reactions.projection_duration_max_seconds" = 7.0
+"oracle.drag_reactions.projection_frame_seconds" = 0.375
+"oracle.drag_reactions.projection_lift_delay_seconds" = 0.5
+"oracle.drag_reactions.projection_move_min_seconds" = 1.2
+"oracle.drag_reactions.projection_move_max_seconds" = 2.4
+"oracle.drag_projection_probability" = 0.05
+"oracle.drag_projection_cooldown_seconds" = 120.0
+
+[[styles]]
+id = "drag_reactions.protesting"
+dimension = "drag_reactions"
+order = 20
+name_zh = "有时抗议"
+name_en = "Occasional protest"
+description_zh = "拖动一段时间后，可能会摆手提醒用户"
+description_en = "Makes a few varied gestures after being held"
+
+[styles.values]
+"oracle.drag_reactions.enabled" = true
+"oracle.drag_reactions.gesture_probability" = 0.65
+"oracle.drag_reactions.flutter_probability" = 0.75
+"oracle.drag_reactions.alternating_probability" = 0.55
+"oracle.drag_reactions.eye_open_probability" = 0.4
+"oracle.drag_reactions.voice_probability" = 0.25
+"oracle.drag_reactions.gesture_delay_min_seconds" = 0.4
+"oracle.drag_reactions.gesture_delay_max_seconds" = 1.8
+"oracle.drag_reactions.gesture_interval_min_seconds" = 1.1
+"oracle.drag_reactions.gesture_interval_max_seconds" = 2.8
+"oracle.drag_reactions.gesture_duration_min_seconds" = 1.0
+"oracle.drag_reactions.gesture_duration_max_seconds" = 2.3
+"oracle.drag_reactions.gesture_speed" = 0.95
+"oracle.drag_reactions.gesture_min_amplitude" = 0.2
+"oracle.drag_reactions.gesture_max_amplitude" = 0.75
+"oracle.drag_reactions.flutter_sync_probability" = 0.3
+"oracle.drag_reactions.eye_delay_min_seconds" = 0.1
+"oracle.drag_reactions.eye_delay_max_seconds" = 0.7
+"oracle.drag_reactions.eye_interval_min_seconds" = 1.5
+"oracle.drag_reactions.eye_interval_max_seconds" = 3.5
+"oracle.drag_reactions.eye_duration_min_seconds" = 1.0
+"oracle.drag_reactions.eye_duration_max_seconds" = 2.5
+"oracle.drag_reactions.voice_delay_min_seconds" = 0.5
+"oracle.drag_reactions.voice_delay_max_seconds" = 3.0
+"oracle.drag_reactions.voice_interval_min_seconds" = 4.0
+"oracle.drag_reactions.voice_interval_max_seconds" = 7.0
+"oracle.drag_reactions.projection_delay_min_seconds" = 0.6
+"oracle.drag_reactions.projection_delay_max_seconds" = 1.8
+"oracle.drag_reactions.projection_interval_min_seconds" = 0.8
+"oracle.drag_reactions.projection_interval_max_seconds" = 1.8
+"oracle.drag_reactions.projection_duration_min_seconds" = 7.0
+"oracle.drag_reactions.projection_duration_max_seconds" = 9.0
+"oracle.drag_reactions.projection_frame_seconds" = 0.375
+"oracle.drag_reactions.projection_lift_delay_seconds" = 0.35
+"oracle.drag_reactions.projection_move_min_seconds" = 0.8
+"oracle.drag_reactions.projection_move_max_seconds" = 1.8
+"oracle.drag_projection_probability" = 0.12
+"oracle.drag_projection_cooldown_seconds" = 75.0
+
+[[styles]]
+id = "drag_reactions.lively"
+dimension = "drag_reactions"
+order = 30
+name_zh = "扑腾..."
+name_en = "Lively fluttering"
+description_zh = "拖动时，看起来很想被放下来，还会投影锅鱼猫智商低"
+description_en = "(ノ｀Д)ノ"
+
+[styles.values]
+"oracle.drag_reactions.enabled" = true
+"oracle.drag_reactions.gesture_probability" = 0.95
+"oracle.drag_reactions.flutter_probability" = 0.9
+"oracle.drag_reactions.alternating_probability" = 0.45
+"oracle.drag_reactions.eye_open_probability" = 0.7
+"oracle.drag_reactions.voice_probability" = 0.4
+"oracle.drag_reactions.gesture_delay_min_seconds" = 0.2
+"oracle.drag_reactions.gesture_delay_max_seconds" = 1.1
+"oracle.drag_reactions.gesture_interval_min_seconds" = 0.35
+"oracle.drag_reactions.gesture_interval_max_seconds" = 1.0
+"oracle.drag_reactions.gesture_duration_min_seconds" = 1.8
+"oracle.drag_reactions.gesture_duration_max_seconds" = 3.4
+"oracle.drag_reactions.gesture_speed" = 1.2
+"oracle.drag_reactions.gesture_min_amplitude" = 0.25
+"oracle.drag_reactions.gesture_max_amplitude" = 1.0
+"oracle.drag_reactions.flutter_sync_probability" = 0.3
+"oracle.drag_reactions.eye_delay_min_seconds" = 0.0
+"oracle.drag_reactions.eye_delay_max_seconds" = 0.4
+"oracle.drag_reactions.eye_interval_min_seconds" = 0.9
+"oracle.drag_reactions.eye_interval_max_seconds" = 2.0
+"oracle.drag_reactions.eye_duration_min_seconds" = 1.5
+"oracle.drag_reactions.eye_duration_max_seconds" = 3.0
+"oracle.drag_reactions.voice_delay_min_seconds" = 0.2
+"oracle.drag_reactions.voice_delay_max_seconds" = 2.5
+"oracle.drag_reactions.voice_interval_min_seconds" = 3.0
+"oracle.drag_reactions.voice_interval_max_seconds" = 6.0
+"oracle.drag_reactions.projection_delay_min_seconds" = 0.5
+"oracle.drag_reactions.projection_delay_max_seconds" = 1.5
+"oracle.drag_reactions.projection_interval_min_seconds" = 0.6
+"oracle.drag_reactions.projection_interval_max_seconds" = 1.5
+"oracle.drag_reactions.projection_duration_min_seconds" = 8.0
+"oracle.drag_reactions.projection_duration_max_seconds" = 10.0
+"oracle.drag_reactions.projection_frame_seconds" = 0.375
+"oracle.drag_reactions.projection_lift_delay_seconds" = 0.35
+"oracle.drag_reactions.projection_move_min_seconds" = 0.65
+"oracle.drag_reactions.projection_move_max_seconds" = 1.6
+"oracle.drag_projection_probability" = 0.18
+"oracle.drag_projection_cooldown_seconds" = 60.0
+
+# 阅读习惯 - reading_habits - 18 个参数
+
+[[styles]]
+id = "reading_habits.occasional"
+dimension = "reading_habits"
+order = 10
+name_zh = "偶尔查看"
+name_en = "Occasional"
+description_zh = "较少读珍珠"
+description_en = "Reads infrequently"
+
+[styles.values]
+"oracle.reading.start_probability" = 0.1
+"oracle.reading.interval_min_seconds" = 45.0
+"oracle.reading.interval_max_seconds" = 90.0
+"oracle.reading.drift_probability" = 0.25
+"oracle.reading.drift_delay_min_seconds" = 25.0
+"oracle.reading.drift_delay_max_seconds" = 50.0
+"oracle.reading.drift_interval_min_seconds" = 45.0
+"oracle.reading.drift_interval_max_seconds" = 90.0
+"oracle.reading.avoidance_probability" = 0.1
+"oracle.reading.notice_min_seconds" = 1.2
+"oracle.reading.notice_max_seconds" = 2.5
+"oracle.reading.observe_min_seconds" = 10.0
+"oracle.reading.observe_max_seconds" = 22.0
+"oracle.reading.playback_min_seconds" = 25.0
+"oracle.reading.playback_max_seconds" = 45.0
+"oracle.reading.eye_open_probability" = 0.08
+"oracle.reading.matrix_probability" = 0.5
+"oracle.pearl_playback_probability" = 0.12
+
+[[styles]]
+id = "reading_habits.leisurely"
+dimension = "reading_habits"
+order = 20
+name_zh = "常规"
+name_en = "Leisurely"
+description_zh = "读珍珠的概率适中"
+description_en = "Reads at a moderate pace"
+
+[styles.values]
+"oracle.reading.start_probability" = 0.25
+"oracle.reading.interval_min_seconds" = 15.0
+"oracle.reading.interval_max_seconds" = 35.0
+"oracle.reading.drift_probability" = 0.65
+"oracle.reading.drift_delay_min_seconds" = 18.0
+"oracle.reading.drift_delay_max_seconds" = 32.0
+"oracle.reading.drift_interval_min_seconds" = 30.0
+"oracle.reading.drift_interval_max_seconds" = 55.0
+"oracle.reading.avoidance_probability" = 0.25
+"oracle.reading.notice_min_seconds" = 1.2
+"oracle.reading.notice_max_seconds" = 2.2
+"oracle.reading.observe_min_seconds" = 40.0
+"oracle.reading.observe_max_seconds" = 65.0
+"oracle.reading.playback_min_seconds" = 75.0
+"oracle.reading.playback_max_seconds" = 110.0
+"oracle.reading.eye_open_probability" = 0.1
+"oracle.reading.matrix_probability" = 0.5
+"oracle.pearl_playback_probability" = 0.25
+
+[[styles]]
+id = "reading_habits.studious"
+dimension = "reading_habits"
+order = 30
+name_zh = "经常阅读"
+name_en = "Studious"
+description_zh = "更常读珍珠，阅读时间也较长"
+description_en = "Reads more frequently"
+
+[styles.values]
+"oracle.reading.start_probability" = 0.55
+"oracle.reading.interval_min_seconds" = 3.0
+"oracle.reading.interval_max_seconds" = 10.0
+"oracle.reading.drift_probability" = 0.9
+"oracle.reading.drift_delay_min_seconds" = 10.0
+"oracle.reading.drift_delay_max_seconds" = 20.0
+"oracle.reading.drift_interval_min_seconds" = 15.0
+"oracle.reading.drift_interval_max_seconds" = 30.0
+"oracle.reading.avoidance_probability" = 0.5
+"oracle.reading.notice_min_seconds" = 0.6
+"oracle.reading.notice_max_seconds" = 1.2
+"oracle.reading.observe_min_seconds" = 65.0
+"oracle.reading.observe_max_seconds" = 100.0
+"oracle.reading.playback_min_seconds" = 100.0
+"oracle.reading.playback_max_seconds" = 160.0
+"oracle.reading.eye_open_probability" = 0.18
+"oracle.reading.matrix_probability" = 0.5
+"oracle.pearl_playback_probability" = 0.35
+
+# 珍珠互动方式 - pearl_interaction - 8 个参数
+
+[[styles]]
+id = "pearl_interaction.recall"
+dimension = "pearl_interaction"
+order = 10
+name_zh = "移来珍珠"
+name_en = "Bring pearls close"
+description_zh = "倾向于将珍珠移动到身边查看"
+description_en = "Usually stays still and recalls fixed pearls for close reading"
+
+[styles.values]
+"oracle.reading.approach_weight" = 10.0
+"oracle.reading.recall_weight" = 85.0
+"oracle.reading.orbit_weight" = 5.0
+"oracle.reading.observe_distance" = 45.0
+"oracle.reading.recall_distance" = 36.0
+"oracle.pearl_matrix_avoid_radius" = 80.0
+"oracle.pearl_follow_width" = 300.0
+"oracle.pearl_follow_height" = 220.0
+
+[[styles]]
+id = "pearl_interaction.approach"
+dimension = "pearl_interaction"
+order = 20
+name_zh = "靠近珍珠"
+name_en = "Move closer to inspect"
+description_zh = "倾向于移动到珍珠附近查看"
+description_en = "Usually approaches fixed pearls and stops at a comfortable distance"
+
+[styles.values]
+"oracle.reading.approach_weight" = 70.0
+"oracle.reading.recall_weight" = 25.0
+"oracle.reading.orbit_weight" = 5.0
+"oracle.reading.observe_distance" = 55.0
+"oracle.reading.recall_distance" = 40.0
+"oracle.pearl_matrix_avoid_radius" = 80.0
+"oracle.pearl_follow_width" = 440.0
+"oracle.pearl_follow_height" = 320.0
+
+[[styles]]
+id = "pearl_interaction.orbit"
+dimension = "pearl_interaction"
+order = 30
+name_zh = "靠近并环绕珍珠"
+name_en = "Observe around pearls"
+description_zh = "倾向于移动到珍珠附近，并绕圈查看"
+description_en = "Favors feasible local arcs around fixed pearls with a wider following area"
+
+[styles.values]
+"oracle.reading.approach_weight" = 15.0
+"oracle.reading.recall_weight" = 20.0
+"oracle.reading.orbit_weight" = 65.0
+"oracle.reading.observe_distance" = 60.0
+"oracle.reading.recall_distance" = 42.0
+"oracle.pearl_matrix_avoid_radius" = 80.0
+"oracle.pearl_follow_width" = 480.0
+"oracle.pearl_follow_height" = 360.0

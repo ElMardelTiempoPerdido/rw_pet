@@ -18,7 +18,7 @@ from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog, _ParameterF
 from rw_creature_pet.oracle.ui.form_layout import ContentForm
 from rw_creature_pet.oracle.ui.settings_style import PixelRuleThin, apply_settings_style
 from rw_creature_pet.settings_store import SettingsStore
-from tests.oracle.character_fixture import isolate_characters
+from tests.oracle.character_fixture import geometry_assets, isolate_characters
 
 
 class SettingsSectionTests(unittest.TestCase):
@@ -50,7 +50,7 @@ class SettingsSectionTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def dialog(self):
-        d = OracleSettingsDialog(self.config, self.store, assets=object())
+        d = OracleSettingsDialog(self.config, self.store, assets=geometry_assets())
         self.widgets.append(d)
         self.enterContext(patch.object(d, 'space_assessment', return_value=None))
         d.resize(960, 1000)

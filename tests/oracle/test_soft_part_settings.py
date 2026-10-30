@@ -24,7 +24,7 @@ from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.presets.library import AppearanceLibrary
 from rw_creature_pet.presets.profile_library import ProfileLibrary
 from rw_creature_pet.settings_store import SettingsStore
-from tests.oracle.character_fixture import isolate_characters
+from tests.oracle.character_fixture import geometry_assets, isolate_characters
 
 
 PREFIX = 'oracle.custom_appearance.soft_part_1'
@@ -61,7 +61,7 @@ class SoftPartSettingsTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def dialog(self, config=None):
-        d = OracleSettingsDialog(config or self.config, self.store, assets=object())
+        d = OracleSettingsDialog(config or self.config, self.store, assets=geometry_assets())
         self.dialogs.append(d)
         self.enterContext(patch.object(d, 'space_assessment', return_value=None))
         return d

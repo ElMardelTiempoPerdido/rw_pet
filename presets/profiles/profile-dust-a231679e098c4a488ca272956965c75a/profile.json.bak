@@ -3,7 +3,7 @@
   "version": 2,
   "id": "296457e8-88c0-4b61-93ed-59ebb951ca92",
   "name": "dust",
-  "updated_at": "2026-10-27T06:52:00.455049+00:00",
+  "updated_at": "2026-10-30T06:08:07.187677+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -16,6 +16,36 @@
       "antigravity_duration_seconds": 300.0,
       "antigravity_probability": 0.08,
       "base_speed": 2.8,
+      "behavior_styles": {
+        "daily_activity": {
+          "id": "",
+          "version": ""
+        },
+        "drag_reactions": {
+          "id": "drag_reactions.lively",
+          "version": "v1:6494060b8c162768077e255c962eb35d26ced1a9927a1abd367638dce7e3ea38"
+        },
+        "drift": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_attention": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_avoidance": {
+          "id": "",
+          "version": ""
+        },
+        "pearl_interaction": {
+          "id": "",
+          "version": ""
+        },
+        "reading_habits": {
+          "id": "",
+          "version": ""
+        }
+      },
       "cross_edge_probability": 0.05,
       "daily_activity": {
         "cross_edge_check_seconds": 20.0,
@@ -33,15 +63,45 @@
         "move_min_distance": 60.0,
         "move_weight": 35.0
       },
-      "drag_projection_cooldown_seconds": 45.0,
-      "drag_projection_probability": 0.0,
+      "drag_projection_cooldown_seconds": 60.0,
+      "drag_projection_probability": 0.18,
       "drag_reactions": {
-        "alternating_probability": 0.47,
+        "alternating_probability": 0.45,
         "enabled": true,
-        "eye_open_probability": 0.65,
-        "flutter_probability": 0.85,
-        "gesture_probability": 0.9,
-        "voice_probability": 0.55
+        "eye_delay_max_seconds": 0.4,
+        "eye_delay_min_seconds": 0.0,
+        "eye_duration_max_seconds": 3.0,
+        "eye_duration_min_seconds": 1.5,
+        "eye_interval_max_seconds": 2.0,
+        "eye_interval_min_seconds": 0.9,
+        "eye_open_probability": 0.7,
+        "flutter_probability": 0.9,
+        "flutter_sync_probability": 0.3,
+        "gesture_delay_max_seconds": 1.1,
+        "gesture_delay_min_seconds": 0.2,
+        "gesture_duration_max_seconds": 3.4,
+        "gesture_duration_min_seconds": 1.8,
+        "gesture_interval_max_seconds": 1.0,
+        "gesture_interval_min_seconds": 0.35,
+        "gesture_max_amplitude": 1.0,
+        "gesture_min_amplitude": 0.25,
+        "gesture_probability": 0.95,
+        "gesture_speed": 1.2,
+        "projection_delay_max_seconds": 1.5,
+        "projection_delay_min_seconds": 0.5,
+        "projection_duration_max_seconds": 10.0,
+        "projection_duration_min_seconds": 8.0,
+        "projection_frame_seconds": 0.375,
+        "projection_interval_max_seconds": 1.5,
+        "projection_interval_min_seconds": 0.6,
+        "projection_lift_delay_seconds": 0.35,
+        "projection_move_max_seconds": 1.6,
+        "projection_move_min_seconds": 0.65,
+        "voice_delay_max_seconds": 2.5,
+        "voice_delay_min_seconds": 0.2,
+        "voice_interval_max_seconds": 6.0,
+        "voice_interval_min_seconds": 3.0,
+        "voice_probability": 0.4
       },
       "drift": {
         "bout_max_seconds": 10.0,
@@ -113,14 +173,35 @@
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
+        "approach_weight": 35.0,
+        "avoidance_probability": 0.35,
+        "drift_delay_max_seconds": 24.0,
+        "drift_delay_min_seconds": 12.0,
+        "drift_interval_max_seconds": 40.0,
+        "drift_interval_min_seconds": 20.0,
+        "drift_probability": 1.0,
+        "eye_open_probability": 0.1,
+        "interval_max_seconds": 0.0,
+        "interval_min_seconds": 0.0,
+        "matrix_probability": 0.5,
+        "notice_max_seconds": 1.5,
+        "notice_min_seconds": 0.9,
+        "observe_distance": 50.0,
+        "observe_max_seconds": 60.0,
+        "observe_min_seconds": 40.0,
+        "orbit_weight": 30.0,
+        "playback_max_seconds": 120.0,
+        "playback_min_seconds": 90.0,
+        "recall_distance": 38.0,
+        "recall_weight": 35.0,
         "start_probability": 0.25
       },
       "voice": "none"
     }
   },
-  "state": "history/state-389b7be353ce46388e389215f16c7e45.json",
+  "state": "history/state-fe6706fdfac448df87902be63109e95a.json",
   "appearance": {
     "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
-    "path": "appearance/389b7be353ce46388e389215f16c7e45/appearance.json"
+    "path": "appearance/fe6706fdfac448df87902be63109e95a/appearance.json"
   }
 }

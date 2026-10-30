@@ -63,6 +63,48 @@ class DailyActivityConfig:
 class ReadingConfig:
     # 普通停留后的读珠选择，与停留 / 移动 / 冥想的相对权重独立
     start_probability: float = .25
+    interval_min_seconds: float = 0.
+    interval_max_seconds: float = 0.
+    drift_probability: float = 1.
+    drift_delay_min_seconds: float = 12.
+    drift_delay_max_seconds: float = 24.
+    drift_interval_min_seconds: float = 20.
+    drift_interval_max_seconds: float = 40.
+    avoidance_probability: float = .35
+    notice_min_seconds: float = .9
+    notice_max_seconds: float = 1.5
+    observe_min_seconds: float = 40.
+    observe_max_seconds: float = 60.
+    playback_min_seconds: float = 90.
+    playback_max_seconds: float = 120.
+    eye_open_probability: float = .1
+    matrix_probability: float = .5
+    approach_weight: float = 35.
+    recall_weight: float = 35.
+    orbit_weight: float = 30.
+    observe_distance: float = 50.
+    recall_distance: float = 38.
 
     def __post_init__(self):
-        validate_number('oracle.reading.start_probability', self.start_probability, 0, 1)
+        prefix = 'oracle.reading.'
+        for field in fields(self):
+            name = field.name
+            if name.endswith('_probability'):
+                limits = (0, 1)
+            elif name.endswith('_weight'):
+                limits = (0, 100)
+            elif name == 'observe_distance':
+                limits = (32, 150)
+            elif name == 'recall_distance':
+                limits = (30, 150)
+            elif name.startswith('interval_'):
+                limits = (0, 3600)
+            else:
+                limits = (.1, 3600)
+            validate_number(prefix+name, getattr(self, name), *limits)
+        for field in fields(self):
+            name = field.name
+            if '_min_' in name:
+                validate_range(prefix+name, getattr(self, name), getattr(self, name.replace('_min_', '_max_')))
+        if self.approach_weight+self.recall_weight+self.orbit_weight <= 0:
+            raise ValueError('靠近、召近和绕珠权重不能同时为 0')

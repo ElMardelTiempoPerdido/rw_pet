@@ -7,6 +7,7 @@
 | 白蜥蜴外观参数与原版依据 | [lizard/appearance.md](lizard/appearance.md) |
 | 生物 ID / 原版随机参数兼容计划 | [lizard/random-id-compatibility.md](lizard/random-id-compatibility.md) |
 | Oracle / Bell 的操作、外观、行为、珍珠、配置与验证记录 | [oracle/README.md](oracle/README.md) |
+| 拖动反应与珍珠互动的角色参数、默认值及生效边界 | [行为参数](oracle/behavior-parameters.md) |
 | 默认 TOML、用户配置升级与设置面板初始值 | [设置升级说明](settings-upgrades.md) |
 | 外观、角色设定与本机字段的归属登记和覆盖检查 | [配置字段归属](preset-field-scopes.md) |
 | 游戏本体、DLC、随包与用户素材的来源、加载条件及关联设置 | [资源归属与设置影响](resource-catalog.md) |

@@ -16,13 +16,13 @@ class OracleEyes:
         self.openness = self.previous_openness = 0.
         self.revision = 0
 
-    def begin_observation(self, *, restart=False):
+    def begin_observation(self, *, restart=False, probability=None):
         if not self.enabled:
             return
         if self.observing and not restart:
             return
         self.observing = True
-        self.target = float(self.random.random() < self.OPEN_PROBABILITY)
+        self.target = float(self.random.random() < (self.OPEN_PROBABILITY if probability is None else probability))
 
     def end_observation(self):
         self.observing = False

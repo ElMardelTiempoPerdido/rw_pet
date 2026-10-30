@@ -10,7 +10,9 @@ from .soft_part_config import SOFT_PART_FIELDS, SoftPart
 from .cape_config import Cape
 from .clothing_config import CLOTHING_DECAL_FIELDS, ClothingDecal
 from .behavior_config import DailyActivityConfig, ReadingConfig
+from .drag_reaction_config import DragReactionConfig
 from .drift_config import DriftConfig
+from .style_config import BehaviorStyleSelections
 from .mouse_avoidance_config import MouseAvoidanceConfig
 from .audio.voice import VOICE_CLIPS, legacy_voice
 from dataclasses import dataclass, fields, replace
@@ -89,26 +91,6 @@ class OracleColors:
             value = getattr(self, field.name)
             if not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value):
                 raise ValueError(Message('oracle.colors.{value0} 必须为 #RRGGBB 颜色', value0=field.name))
-
-
-@dataclass(frozen=True, slots=True)
-class DragReactionConfig:
-    enabled: bool = True
-    gesture_probability: float = .90
-    flutter_probability: float = .85  # 手势触发后：85% 双手动作 / 15% 单手抗议。
-    alternating_probability: float = .47  # 双手动作内部：47% 固定交替，其余随机扑腾。
-    eye_open_probability: float = .65
-    voice_probability: float = .55  # 与手势、睁眼独立；窗口层消费播放请求。
-
-    def __post_init__(self):
-        if type(self.enabled) is not bool:
-            raise ValueError('oracle.drag_reactions.enabled 必须为布尔值')
-        for name in ('gesture_probability', 'flutter_probability', 'alternating_probability',
-                     'eye_open_probability', 'voice_probability'):
-            value = getattr(self, name)
-            if (isinstance(value, bool) or not isinstance(value, (int, float))
-                    or not isfinite(value) or not 0 <= value <= 1):
-                raise ValueError(Message('oracle.drag_reactions.{value0} 必须在 0～1 之间', value0=name))
 
 
 def migrate_shoulder_width(data):
@@ -284,12 +266,15 @@ class OracleConfig:
     drag_reactions: DragReactionConfig = DragReactionConfig()
     voice: str = 'bell'  # 角色行为选项，与主体外观、眼睛和手臂能力无关
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
+    behavior_styles: BehaviorStyleSelections = BehaviorStyleSelections()
     daily_activity: DailyActivityConfig = DailyActivityConfig()
     reading: ReadingConfig = ReadingConfig()
     drift: DriftConfig = DriftConfig()
     mouse_avoidance: MouseAvoidanceConfig = MouseAvoidanceConfig()
 
     def __post_init__(self):
+        if not isinstance(self.behavior_styles, BehaviorStyleSelections):
+            raise ValueError("Invalid behavior style selections")
         if not isinstance(self.drift, DriftConfig) or not isinstance(self.mouse_avoidance, MouseAvoidanceConfig):
             raise ValueError('漫游或鼠标躲避配置无效')
         if not isinstance(self.daily_activity, DailyActivityConfig) or not isinstance(self.reading, ReadingConfig):
@@ -432,6 +417,7 @@ class OracleConfig:
         data['outfit_settings'] = OutfitSettings.from_mapping(data.get('outfit_settings', {}))
         data['daily_activity'] = DailyActivityConfig(**data.get('daily_activity', {}))
         data['reading'] = ReadingConfig(**data.get('reading', {}))
+        data['behavior_styles'] = BehaviorStyleSelections.from_mapping(data.get('behavior_styles', {}))
         data['drift'] = DriftConfig(**data.get('drift', {}))
         data['mouse_avoidance'] = MouseAvoidanceConfig(**data.get('mouse_avoidance', {}))
         return cls(**data)

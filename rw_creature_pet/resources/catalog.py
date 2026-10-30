@@ -48,6 +48,8 @@ class Resource:
     sources: tuple[Source, ...]
     cache: str = ''
     notes: str = ''
+    unavailable_message: str = ''
+    recovery_hint: str = ''
 
 
 @dataclass(frozen=True)
@@ -163,7 +165,7 @@ def _record(cls, value, location):
                 continue
             if not isinstance(item, str):
                 raise CatalogError(f'{location}.{field.name} 必须为字符串')
-            if field.name not in ('notes', 'cache') and not item.strip():
+            if field.name not in ('notes', 'cache', 'unavailable_message', 'recovery_hint') and not item.strip():
                 raise CatalogError(f'{location}.{field.name} 不可为空')
     return result
 

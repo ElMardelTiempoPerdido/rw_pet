@@ -8,6 +8,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
+from tests.oracle.character_fixture import geometry_assets
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.config import DragReactionConfig, OracleColors
@@ -55,7 +56,7 @@ class ProfilePresetUiTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def dialog(self, config=None):
-        dialog = OracleSettingsDialog(config or self.config, self.store, assets=object())
+        dialog = OracleSettingsDialog(config or self.config, self.store, assets=geometry_assets())
         # 此组验证手动保存边界；默认开启的自动保存由 test_preset_workflow 覆盖
         dialog.preset_workflow.state.autosave = False
         dialog.personal_controls.autosave.blockSignals(True)

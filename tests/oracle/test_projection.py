@@ -56,7 +56,7 @@ class ProjectionTests(unittest.TestCase):
         self.assertFalse(p.try_start(scene), '袖根物理连接还在收势时不能开始投影')
         for _ in range(15):
             scene.step()
-        r.gesture_wait = 0
+        r.projection_wait = 0
         scene.step()
         self.assertTrue(p.busy)
         self.assertIsNone(r.gesture)

@@ -17,7 +17,7 @@ from rw_creature_pet.oracle.characters import PRINCE_COLOR_NAMES
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.presets.common import replace_fields, set_value
-from tests.oracle.character_fixture import isolate_characters
+from tests.oracle.character_fixture import geometry_assets, isolate_characters
 
 
 PERCENTAGES = {
@@ -34,6 +34,10 @@ PERCENTAGES = {
     'oracle.drag_reactions.gesture_probability', 'oracle.drag_reactions.flutter_probability',
     'oracle.drag_reactions.alternating_probability', 'oracle.drag_reactions.eye_open_probability',
     'oracle.drag_reactions.voice_probability',
+    'oracle.drag_reactions.gesture_min_amplitude', 'oracle.drag_reactions.gesture_max_amplitude',
+    'oracle.drag_reactions.flutter_sync_probability',
+    'oracle.reading.drift_probability', 'oracle.reading.avoidance_probability',
+    'oracle.reading.eye_open_probability', 'oracle.reading.matrix_probability',
     'oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve',
 }
 
@@ -560,7 +564,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         # 重置后继续编辑；其余默认字段保留精度，保存失败时也不清空草稿。
         dialog.controls['audio.volume'].setValue(23)
         expected = replace(expected, audio=replace(expected.audio, volume=.23))
-        dialog.assets = object()
+        dialog.assets = geometry_assets()
         with patch.object(self.store, 'save', side_effect=PermissionError('locked')):
             dialog.save()
         self.assertEqual(dialog.candidate(), expected)

@@ -157,6 +157,8 @@ def make_bell_voice_player(config, config_path=None, parent=None, *, initialize=
 def prepare_bell_voice(config, config_path=None, *, initialize=True):
     """只准备文件，不创建播放设备或 QObject，可在设置窗口的后台任务中运行。"""
     paths, error = {}, ''
+    if config.oracle.voice == 'none':
+        return paths, error
     try:
         directory = config.oracle.voice_directory
         if directory != 'auto':

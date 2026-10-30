@@ -2,11 +2,14 @@
 from PySide6.QtWidgets import QLabel, QSizePolicy
 from ..characters import CHARACTERS
 from .inputs import WheelSafeComboBox
+from .behavior_styles import BehaviorStyles
 
 from .settings_style import NOTE_STYLE, PixelRuleThin
 from .daily_activity_settings import build_daily_activity_settings
 from .drift_settings import build_drift_settings
 from .mouse_settings import build_mouse_avoidance_settings
+from .drag_settings import build_drag_timing_settings, sync_drag_timing_dependencies
+from .reading_settings import build_reading_settings, build_pearl_interaction_settings, sync_reading_dependencies
 
 
 DRAG_PROBABILITIES = (
@@ -19,6 +22,8 @@ DRAG_PROBABILITIES = (
 
 
 def build_behavior_settings(dialog, form, config):
+    root = form
+    dialog.behavior_styles = styles = BehaviorStyles(dialog)
     o, interaction = config.oracle, config.interaction
     voice = WheelSafeComboBox()
     voice.addItem('bell', 'bell')
@@ -30,24 +35,27 @@ def build_behavior_settings(dialog, form, config):
     voice.currentIndexChanged.connect(dialog.sync_dependencies)
     form.addRow(PixelRuleThin())
     dialog.section_heading(form, '移动与漫游')
+    form = styles.add('daily_activity', root)
     left, right = dialog.two_columns(form)
     dialog.spin(left, '通常移动速度', 'oracle.float_speed', o.float_speed, .3, 2., decimals=2, step=.1)
     dialog.spin(right, '底座滑动速度', 'oracle.base_speed', o.base_speed, 1.5, 4., decimals=2, step=.1)
     left, right = dialog.two_columns(form)
     dialog.spin(left, '跨到相邻边概率', 'oracle.cross_edge_probability', o.cross_edge_probability * 100,
                 0, 100, decimals=1, suffix=' %')
-    dialog.spin(right, '反重力漫游概率', 'oracle.antigravity_probability', o.antigravity_probability * 100,
+    build_daily_activity_settings(dialog, form, o.daily_activity)
+    form = styles.add('drift', root)
+    left, right = dialog.two_columns(form)
+    dialog.spin(left, '反重力漫游概率', 'oracle.antigravity_probability', o.antigravity_probability * 100,
                 0, 100, decimals=1, suffix=' %')
     left, right = dialog.two_columns(form)
     dialog.spin(left, '漫游移动速度', 'oracle.drift_speed', o.drift_speed, .3, 1.8, decimals=2, step=.1)
     dialog.spin(right, '漫游时长', 'oracle.antigravity_duration_seconds', o.antigravity_duration_seconds,
                 1, 3600, decimals=1, suffix=' 秒')
-    build_daily_activity_settings(dialog, form, o.daily_activity)
     build_drift_settings(dialog, form, o.drift)
 
-    form.addRow(PixelRuleThin())
-    dialog.section_heading(form, '鼠标观察与避让')
-    dialog.check(form, '人偶可能会躲避鼠标', 'interaction.hover_avoidance_enabled', interaction.hover_avoidance_enabled)
+    root.addRow(PixelRuleThin())
+    dialog.section_heading(root, '鼠标观察与避让')
+    form = styles.add('mouse_attention', root)
     left, right = dialog.two_columns(form)
     dialog.spin(left, '面向鼠标概率', 'interaction.hover_probability', interaction.hover_probability * 100,
                 0, 100, decimals=1, suffix=' %')
@@ -63,11 +71,14 @@ def build_behavior_settings(dialog, form, config):
     hover_note.setWordWrap(True)
     hover_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     form.addRow(hover_note)
+    form = styles.add('mouse_avoidance', root)
+    dialog.check(form, '人偶可能会躲避鼠标', 'interaction.hover_avoidance_enabled', interaction.hover_avoidance_enabled)
     build_mouse_avoidance_settings(dialog, form, o.mouse_avoidance)
     dialog.controls['interaction.hover_avoidance_enabled'].toggled.connect(dialog.sync_dependencies)
 
-    form.addRow(PixelRuleThin())
-    dialog.section_heading(form, '拖动反应')
+    root.addRow(PixelRuleThin())
+    dialog.section_heading(root, '拖动反应')
+    form = styles.add('drag_reactions', root)
     reaction = o.drag_reactions
     prefix = 'oracle.drag_reactions.'
     dialog.check(form, '启用拖动反应', prefix+'enabled', reaction.enabled)
@@ -84,28 +95,35 @@ def build_behavior_settings(dialog, form, config):
                 0, 100, decimals=1, suffix=' %')
     dialog.spin(right, '拖动投影冷却时间', 'oracle.drag_projection_cooldown_seconds', o.drag_projection_cooldown_seconds,
                 0, 3600, decimals=1, suffix=' 秒')
+    build_drag_timing_settings(dialog, form, reaction)
     for key in (prefix+'enabled', prefix+'gesture_probability', prefix+'flutter_probability',
+                prefix+'alternating_probability', prefix+'eye_open_probability', prefix+'voice_probability',
                 'oracle.drag_projection_probability'):
         control = dialog.controls[key]
         signal = control.toggled if key.endswith('enabled') else control.valueChanged
         signal.connect(dialog.sync_dependencies)
 
-    form.addRow(PixelRuleThin())
-    dialog.section_heading(form, '珍珠互动')
+    root.addRow(PixelRuleThin())
+    dialog.section_heading(root, '珍珠互动')
+    form = styles.add('reading_habits', root)
     left, _ = dialog.two_columns(form)
     dialog.spin(left, '停留后读珠概率', 'oracle.reading.start_probability', o.reading.start_probability * 100,
                 0, 100, decimals=1, suffix=' %')
     dialog.controls['oracle.reading.start_probability'].setToolTip(
         '普通停留结束且未选择跨边或漫游时，开始读珠的概率；不影响漫游期间、鼠标避让期间或手动触发的读珠')
-    left, right = dialog.two_columns(form)
+    build_reading_settings(dialog, form, o.reading)
+    left, _ = dialog.two_columns(form)
+    dialog.spin(left, '珍珠播放动画概率', 'oracle.pearl_playback_probability', o.pearl_playback_probability * 100,
+                0, 100, suffix=' %')
+    dialog.controls['oracle.pearl_playback_probability'].setToolTip(
+        '人偶召近矩阵珠阅读时，触发播放动画的概率；只有特效，不播放音乐')
+    form = styles.add('pearl_interaction', root)
+    build_pearl_interaction_settings(dialog, form, o.reading)
+    left, _ = dialog.two_columns(form)
     dialog.spin(left, '人偶避让矩阵半径', 'oracle.pearl_matrix_avoid_radius', o.pearl_matrix_avoid_radius,
                 0, 300, suffix=' px')
     dialog.controls['oracle.pearl_matrix_avoid_radius'].setToolTip(
         '*人偶会尽量与矩阵珍珠保持此距离，以避免重叠')
-    dialog.spin(right, '珍珠播放动画概率', 'oracle.pearl_playback_probability', o.pearl_playback_probability * 100,
-                0, 100, suffix=' %')
-    dialog.controls['oracle.pearl_playback_probability'].setToolTip(
-        '*人偶将珍珠拉进阅读时，触发播放音乐动画的概率（只有特效，并不会播放音乐')
     left, right = dialog.two_columns(form)
     for column, label, name in ((left, '珍珠跟随范围宽度', 'pearl_follow_width'),
                                (right, '珍珠跟随范围高度', 'pearl_follow_height')):
@@ -131,3 +149,7 @@ def sync_behavior_dependencies(dialog):
     c[prefix+'eye_open_probability'].setEnabled(enabled and character.has_eyes)
     c['interaction.hover_open_probability'].setEnabled(character.has_eyes)
     c[prefix+'voice_probability'].setEnabled(enabled and c['oracle.voice'].currentData() != 'none')
+    sync_drag_timing_dependencies(dialog, gestures=gestures,
+        eyes=enabled and character.has_eyes, voice=enabled and c['oracle.voice'].currentData() != 'none',
+        projection=enabled and character.has_hands and c['oracle.drag_projection_probability'].value() > 0)
+    sync_reading_dependencies(dialog, character)

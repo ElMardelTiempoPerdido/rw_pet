@@ -13,6 +13,7 @@ from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.behavior.controller import Activity
 from rw_creature_pet.oracle.config import OracleConfig
+from rw_creature_pet.oracle.behavior_config import ReadingConfig
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
 from rw_creature_pet.oracle.behavior.eyes import OracleEyes
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
@@ -21,8 +22,8 @@ from rw_creature_pet.shared.timing import FixedStepper
 
 
 class OracleEyesTests(unittest.TestCase):
-    def scene(self):
-        scene = OracleScene()
+    def scene(self, **settings):
+        scene = OracleScene(OracleConfig(**settings))
         scene.appearance.step = lambda scene: None
         return scene
 
@@ -50,9 +51,8 @@ class OracleEyesTests(unittest.TestCase):
 
     def test_both_pearl_cycles_hold_one_decision_and_leave_navigation_unchanged(self):
         for mode in ('approach', 'recall'):
-            closed, opened = self.scene(), self.scene()
-            closed.eyes.OPEN_PROBABILITY = 0.
-            opened.eyes.OPEN_PROBABILITY = 1.
+            closed = self.scene(reading=ReadingConfig(eye_open_probability=0))
+            opened = self.scene(reading=ReadingConfig(eye_open_probability=1))
             for scene in (closed, opened):
                 scene.observe_pearl(mode)
             state = opened.eyes.random.getstate()

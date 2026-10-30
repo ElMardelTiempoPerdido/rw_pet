@@ -64,10 +64,10 @@ class PresetPanel(QWidget):
         layout.addLayout(actions)
         if share_actions is not None:
             layout.addLayout(share_actions)
-        hint = QLabel(self.texts['hint'])
-        hint.setStyleSheet(NOTE_STYLE)
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        # hint = QLabel(self.texts['hint'])
+        # hint.setStyleSheet(NOTE_STYLE)
+        # hint.setWordWrap(True)
+        # layout.addWidget(hint)
         self.warning = QLabel()
         self.status = QLabel()
         for label in (self.warning, self.status):

@@ -12,6 +12,7 @@ from PySide6.QtGui import QImage, QColor
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QMenu
 
+from tests.oracle.character_fixture import geometry_assets
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.ui.preset_dialogs import AppearanceImportDialog, PresetSaveDialog
@@ -56,7 +57,7 @@ class PresetWorkflowTests(unittest.TestCase):
         language_manager().set_language('zh')
 
     def dialog(self, config=None, **kwargs):
-        dialog = OracleSettingsDialog(config or self.config, self.store, assets=kwargs.pop('assets', object()), **kwargs)
+        dialog = OracleSettingsDialog(config or self.config, self.store, assets=kwargs.pop('assets', geometry_assets()), **kwargs)
         self.dialogs.append(dialog)
         self.enterContext(patch.object(dialog, 'space_assessment', return_value=None))
         return dialog

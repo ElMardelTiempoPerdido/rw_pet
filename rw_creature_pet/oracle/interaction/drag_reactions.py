@@ -22,6 +22,7 @@ class OracleDragReactions:
         self.config = config
         self.random = Random(seed)
         self.eye_random = Random(seed+1)
+        self.eye_timing_random = Random(seed+4)
         self.voice_random = Random(seed+2)
         self.voice = VoiceCueChannel()
         self.projection = OracleProjection(seed+3)
@@ -29,6 +30,7 @@ class OracleDragReactions:
         self.gesture = None
         self.weight = self.elapsed = self.duration = self.phase = 0.
         self.gesture_wait = self.eye_wait = self.voice_wait = 0.
+        self.projection_wait = 0.
         self.eye_remaining = self.motion = 0.
         self.frequency = 1.
         self.flutter_phases = [0., 0.]
@@ -59,16 +61,22 @@ class OracleDragReactions:
         self.gesture = None
         self.weight = 0.
         # 先保留被牵拉时的自然惯性，再尝试主动反应；与语音延迟独立抽签。
-        self.gesture_wait = self.random.uniform(.15, 1.5)
-        self._try_eyes(scene)
-        # 语音与手势不共用随机流；每次抓起先随机等 0～3 秒，再独立抽签。
+        self.gesture_wait = self.sample(self.random, 'gesture_delay')
+        self.eye_wait = self.sample(self.eye_timing_random, 'eye_delay')
+        if self.eye_wait == 0:
+            self._try_eyes(scene)
+        self.projection_wait = self.sample(self.projection.random, 'projection_delay')
+        # 语音与手势不共用随机流；每次抓起按配置等待后再独立抽签
         # 沿用反应计时，松手/取消不会留下窗口定时回调或延迟补播。
-        self.voice_wait = self.voice_random.uniform(0., 3.)
+        self.voice_wait = self.sample(self.voice_random, 'voice_delay')
+
+    def sample(self, random, name):
+        return random.uniform(getattr(self.config, name+'_min_seconds'),
+                              getattr(self.config, name+'_max_seconds'))
 
     def end(self, scene, *, cancel=False):
         self.active = False
-        self.gesture_wait = 0.
-        self.voice_wait = 0.
+        self.gesture_wait = self.eye_wait = self.voice_wait = self.projection_wait = 0.
         self.eye_remaining = 0.
         scene.eyes.end_observation()
         self.voice.cancel()
@@ -86,13 +94,15 @@ class OracleDragReactions:
             return
         self.gesture = kind
         self.weight = self.elapsed = 0.
-        self.duration = self.random.uniform(1.4, 2.6)
+        self.duration = self.sample(self.random, 'gesture_duration')
         self.phase = self.random.uniform(0., 2*pi)
-        self.frequency = self.random.uniform(1.15, 1.65)
+        self.frequency = self.random.uniform(1.15, 1.65)*self.config.gesture_speed
         # 每组手势保留一个偏低的抬手上限；小段节奏变化不再把轻摆逐渐推成高举。
         # 比例映射到原目标扇形的下沿～上沿，双手围绕同一次动作意图略有差异。
-        lift = .25+.75*self.random.random()**1.6
-        self.hand_lifts = [max(.2, min(1., lift+self.random.uniform(-.08, .08))) for _ in range(2)]
+        low, high = self.config.gesture_min_amplitude, self.config.gesture_max_amplitude
+        lift = low+(high-low)*self.random.random()**1.6
+        jitter = min(.08, (high-low)*.5)
+        self.hand_lifts = [max(max(0., low-.05), min(high, lift+self.random.uniform(-jitter, jitter))) for _ in range(2)]
         if kind == 'flutter':
             self.flutter_phases = [self.random.uniform(0., 2*pi) for _ in range(2)]
             self.flutter_rates = [self.random.uniform(.8, 1.9) for _ in range(2)]
@@ -109,7 +119,7 @@ class OracleDragReactions:
         self.flutter_wait = self.random.uniform(.35, .9)
         self.flutter_rate_targets = [self.random.uniform(.8, 1.9) for _ in range(2)]
         self.flutter_strength_targets = [self.random.uniform(.7, 1.25) for _ in range(2)]
-        self.flutter_shared_target = 1. if self.random.random() < .35 else 0.
+        self.flutter_shared_target = 1. if self.random.random() < self.config.flutter_sync_probability else 0.
 
     def _step_flutter(self):
         if self.active:
@@ -121,28 +131,25 @@ class OracleDragReactions:
         for i in range(2):
             self.flutter_rates[i] += (self.flutter_rate_targets[i]-self.flutter_rates[i])*.12
             self.flutter_strengths[i] += (self.flutter_strength_targets[i]-self.flutter_strengths[i])*.12
-            self.flutter_phases[i] += 2*pi*self.flutter_rates[i]*self.DT
+            self.flutter_phases[i] += 2*pi*self.flutter_rates[i]*self.config.gesture_speed*self.DT
 
     def _try_gesture(self, scene):
         if not scene.config.character.has_hands:
-            return
-        if self.projection.try_start(scene):
-            self.gesture_wait = self.random.uniform(.45, 1.35)
             return
         if self.random.random() < self.config.gesture_probability:
             kind = 'protest'
             if self.random.random() < self.config.flutter_probability:
                 kind = 'alternating' if self.random.random() < self.config.alternating_probability else 'flutter'
             self.start_gesture(kind, scene)
-        self.gesture_wait = self.random.uniform(.45, 1.35)
+        self.gesture_wait = self.sample(self.random, 'gesture_interval')
 
     def _try_eyes(self, scene):
         if not scene.config.character.has_eyes:
             return
         opened = self.eye_random.random() < self.config.eye_open_probability
         scene.eyes.begin_reaction(opened)
-        self.eye_remaining = self.eye_random.uniform(1.5, 3.) if opened else 0.
-        self.eye_wait = self.eye_remaining+self.eye_random.uniform(.9, 2.)
+        self.eye_remaining = self.sample(self.eye_random, 'eye_duration') if opened else 0.
+        self.eye_wait = self.eye_remaining+self.sample(self.eye_random, 'eye_interval')
 
     def _try_voice(self, source):
         clips = VOICE_CLIPS[source]
@@ -153,7 +160,7 @@ class OracleDragReactions:
             clip = self.voice_random.choice(pool)
             if self.voice.request(VoiceCue(clip.clip_id, clip.duration, 'drag')):
                 self.last_clip = clip.clip_id
-        self.voice_wait = self.voice.remaining+self.voice_random.uniform(1.8, 3.8)
+        self.voice_wait = self.voice.remaining+self.sample(self.voice_random, 'voice_interval')
 
     def sync_capabilities(self, scene):
         character = scene.config.character
@@ -168,6 +175,8 @@ class OracleDragReactions:
                 self.end(scene, cancel=True)
 
     def step(self, scene):
+        if not self.config.enabled and self.active:
+            self.end(scene, cancel=True)
         self.sync_capabilities(scene)
         self.voice.step(self.DT)
         self.projection.step(scene)
@@ -189,18 +198,23 @@ class OracleDragReactions:
         if not self.active:
             return
         if scene.config.character.has_hands and not self.gesturing and not self.projection.busy:
+            # 投影独立计时，但仅在双手空闲时尝试；等待期间不积攒多次播放请求
+            self.projection_wait -= self.DT
+            if self.projection_wait <= 1e-9:
+                self.projection.try_start(scene)
+                self.projection_wait = self.sample(self.projection.random, 'projection_interval')
             self.gesture_wait -= self.DT
-            if self.gesture_wait <= 0:
+            if self.gesture_wait <= 1e-9 and not self.projection.busy:
                 self._try_gesture(scene)
         if self.eye_remaining > 0:
             self.eye_remaining -= self.DT
             if self.eye_remaining <= 0:
                 scene.eyes.end_observation()
         self.eye_wait -= self.DT
-        if self.eye_wait <= 0:
+        if self.eye_wait <= 1e-9:
             self._try_eyes(scene)
         self.voice_wait -= self.DT
-        if self.voice_wait <= 0:
+        if self.voice_wait <= 1e-9:
             self._try_voice(scene.config.voice)
 
     def hand_weight(self, index):

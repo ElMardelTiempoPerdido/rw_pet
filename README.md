@@ -10,7 +10,7 @@
 
 默认鼠标穿透，从系统托盘右键菜单可以启用接收鼠标输入，此时可使用类似mousedrag mod的效果拖动桌宠
 
-需要本机已安装雨世界及观望者DLC，并在config.toml中配置此目录，用于从原工程中获取部分贴图与音频以初始化桌宠
+需要本机已安装雨世界本体，并在设置或 config.toml 中配置游戏目录，用于读取原版贴图。Downpour 和 Watcher 均非启动必需；Bell 语音需要对应的 Watcher 音频或本地语音片段，资源缺失时只将相关设置标为“不可用”，不阻止桌宠运行。补齐素材后可在设置中点击“重新检查资源”
 
 ---
 
@@ -62,7 +62,7 @@ python run_pet.py --creature oracle
 
 Mouse clicks pass through the pet by default. Right-click the system tray icon to enable mouse input, allowing you to drag the pet similarly to the MouseDrag mod.
 
-A local installation of Rain World and The Watcher DLC is required. The project uses your game installation directory to load or extract the textures and audio needed to initialize the pet.
+A local installation of the Rain World base game is required. Set its directory in Settings or config.toml to load the original textures. Neither Downpour nor The Watcher is required to start the pet. Bell's voice requires the corresponding Watcher audio or local voice clips; missing optional resources only mark the related settings as unavailable. Use "Recheck resources" in Settings after restoring the files.
 
 ### Assets and Copyright
 

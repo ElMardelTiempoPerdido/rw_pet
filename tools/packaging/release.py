@@ -59,6 +59,7 @@ def validate_release(directory):
             reference = get_value({'oracle': original.appearance.oracle}, key)
             if reference:
                 allowed.add(original.appearance.image(reference))
+    allowed.update(root/'presets/behavior_styles'/name for name in ('builtin.toml', 'README.md'))
     for path in root.rglob('*'):
         if path.is_file() and path not in allowed:
             raise ValueError(f'发行包包含用户当前设置或多余文件：{path.relative_to(root)}')
@@ -97,6 +98,10 @@ def build_release(executable, output, *, profiles=None, catalog=None, overrides=
             staging = Path(temporary)/'release'
             staging.mkdir()
             shutil.copy2(executable, staging/executable.name)
+            styles = staging/'presets/behavior_styles'
+            styles.mkdir(parents=True)
+            for filename in ('builtin.toml', 'README.md'):
+                shutil.copy2(ROOT/'presets/behavior_styles'/filename, styles/filename)
             for item in characters:
                 if item['id'] in replacements:
                     preset = replacements[item['id']]

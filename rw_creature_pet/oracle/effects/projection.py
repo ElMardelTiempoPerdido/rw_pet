@@ -97,11 +97,20 @@ class OracleProjection:
         self.elapsed_ticks = self.frame_index = 0
         self.alpha = self.previous_alpha = self.weight = 0.
         self.cooldown = scene.config.drag_projection_cooldown_seconds
-        self.move_wait = self.random.uniform(.65, 1.6)
+        config = scene.config.drag_reactions
+        self.DURATION = self.random.uniform(config.projection_duration_min_seconds,
+                                            config.projection_duration_max_seconds)
+        self.FRAME_TICKS = max(1, round(config.projection_frame_seconds/self.DT))
+        self.LIFT_DELAY = config.projection_lift_delay_seconds
+        self.move_wait = self.move_interval(scene)
         self.switch_wait = 1.
         self.starts += 1
         self.revision += 1
         return True
+
+    def move_interval(self, scene):
+        config = scene.config.drag_reactions
+        return self.random.uniform(config.projection_move_min_seconds, config.projection_move_max_seconds)
 
     def nearest_hand(self, scene):
         body, up = scene.body.chunks[0].position, scene.body.direction
@@ -142,7 +151,7 @@ class OracleProjection:
                 or not obstacles.clear_path(self.position, self.target, self.WIDTH, self.HEIGHT)):
             # 跨越机械臂时直接重定位，不把图片平移穿过它；避免旧位置插值残留。
             self.position = self.previous_position = self.target
-            self.move_wait = self.random.uniform(.65, 1.6)
+            self.move_wait = self.move_interval(scene)
             self.revision += 1
 
     def step(self, scene):
@@ -178,7 +187,7 @@ class OracleProjection:
                     if (self.clearance(candidate, body) >= 28 and
                             self.arm_obstacles.clear_path(self.position, candidate, self.WIDTH, self.HEIGHT)):
                         self.target = candidate
-                self.move_wait = self.random.uniform(.65, 1.6)
+                self.move_wait = self.move_interval(scene)
             delta = self.target-self.position
             self.position = self.region(scene).clamp(self.position+delta*min(.16, 6/max(delta.length(), 1e-9)))
             self.switch_wait = max(0., self.switch_wait-self.DT)

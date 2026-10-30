@@ -11,6 +11,7 @@ use_upx = os.environ.get('RW_PET_BUNDLE_UPX') == '1'
 name = os.environ.get('RW_PET_BUNDLE_NAME', 'BellPet')
 _, fmod_root = get_package_paths('fmod_toolkit')
 datas = [(str(root/'config.toml'), '.'),
+         (str(root/'presets/behavior_styles/builtin.toml'), 'presets/behavior_styles'),
          (str(root/'rw_creature_pet/ico'), 'rw_creature_pet/ico'),
          (str(root/'rw_creature_pet/skin'), 'rw_creature_pet/skin'),
          (str(root/'rw_creature_pet/fonts'), 'rw_creature_pet/fonts'),

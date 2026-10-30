@@ -39,6 +39,8 @@ paths = ["RainWorld_Data/resources.assets"]
 objects = ["Texture2D:rainWorld", "TextAsset:rainWorld"]
 
 [resources.pearl_glyphs]
+unavailable_message = "珍珠字符素材不可用"
+recovery_hint = "请检查游戏文件完整性，然后重新检查资源"
 title = "珍珠单字符投影遮罩"
 origins = ["base_game"]
 delivery = "extract"
@@ -53,6 +55,8 @@ paths = ["RainWorld_Data/resources.assets"]
 objects = ["Texture2D:glyphs"]
 
 [resources.scan_images]
+unavailable_message = "扫描投影图片缺失或损坏"
+recovery_hint = "请检查游戏文件完整性，然后重新检查资源"
 title = "蛞蝓猫脑部扫描投影两帧"
 origins = ["base_game"]
 delivery = "files"
@@ -66,6 +70,8 @@ root = "game"
 paths = ["RainWorld_Data/StreamingAssets/illustrations/aiimg3a.png", "RainWorld_Data/StreamingAssets/illustrations/aiimg3b.png"]
 
 [resources.bell_voice]
+unavailable_message = "Bell 语音资源不可用"
+recovery_hint = "请检查 Watcher 内容或本地 Bell 语音目录，然后重新检查资源"
 title = "Bell 采访语音片段"
 origins = ["watcher"]
 delivery = "resolved"
@@ -87,6 +93,8 @@ objects = ["container basename:rwtw_atalkshow.wav", "AudioClip:RWTW_ATalkShow"]
 notes = "先尝试有效独立 WAV，再查 AssetBundle；这两个路径是加载器规定的候选，不是全部必需文件"
 
 [resources.pearl_playback_curve]
+unavailable_message = "珍珠播放动画数据缺失或损坏"
+recovery_hint = "请重新解压完整的桌宠程序包，无需安装 DLC"
 title = "珍珠播放动画预生成强度曲线"
 origins = ["watcher"]
 delivery = "bundled"
@@ -307,7 +315,7 @@ effect = "unavailable"
 option = "none"
 [settings.voice_controls]
 title = "语音开关、音量与拖动触发概率"
-paths = ["audio.enabled", "audio.volume", "oracle.drag_reactions.voice_probability"]
+paths = ["audio.enabled", "audio.volume", "oracle.drag_reactions.voice_probability", "oracle.drag_reactions.voice_delay_min_seconds", "oracle.drag_reactions.voice_delay_max_seconds", "oracle.drag_reactions.voice_interval_min_seconds", "oracle.drag_reactions.voice_interval_max_seconds"]
 features = ["voice_bell"]
 effect = "related"
 notes = "应按当前选择的语音判断，不硬编码 Watcher；未来新增语音后扩充此关联"
@@ -324,7 +332,7 @@ effect = "related"
 notes = "素材缺失不能关闭摆手与睁眼等计算动作"
 [settings.scan_projection]
 title = "扫描投影概率与冷却"
-paths = ["oracle.drag_projection_probability", "oracle.drag_projection_cooldown_seconds"]
+paths = ["oracle.drag_projection_probability", "oracle.drag_projection_cooldown_seconds", "oracle.drag_reactions.projection_delay_min_seconds", "oracle.drag_reactions.projection_delay_max_seconds", "oracle.drag_reactions.projection_interval_min_seconds", "oracle.drag_reactions.projection_interval_max_seconds", "oracle.drag_reactions.projection_duration_min_seconds", "oracle.drag_reactions.projection_duration_max_seconds", "oracle.drag_reactions.projection_frame_seconds", "oracle.drag_reactions.projection_lift_delay_seconds", "oracle.drag_reactions.projection_move_min_seconds", "oracle.drag_reactions.projection_move_max_seconds"]
 features = ["scan_projection"]
 effect = "unavailable"
 [settings.projection_opacity]
@@ -340,12 +348,12 @@ features = ["pearl_glyphs"]
 effect = "unavailable"
 [settings.pearl_playback]
 title = "珍珠播放概率、气泡大小及颜色"
-paths = ["oracle.pearl_playback_probability", "oracle.pearl_bubble_max_size", "oracle.pearl_bubble_color"]
+paths = ["oracle.pearl_playback_probability", "oracle.pearl_bubble_max_size", "oracle.pearl_bubble_color", "oracle.reading.playback_min_seconds", "oracle.reading.playback_max_seconds"]
 features = ["pearl_playback"]
 effect = "unavailable"
 [settings.pearl_layout]
 title = "珍珠矩阵、环绕、固定珠、卫星珠与普通阅读"
-paths = ["oracle.pearl_matrix_enabled", "oracle.pearl_matrix_count", "oracle.pearl_orbits_enabled", "oracle.pearl_inner_count", "oracle.pearl_outer_count", "oracle.pearl_fixed_count", "oracle.pearl_satellite_count", "oracle.pearl_follow_width", "oracle.pearl_follow_height", "oracle.pearl_matrix_avoid_radius", "oracle.reading.start_probability"]
+paths = ["oracle.pearl_matrix_enabled", "oracle.pearl_matrix_count", "oracle.pearl_orbits_enabled", "oracle.pearl_inner_count", "oracle.pearl_outer_count", "oracle.pearl_fixed_count", "oracle.pearl_satellite_count", "oracle.pearl_follow_width", "oracle.pearl_follow_height", "oracle.pearl_matrix_avoid_radius", "oracle.reading.start_probability", "oracle.reading.interval_min_seconds", "oracle.reading.interval_max_seconds", "oracle.reading.drift_probability", "oracle.reading.drift_delay_min_seconds", "oracle.reading.drift_delay_max_seconds", "oracle.reading.drift_interval_min_seconds", "oracle.reading.drift_interval_max_seconds", "oracle.reading.avoidance_probability", "oracle.reading.notice_min_seconds", "oracle.reading.notice_max_seconds", "oracle.reading.observe_min_seconds", "oracle.reading.observe_max_seconds", "oracle.reading.eye_open_probability", "oracle.reading.matrix_probability", "oracle.reading.approach_weight", "oracle.reading.recall_weight", "oracle.reading.orbit_weight", "oracle.reading.observe_distance", "oracle.reading.recall_distance"]
 features = ["pearls"]
 effect = "related"
 notes = "缺字符投影或播放曲线不应关闭这些功能"

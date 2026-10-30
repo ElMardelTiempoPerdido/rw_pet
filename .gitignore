@@ -8,4 +8,5 @@ build/
 dist/
 presets/migration-archive/
 presets/migration-repair/
+presets/behavior_styles/local.toml
 
