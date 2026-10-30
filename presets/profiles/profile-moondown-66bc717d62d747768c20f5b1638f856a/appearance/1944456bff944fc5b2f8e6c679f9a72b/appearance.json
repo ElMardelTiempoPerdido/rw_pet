@@ -1,9 +1,9 @@
 {
   "type": "rw-creature-pet.appearance",
   "version": 2,
-  "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
-  "name": "moon",
-  "updated_at": "2026-10-27T06:51:57.420895+00:00",
+  "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
+  "name": "moondown",
+  "updated_at": "2026-10-30T11:26:20.553430+00:00",
   "config": {
     "oracle": {
       "body_appearance": "custom",
@@ -109,7 +109,7 @@
           "height": 2.0,
           "image_name": "",
           "image_path": "",
-          "kind": "ellipse",
+          "kind": "triangle",
           "offset_x": 0.0,
           "offset_y": 7.0,
           "rotation": 0.0,
@@ -138,9 +138,9 @@
         "forehead": {
           "enabled": true,
           "image_name": "moon_sigil.png",
-          "image_path": "images/1e186c6295a4f2877aa7dee4439b93e0f883b555911e3aa372262011393aa788.png",
+          "image_path": "images/b8451f77af717f2d509eb5917b52f1e862ca1edc1fec8b9a00397e87e847ca36.png",
           "offset_x": 0.0,
-          "offset_y": -2.0
+          "offset_y": -1.0
         },
         "head_length": 0.8918918918918918,
         "inner_collar_bottom_width": 10.0,
@@ -210,13 +210,13 @@
         "head_shell": "#b9c1c6",
         "inner_robe": "#f3f3f3",
         "joints": "#363842",
-        "pearl": "#d8cdc5",
-        "pearl_glyph": "#85c6ff",
-        "pearl_primary": "#4aa8ff",
-        "pearl_secondary": "#ff9463",
-        "robe_bottom": "#be7882",
-        "robe_top": "#f7bf9c",
-        "skin": "#8dccf3",
+        "pearl": "#e7dbd3",
+        "pearl_glyph": "#899fc6",
+        "pearl_primary": "#9cc2ee",
+        "pearl_secondary": "#f9ce91",
+        "robe_bottom": "#afd3cd",
+        "robe_top": "#f8f7f1",
+        "skin": "#94d4d6",
         "third_eye": "#17629c"
       },
       "outfit": "normal",
@@ -281,22 +281,22 @@
       },
       "pearl_bubble_color": "#ff81b3",
       "prince_colors": {
-        "arm": "#7b7889",
-        "arm_highlight": "#b3afbd",
+        "arm": "#ffffff",
+        "arm_highlight": "#ffffff",
         "beads": "#9cddd8",
         "collar_trim": "#ff949f",
         "eyes": "#050000",
         "head_highlight": "#e0e5e9",
         "head_shell": "#adb3b9",
         "inner_robe": "#ffb7c5",
-        "joints": "#474451",
+        "joints": "#ffffff",
         "pearl": "#d8cdc5",
         "pearl_glyph": "#b6a1cc",
         "pearl_primary": "#b597c9",
         "pearl_secondary": "#889bab",
-        "robe_bottom": "#171620",
-        "robe_top": "#302e3b",
-        "skin": "#34313f",
+        "robe_bottom": "#000000",
+        "robe_top": "#000000",
+        "skin": "#000000",
         "third_eye": "#bc29e7"
       }
     }

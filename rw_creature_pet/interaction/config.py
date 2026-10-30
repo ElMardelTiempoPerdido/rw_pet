@@ -12,13 +12,19 @@ class InteractionConfig:
     hover_probability: float = .60
     hover_open_probability: float = .25
     hover_avoidance_enabled: bool = True
+    petting_enabled: bool = True
+    petting_seconds: float = 1.5
+    petting_grace_seconds: float = .6
 
     def __post_init__(self):
         if type(self.drag_enabled) is not bool:
             raise ValueError('interaction.drag_enabled 必须为布尔值')
         if type(self.hover_avoidance_enabled) is not bool:
             raise ValueError('interaction.hover_avoidance_enabled 必须为布尔值')
-        for name, low, high in (('hover_radius', 1, 2000), ('hover_dwell_seconds', 0, 60),
+        if type(self.petting_enabled) is not bool:
+            raise ValueError('interaction.petting_enabled 必须为布尔值')
+        for name, low, high in (('petting_seconds', .1, 60), ('petting_grace_seconds', 0, 10),
+                                ('hover_radius', 1, 2000), ('hover_dwell_seconds', 0, 60),
                                 ('hover_probability', 0, 1), ('hover_open_probability', 0, 1)):
             value = getattr(self, name)
             if (isinstance(value, bool) or not isinstance(value, (int, float))

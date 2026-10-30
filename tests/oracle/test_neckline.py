@@ -2,7 +2,7 @@
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
-from math import cos, sin, radians
+from math import cos, sin, radians, floor
 import unittest
 from unittest.mock import patch
 
@@ -18,6 +18,63 @@ from rw_creature_pet.shared.geometry import Vec2
 
 
 class NecklineTests(unittest.TestCase):
+    def test_deformed_overlapping_neckline_cutouts_do_not_leave_sleeve_pixels_on_skin(self):
+        # moondown 的宽弧领口与露肩裁剪重叠；记录轻微衣料形变后的前两行
+        # 对合并路径做一次 subtracted，Qt 会把本应移除的区域重新留在袖子上
+        top = ((-4.1425974390986084, -4.74550518277556), (-3.3699033575942394, -4.171142859616452),
+               (-2.540862531592211, -3.8045906382253634), (-1.6764801219972014, -3.5369955376904727),
+               (-.7350515435473426, -3.427226749410579), (.025867052250305278, -3.2919520207809683),
+               (.7881436760783345, -3.2411336372700816), (1.557089172617907, -3.5282982788831987),
+               (2.5658851930893434, -3.925540200702926), (3.3954514056677, -4.204618768564615),
+               (4.274460624964831, -4.802521351262158), (-4.893961169188515, -1.5308342500674144),
+               (-3.9153131197913353, -1.2786825662714136), (-2.857277979493574, -1.178143624995414),
+               (-1.9001350564512904, -1.0654778921909838), (-.9792095989282643, -1.174447597037556),
+               (.11042510884976764, -.930813215959688), (.9187791635877147, -.9527076020677896),
+               (1.8490931182989243, -1.1301024536340947), (2.957199171937418, -1.2332300301286523),
+               (3.8037832551224255, -1.424944902769198), (4.911837785187117, -1.4582242028665178))
+        shape = CustomAppearance(chest_width=10., chest_height=7.5, shoulder_width=6.,
+                                 sleeve_root_width=8., sleeve_cuff_width=9.5, sleeve_cuff_radius=1.5,
+                                 neckline_shape='arc', neckline_width=13., neckline_height=5.5,
+                                 neckline_depth=3., neckline_roundness=.55, neckline_trim_enabled=False,
+                                 inner_robe_enabled=False, robe_length=1.0182889391108962)
+        colors = OracleColors(skin='#00ff00', robe_top='#ff0000', robe_bottom='#ff0000')
+        origin = Vec2(1838., 610.36)
+        for angle in (0., 35., 145.):
+            up = rotate(Vec2(0, -1), radians(angle))
+            scene = OracleScene(OracleConfig(body_appearance='custom', custom_appearance=shape,
+                                             hide_cords=True, physics_backend='python'))
+            for part, pos in zip((*scene.body.chunks, scene.head), (origin, origin-up*9, origin+up*14)):
+                part.position = part.previous_position = pos
+            scene.appearance = OracleAppearance(scene)
+            app = scene.appearance
+            for node, (x, y) in zip(app.cloth, top):
+                node.pin(origin+rotate(Vec2(x, y), radians(angle)))
+            cloth = [p.position for p in app.cloth]
+            opening, _ = neckline_paths(cloth, app._cloth_local, app.CLOTH_DIVS, shape)
+            cutouts = sleeve_neckline_path(cloth, app._cloth_local, app.CLOTH_DIVS, shape, opening)
+            renderer = OracleRenderer(colors=colors)
+            for density in (1., 1.5, 2., 4.):
+                for cached in (False, True):
+                    with self.subTest(angle=angle, density=density, cached=cached):
+                        image = QImage(round(80*density), round(80*density), QImage.Format.Format_ARGB32_Premultiplied)
+                        image.fill(0)
+                        painter = QPainter(image)
+                        painter.scale(density, density)
+                        painter.translate(40-floor(origin.x), 40-floor(origin.y))
+                        renderer.draw_geometry(painter, scene, include_head=False, arm=False, cords=False,
+                                               pearl=False, halo=False, include_front_outfit=False,
+                                               cache_body=cached, raster_scale=density)
+                        painter.end()
+                        # 两肩内三个曾露出袖色的采样点，旋转与缩放后仍在开口内部
+                        for local in (Vec2(-3.5, -4.86), Vec2(-2.5, -3.86), Vec2(3.5, -4.86)):
+                            q = origin+rotate(local, radians(angle))
+                            x = floor((q.x-floor(origin.x)+40)*density)
+                            y = floor((q.y-floor(origin.y)+40)*density)
+                            actual = Vec2((x+.5)/density+floor(origin.x)-40,
+                                          (y+.5)/density+floor(origin.y)-40)
+                            self.assertTrue(cutouts.contains(point(actual)))
+                            self.assertEqual(image.pixelColor(x, y), QColor(colors.skin))
+
     def test_high_neckline_cuts_sleeve_caps_above_the_gown_edge(self):
         colors = OracleColors(skin='#f8c7d7', inner_robe='#a48fd4', robe_top='#2a1f19', robe_bottom='#ff7045')
         shape = CustomAppearance(chest_width=11., chest_height=7.5, shoulder_width=11.,

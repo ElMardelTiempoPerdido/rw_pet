@@ -11,7 +11,7 @@ from shiboken6 import isValid
 from ...shared.desktop import configure_desktop_overlay
 from ...shared.screens import preferred_screen
 from ...shared.paths import PACKAGE_ROOT
-from ...interaction.desktop import DragInputWindow
+from ...interaction.desktop import DragInputWindow, mouse_button_down
 from ...interaction.config import AudioConfig
 from ...interaction.windows import desktop_window_tracker
 from ...overseer.ui.desktop import OverseerDesktopGroup
@@ -510,11 +510,17 @@ class OracleDesktopWindow(QWidget):
 
     def step_scene(self):
         reaction = self.motion.scene.mouse_reaction
-        if reaction.attention.probability > 0 and not self.motion.scene.drag.controlling:
-            pointer = QCursor.pos()
-            reaction.pointer = self.motion.viewport.to_world(Vec2(pointer.x(), pointer.y()))
-        else:
-            reaction.pointer = None
+        scene, viewport = self.motion.scene, self.motion.viewport
+        pointer = motion_pointer = None
+        inside = pressed = False
+        if reaction.wants_pointer and not scene.drag.controlling:
+            raw = QCursor.pos()
+            pointer = viewport.to_world(Vec2(raw.x(), raw.y()))
+            motion_pointer = Vec2(raw.x(), raw.y()) * (1/viewport.scale)
+            pressed = mouse_button_down()
+            if reaction.config.petting_enabled and not pressed:
+                inside = self.drag_hit.contains(self.renderer, scene, pointer, raster_scale=viewport.requested_scale)
+        reaction.sample_input(pointer, inside=inside, motion_pointer=motion_pointer, pressed=pressed)
         self.motion.step()
         layer = self.overseers
         layer.step(self.overseer_spawn_context,

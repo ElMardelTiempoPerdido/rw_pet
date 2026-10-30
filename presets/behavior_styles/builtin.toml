@@ -43,9 +43,9 @@ description_en = "Mostly rests or meditates"
 id = "daily_activity.balanced"
 dimension = "daily_activity"
 order = 20
-name_zh = "适度活动"
+name_zh = "常规活动"
 name_en = "Balanced"
-description_zh = "更多停留和冥想，偶尔缓慢移动"
+description_zh = "停留与移动的概率比较均衡"
 description_en = "Alternates rest and movement with occasional meditation"
 
 [styles.values]
@@ -211,7 +211,7 @@ description_en = "Drifts more often and for longer"
 "oracle.drift.speed_min_factor" = 0.85
 "oracle.drift.speed_max_factor" = 1.2
 
-# 鼠标关注 - mouse_attention - 4 个参数
+# 鼠标关注 - mouse_attention - 7 个参数
 
 [[styles]]
 id = "mouse_attention.reserved"
@@ -226,13 +226,16 @@ description_en = "Notices the cursor only after it stays close for a while"
 "interaction.hover_radius" = 100.0
 "interaction.hover_dwell_seconds" = 3.0
 "interaction.hover_probability" = 0.25
+"interaction.petting_enabled" = true
+"interaction.petting_seconds" = 1.5
+"interaction.petting_grace_seconds" = 0.6
 "interaction.hover_open_probability" = 0.1
 
 [[styles]]
 id = "mouse_attention.balanced"
 dimension = "mouse_attention"
 order = 20
-name_zh = "适度关注"
+name_zh = "常规关注"
 name_en = "Moderate"
 description_zh = "鼠标靠近时关注的概率适中"
 description_en = "May follow the cursor after it stays nearby for a moment"
@@ -241,6 +244,9 @@ description_en = "May follow the cursor after it stays nearby for a moment"
 "interaction.hover_radius" = 160.0
 "interaction.hover_dwell_seconds" = 1.5
 "interaction.hover_probability" = 0.6
+"interaction.petting_enabled" = true
+"interaction.petting_seconds" = 1.5
+"interaction.petting_grace_seconds" = 0.6
 "interaction.hover_open_probability" = 0.25
 
 [[styles]]
@@ -256,6 +262,9 @@ description_en = "Readily notices the cursor from farther away and follows it af
 "interaction.hover_radius" = 220.0
 "interaction.hover_dwell_seconds" = 0.8
 "interaction.hover_probability" = 0.85
+"interaction.petting_enabled" = true
+"interaction.petting_seconds" = 1.5
+"interaction.petting_grace_seconds" = 0.6
 "interaction.hover_open_probability" = 0.35
 
 # 鼠标躲避 - mouse_avoidance - 25 个参数

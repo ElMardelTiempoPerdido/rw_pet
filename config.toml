@@ -17,6 +17,10 @@ hover_avoidance_enabled = true # 注视一阵后可能缓慢侧身或短距离�
 hover_probability = 0.60        # 每轮停留面向鼠标的概率；0 关闭
 hover_open_probability = 0.25   # 开始注视鼠标时睁眼的概率
 
+petting_enabled = true         # 轮廓内持续摸动后低头闭眼，与拖动和普通注视独立
+petting_seconds = 1.5          # 有效摸动累计时间，秒
+petting_grace_seconds = 0.6    # 越界或停止移动后的允许中断时间，秒
+
 [audio]
 enabled = true                  # 启用语音
 volume = 0.70                   # 语音音量

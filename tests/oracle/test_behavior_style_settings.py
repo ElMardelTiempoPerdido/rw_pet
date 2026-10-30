@@ -61,7 +61,7 @@ class BehaviorStyleSettingsTests(unittest.TestCase):
         combo.setCurrentIndex(combo.findData(identifier))
         combo.activated.emit(combo.currentIndex())
 
-    def test_legacy_is_custom_and_all_137_controls_remain_owned_by_their_dimension(self):
+    def test_legacy_is_custom_and_all_140_controls_remain_owned_by_their_dimension(self):
         d = self.d
         before = d.candidate()
         for dimension, group in d.behavior_styles.groups.items():

@@ -1,6 +1,6 @@
 # 行为风格配置
 
-本目录准备七个维度、每维度三套风格，共 21 套可编辑的组合。每套风格都完整写出所属维度的参数，当前共覆盖 137 个互不重复的字段
+本目录准备七个维度、每维度三套风格，共 21 套可编辑的组合。每套风格都完整写出所属维度的参数，当前共覆盖 140 个互不重复的字段
 
 已接入设置 > 行为中的七个风格选择器，归在原有四个行为分组中。每个维度提供“显示高级参数”，默认隐藏详细列表，仍可展开编辑全部原有参数。下表是第一版风格调校，具体动作观感可以继续调整
 
@@ -19,7 +19,7 @@
 | --- | --- | --- | --- |
 | `daily_activity` | 日常活动 | 静静停留 / 适度活动 / 经常走动 | 17 |
 | `drift` | 漫游节奏 | 偶尔漂浮 / 走走停停 / 连续漂浮 | 27 |
-| `mouse_attention` | 鼠标关注 | 偶尔留意 / 适度关注 / 好奇注视 | 4 |
+| `mouse_attention` | 鼠标关注 | 偶尔留意 / 适度关注 / 好奇注视 | 7 |
 | `mouse_avoidance` | 鼠标躲避 | 不躲不闪 / 轻轻避让 / 保持距离 | 25 |
 | `drag_reactions` | 拖动反应 | 安静回应 / 偶尔抗议 / 活跃扑腾 | 38 |
 | `reading_habits` | 阅读习惯 | 偶尔查看 / 从容阅读 / 专注研究 | 18 |
@@ -50,6 +50,9 @@ description_en = "Readily notices the cursor from farther away and follows it af
 "interaction.hover_dwell_seconds" = 0.8
 "interaction.hover_probability" = 0.85
 "interaction.hover_open_probability" = 0.35
+"interaction.petting_enabled" = true
+"interaction.petting_seconds" = 1.5
+"interaction.petting_grace_seconds" = 0.6
 ```
 
 - **改名**：修改 `name_zh` / `name_en`，保留 `id`；说明文字分别修改 `description_zh` / `description_en`
@@ -61,6 +64,8 @@ description_en = "Readily notices the cursor from farther away and follows it af
 
 内置表刻意不使用参数继承或当前角色默认值，选中某套组合后的结果不会受到之前选择过哪个风格的影响。加载器会先合并本地覆盖，再做完整性、类型与取值校验。坏条目跳过，其余有效条目仍可使用；坏的本地覆盖不会抹掉对应内置风格。选择器提示中可查看加载错误
 
+兼容摸摸加入前的鼠标关注风格：保留原四项数值，仅为缺失的三个摸摸字段补入上述默认值；已填写的摸摸字段不覆盖，缺失旧字段或含未知字段仍报错。三套内置关注风格暂时使用相同的摸摸配置，满足条件后固定触发，没有概率参数
+
 ## 单位与归属边界
 
 - 概率和手势幅度使用 `0～1`，例如 `0.35` 表示 35%；选择权重按相对大小比较，不要求相加为 100
@@ -70,6 +75,7 @@ description_en = "Readily notices the cursor from farther away and follows it af
 - 读珠触发、间隔、时长、睁眼和选珠比例归阅读习惯；观察方式权重、距离、矩阵避让与跟随范围归珍珠互动方式
 - 语音来源、音量、珍珠数量、投影透明度、光环、屏幕活动区以及本机移动/拖动许可不由本库覆盖
 - 鼠标躲避仍依赖先成功关注鼠标；矩阵珠始终召近，固定珠才按方式权重选择动作；关闭移动或找不到路线时仍按已有规则召近或归位
+- 摸摸独立于普通关注概率和本机拖动许可；只接管头眼，识别到持续摸动后暂缓鼠标躲避，结束后重新计时
 
 字段含义和时间范围另见[拖动与珍珠互动参数](../../docs/oracle/behavior-parameters.md)、[已有日常活动与漫游参数](../../docs/preset-field-scopes.md)
 

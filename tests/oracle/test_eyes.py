@@ -49,6 +49,35 @@ class OracleEyesTests(unittest.TestCase):
             count += eyes.target
         self.assertTrue(800 < count < 1200, count)
 
+    def test_petting_closes_slowly_and_leaves_other_eye_transitions_unchanged(self):
+        normal, petted = OracleEyes(), OracleEyes()
+        for eyes in (normal, petted):
+            eyes.begin_reaction(True)
+            for _ in range(10):
+                eyes.step()
+        normal.end_observation()
+        petted.forced_closed = True
+        for _ in range(8):  # 0.2 秒：普通闭眼结束，摸摸的两条闭眼路径仍在过渡
+            normal.step()
+            petted.step()
+        self.assertEqual(normal.openness, 0.)
+        self.assertGreater(petted.openness, 0.)
+        self.assertGreater(petted.closure, 0.)
+        self.assertLess(petted.closure, 1.)
+        for _ in range(24):
+            petted.step()
+        self.assertEqual(petted.openness, 0.)
+        self.assertEqual(petted.closure, 1.)
+        petted.forced_closed = False
+        for _ in range(10):  # 摸摸结束后仍按原速度恢复睁眼
+            petted.step()
+        self.assertEqual(petted.openness, 1.)
+        self.assertEqual(petted.closure, 0.)
+        petted.end_observation()
+        for _ in range(8):
+            petted.step()
+        self.assertEqual(petted.openness, 0.)
+
     def test_both_pearl_cycles_hold_one_decision_and_leave_navigation_unchanged(self):
         for mode in ('approach', 'recall'):
             closed = self.scene(reading=ReadingConfig(eye_open_probability=0))

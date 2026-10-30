@@ -1,9 +1,9 @@
 {
   "type": "rw-creature-pet.appearance",
   "version": 2,
-  "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
-  "name": "moondown",
-  "updated_at": "2026-10-28T08:17:38.705290+00:00",
+  "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
+  "name": "dust",
+  "updated_at": "2026-10-30T06:13:23.420348+00:00",
   "config": {
     "oracle": {
       "body_appearance": "custom",
@@ -82,15 +82,15 @@
         },
         "ear_part_1": {
           "enabled": true,
-          "height": 11.0,
-          "image_name": "",
-          "image_path": "",
-          "kind": "trapezoid",
-          "offset_x": 0.0,
+          "height": 12.0,
+          "image_name": "dust_ear.png",
+          "image_path": "images/2d15b858526438ce5a7b96969d135b23c89a1553907c32cf69b08184479251ac.png",
+          "kind": "png",
+          "offset_x": -0.5,
           "offset_y": -3.5,
-          "rotation": 10.0,
-          "tone": "split",
-          "width": 3.0
+          "rotation": 0.0,
+          "tone": "shell",
+          "width": 12.0
         },
         "ear_part_2": {
           "enabled": false,
@@ -109,7 +109,7 @@
           "height": 2.0,
           "image_name": "",
           "image_path": "",
-          "kind": "triangle",
+          "kind": "ellipse",
           "offset_x": 0.0,
           "offset_y": 7.0,
           "rotation": 0.0,
@@ -117,13 +117,13 @@
           "width": 2.0
         },
         "eye_1": {
-          "color": "#062c55",
-          "default_open": true,
+          "color": "#ffb7a1",
+          "default_open": false,
           "height_mode": "normal",
-          "visible": true
+          "visible": false
         },
         "eye_2": {
-          "color": "#062c55",
+          "color": "#ffb7a1",
           "default_open": true,
           "height_mode": "normal",
           "visible": true
@@ -137,9 +137,9 @@
         },
         "forehead": {
           "enabled": true,
-          "image_name": "moon_sigil.png",
-          "image_path": "images/b8451f77af717f2d509eb5917b52f1e862ca1edc1fec8b9a00397e87e847ca36.png",
-          "offset_x": 0.0,
+          "image_name": "dust_sigil.png",
+          "image_path": "images/5b361248c8a92a5d6c32061a5bf1778fbfe5e2fd981ab2cc73761e9eb190c0e4.png",
+          "offset_x": -1.0,
           "offset_y": -1.0
         },
         "head_length": 0.8918918918918918,
@@ -147,17 +147,17 @@
         "inner_collar_enabled": true,
         "inner_collar_height": 4.0,
         "inner_collar_top_width": 11.0,
-        "inner_robe_enabled": false,
+        "inner_robe_enabled": true,
         "neck_width": 2.5,
-        "neckline_depth": 3.0,
-        "neckline_height": 5.5,
-        "neckline_roundness": 0.55,
-        "neckline_shape": "arc",
+        "neckline_depth": 7.0,
+        "neckline_height": 5.0,
+        "neckline_roundness": 1.0,
+        "neckline_shape": "v",
         "neckline_tip_radius": 0.0,
-        "neckline_trim_enabled": false,
+        "neckline_trim_enabled": true,
         "neckline_trim_gap": 0.0,
         "neckline_trim_width": 1.0,
-        "neckline_width": 13.0,
+        "neckline_width": 10.0,
         "robe_flare": 1.0,
         "robe_hem_curve": 1.0,
         "robe_length": 1.0182889391108962,
@@ -201,22 +201,22 @@
         }
       },
       "custom_colors": {
-        "arm": "#9fa2a8",
+        "arm": "#b4b8bd",
         "arm_highlight": "#dfd6d2",
         "beads": "#9cddd8",
         "collar_trim": "#dddddd",
         "eyes": "#ffb7a1",
-        "head_highlight": "#d6dcdf",
+        "head_highlight": "#c2c7ca",
         "head_shell": "#b9c1c6",
         "inner_robe": "#f3f3f3",
-        "joints": "#363842",
-        "pearl": "#e7dbd3",
-        "pearl_glyph": "#899fc6",
-        "pearl_primary": "#9cc2ee",
-        "pearl_secondary": "#f9ce91",
-        "robe_bottom": "#afd3cd",
-        "robe_top": "#f8f7f1",
-        "skin": "#94d4d6",
+        "joints": "#a19286",
+        "pearl": "#d8cdc5",
+        "pearl_glyph": "#eccfc4",
+        "pearl_primary": "#e8bcaf",
+        "pearl_secondary": "#4d546b",
+        "robe_bottom": "#d5d7dd",
+        "robe_top": "#f3f3f3",
+        "skin": "#4e5666",
         "third_eye": "#17629c"
       },
       "outfit": "normal",
@@ -279,7 +279,7 @@
           }
         }
       },
-      "pearl_bubble_color": "#ff81b3",
+      "pearl_bubble_color": "#0eead8",
       "prince_colors": {
         "arm": "#ffffff",
         "arm_highlight": "#ffffff",

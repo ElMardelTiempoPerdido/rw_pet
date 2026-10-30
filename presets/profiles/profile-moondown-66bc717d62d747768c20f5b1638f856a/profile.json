@@ -3,19 +3,52 @@
   "version": 2,
   "id": "2466730e-c7e8-431b-a807-4f49f0b3b878",
   "name": "moondown",
-  "updated_at": "2026-10-28T08:17:39.938704+00:00",
+  "updated_at": "2026-10-30T11:34:14.274904+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
       "hover_dwell_seconds": 1.0,
       "hover_open_probability": 0.0,
       "hover_probability": 1.0,
-      "hover_radius": 300.0
+      "hover_radius": 300.0,
+      "petting_enabled": true,
+      "petting_grace_seconds": 0.6,
+      "petting_seconds": 1.5
     },
     "oracle": {
       "antigravity_duration_seconds": 300.0,
       "antigravity_probability": 0.08,
       "base_speed": 2.8,
+      "behavior_styles": {
+        "daily_activity": {
+          "id": "",
+          "version": ""
+        },
+        "drag_reactions": {
+          "id": "",
+          "version": ""
+        },
+        "drift": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_attention": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_avoidance": {
+          "id": "",
+          "version": ""
+        },
+        "pearl_interaction": {
+          "id": "",
+          "version": ""
+        },
+        "reading_habits": {
+          "id": "",
+          "version": ""
+        }
+      },
       "cross_edge_probability": 0.05,
       "daily_activity": {
         "cross_edge_check_seconds": 20.0,
@@ -38,9 +71,39 @@
       "drag_reactions": {
         "alternating_probability": 0.47,
         "enabled": true,
+        "eye_delay_max_seconds": 0.0,
+        "eye_delay_min_seconds": 0.0,
+        "eye_duration_max_seconds": 3.0,
+        "eye_duration_min_seconds": 1.5,
+        "eye_interval_max_seconds": 2.0,
+        "eye_interval_min_seconds": 0.9,
         "eye_open_probability": 0.65,
         "flutter_probability": 0.85,
+        "flutter_sync_probability": 0.35,
+        "gesture_delay_max_seconds": 1.5,
+        "gesture_delay_min_seconds": 0.15,
+        "gesture_duration_max_seconds": 2.6,
+        "gesture_duration_min_seconds": 1.4,
+        "gesture_interval_max_seconds": 1.35,
+        "gesture_interval_min_seconds": 0.45,
+        "gesture_max_amplitude": 1.0,
+        "gesture_min_amplitude": 0.25,
         "gesture_probability": 0.9,
+        "gesture_speed": 1.0,
+        "projection_delay_max_seconds": 1.5,
+        "projection_delay_min_seconds": 0.15,
+        "projection_duration_max_seconds": 8.25,
+        "projection_duration_min_seconds": 8.25,
+        "projection_frame_seconds": 0.375,
+        "projection_interval_max_seconds": 1.35,
+        "projection_interval_min_seconds": 0.45,
+        "projection_lift_delay_seconds": 0.35,
+        "projection_move_max_seconds": 1.6,
+        "projection_move_min_seconds": 0.65,
+        "voice_delay_max_seconds": 3.0,
+        "voice_delay_min_seconds": 0.0,
+        "voice_interval_max_seconds": 3.8,
+        "voice_interval_min_seconds": 1.8,
         "voice_probability": 0.55
       },
       "drift": {
@@ -113,14 +176,35 @@
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
+        "approach_weight": 35.0,
+        "avoidance_probability": 0.35,
+        "drift_delay_max_seconds": 24.0,
+        "drift_delay_min_seconds": 12.0,
+        "drift_interval_max_seconds": 40.0,
+        "drift_interval_min_seconds": 20.0,
+        "drift_probability": 1.0,
+        "eye_open_probability": 0.1,
+        "interval_max_seconds": 0.0,
+        "interval_min_seconds": 0.0,
+        "matrix_probability": 0.5,
+        "notice_max_seconds": 1.5,
+        "notice_min_seconds": 0.9,
+        "observe_distance": 50.0,
+        "observe_max_seconds": 60.0,
+        "observe_min_seconds": 40.0,
+        "orbit_weight": 30.0,
+        "playback_max_seconds": 120.0,
+        "playback_min_seconds": 90.0,
+        "recall_distance": 38.0,
+        "recall_weight": 35.0,
         "start_probability": 0.25
       },
       "voice": "none"
     }
   },
-  "state": "history/state-a601a706bdac4e71bdaf8e82e97c42fc.json",
+  "state": "history/state-4207ceec0adb42aab99600a8ed2489c0.json",
   "appearance": {
     "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
-    "path": "appearance/a601a706bdac4e71bdaf8e82e97c42fc/appearance.json"
+    "path": "appearance/4207ceec0adb42aab99600a8ed2489c0/appearance.json"
   }
 }

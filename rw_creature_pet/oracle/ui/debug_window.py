@@ -24,6 +24,7 @@ from .eye_editor import EYE_LABELS
 from ..pearls.glyphs import load_pearl_glyphs
 from ..graphics.render import OracleRenderer, point
 from ..interaction.input import PuppetHitMap
+from ...interaction.desktop import mouse_button_down
 from ...shared.timing import FixedStepper
 from ..audio.assets import make_bell_voice_player
 from ..audio.playback import sync_oracle_voice
@@ -42,6 +43,7 @@ class OracleCanvas(QWidget):
         self.magnifier = True
         self.show_path = True
         self.view_scale = 1.  # 屏幕物理像素 / 游戏单位。
+        self.petting_sample_scale = None
         self.view_center = None
         self._pan_position = None
         self.drag_hit = PuppetHitMap()
@@ -919,8 +921,21 @@ class OracleDebugWindow(QMainWindow):
 
     def step_scene(self):
         reaction = self.scene.mouse_reaction
-        reaction.pointer = (self.canvas.mouse_world() if self.canvas.isVisible()
-                            and reaction.attention.probability > 0 and not self.scene.drag.controlling else None)
+        pointer = motion_pointer = None
+        inside = pressed = False
+        if self.canvas.isVisible() and reaction.wants_pointer and not self.scene.drag.controlling:
+            pointer = self.canvas.mouse_world()
+            raw = QCursor.pos()
+            scale, _ = self.canvas.view_transform()
+            if self.canvas.petting_sample_scale not in (None, scale):
+                reaction.cancel(self.scene)  # 缩放变化不算鼠标移动，重新建立摸动基准
+            self.canvas.petting_sample_scale = scale
+            motion_pointer = Vec2(raw.x(), raw.y()) * (1/scale)
+            pressed = mouse_button_down()
+            if reaction.config.petting_enabled and not pressed:
+                inside = self.canvas.drag_hit.contains(self.renderer, self.scene, pointer,
+                                                      raster_scale=scale*self.canvas.devicePixelRatioF())
+        reaction.sample_input(pointer, inside=inside, motion_pointer=motion_pointer, pressed=pressed)
         self.scene.step()
         canvas = self.canvas
         group = canvas.overseer_group

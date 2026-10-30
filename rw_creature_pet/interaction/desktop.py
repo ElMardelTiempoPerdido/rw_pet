@@ -19,6 +19,14 @@ def left_button_down():
     return bool(QGuiApplication.mouseButtons() & Qt.MouseButton.LeftButton)
 
 
+def mouse_button_down():
+    """无按键的悬浮互动使用全局按键状态，不把拖动其他窗口误判为抚摸"""
+    if sys.platform == 'win32' and QGuiApplication.platformName() == 'windows':
+        import ctypes
+        return any(ctypes.windll.user32.GetAsyncKeyState(key) & 0x8000 for key in (1, 2, 4, 5, 6))
+    return bool(QGuiApplication.mouseButtons())
+
+
 class DragInputWindow(QWidget):
     def __init__(self, owner):
         super().__init__(owner, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint

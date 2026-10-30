@@ -2,15 +2,15 @@
 
 开发中：白蜥蜴 / 手势之铃，**未完成，可能存在各种bug和性能问题**
 
-**如果您希望直接获取桌宠游玩，请下载 Release 中的发行 ZIP，将 EXE 与 presets 一起解压，而非下载 source code.zip**
-
-已有用户的覆盖升级、角色分享和备份方法见 [角色升级与分享](docs/profile-upgrade-sharing.md)
+如果您希望直接获取桌宠游玩，请直接下载release中的压缩包（需要将exe和presets解压至同一目录下），勿下载source code.zip
 
 ---
 
 默认鼠标穿透，从系统托盘右键菜单可以启用接收鼠标输入，此时可使用类似mousedrag mod的效果拖动桌宠
 
-需要本机已安装雨世界本体，并在设置或 config.toml 中配置游戏目录，用于读取原版贴图。Downpour 和 Watcher 均非启动必需；Bell 语音需要对应的 Watcher 音频或本地语音片段，资源缺失时只将相关设置标为“不可用”，不阻止桌宠运行。补齐素材后可在设置中点击“重新检查资源”
+此桌宠运行需要本机已安装雨世界本体，并在设置或 config.toml 中配置游戏目录，用于读取部分游戏资源
+
+（如果您有downpour或watcher dlc，将有部分依赖dlc资源的扩展选项可用
 
 ---
 

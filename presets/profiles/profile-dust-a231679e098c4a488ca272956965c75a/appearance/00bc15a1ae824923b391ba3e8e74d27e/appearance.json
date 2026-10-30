@@ -3,7 +3,7 @@
   "version": 2,
   "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
   "name": "dust",
-  "updated_at": "2026-10-30T06:08:07.187677+00:00",
+  "updated_at": "2026-10-30T06:13:24.389393+00:00",
   "config": {
     "oracle": {
       "body_appearance": "custom",

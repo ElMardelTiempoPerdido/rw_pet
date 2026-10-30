@@ -32,8 +32,8 @@ class BehaviorStyleLibraryTests(unittest.TestCase):
         self.assertFalse(self.library.errors)
         self.assertEqual(len(self.library.styles), 21)
         paths = [p for group in DIMENSION_PATHS.values() for p in group]
-        self.assertEqual(len(paths), 137)
-        self.assertEqual(len(set(paths)), 137)
+        self.assertEqual(len(paths), 140)
+        self.assertEqual(len(set(paths)), 140)
         self.assertTrue(set(paths+list(SELECTION_PATHS)) <= set(paths_for(FieldScope.PROFILE)))
         config = AppConfig()
         for combination in product(*(self.library.for_dimension(d) for d in DIMENSIONS)):
@@ -112,6 +112,36 @@ name_zh = "有效调整"
         (self.root/'builtin.toml').unlink()
         imported = ProfileLibrary(self.root/'received').import_file(archive)
         self.assertEqual(profile_mapping(imported.config), profile_mapping(config))
+
+    def test_old_attention_library_adds_only_new_fields_and_preserves_optional_values(self):
+        text = (self.root/'builtin.toml').read_text(encoding='utf-8')
+        legacy = '\n'.join(line for line in text.splitlines() if not line.startswith('"interaction.petting_'))
+        (self.root/'builtin.toml').write_text(legacy, encoding='utf-8')
+        library = BehaviorStyleLibrary.load(self.root)
+        self.assertFalse(library.errors)
+        self.assertEqual(library.styles, self.library.styles)
+        start = legacy.index('[[styles]]\nid = "mouse_attention.curious"')
+        end = legacy.index('[[styles]]', start+10)
+        custom = legacy[start:end].replace('mouse_attention.curious', 'local.curious')
+        custom += '\n"interaction.petting_seconds" = 3.25\n'
+        result = self.local(custom)
+        self.assertFalse(result.errors)
+        values = result.find('local.curious', 'mouse_attention').values
+        self.assertEqual(values['interaction.petting_seconds'], 3.25)
+        self.assertTrue(values['interaction.petting_enabled'])
+        missing = '\n'.join(line for line in custom.splitlines() if not line.startswith('"interaction.hover_radius"'))
+        self.assertTrue(self.local(missing).errors)
+
+    def test_old_profile_retains_attention_values_and_style_marker(self):
+        original = self.library.find('mouse_attention.curious', 'mouse_attention').apply(AppConfig())
+        data = profile_mapping(original)
+        for key in ('petting_enabled', 'petting_seconds', 'petting_grace_seconds'):
+            del data['interaction'][key]
+        data['oracle']['behavior_styles']['mouse_attention']['version'] = 'v1:'+'0'*64
+        loaded = validate_config(data)
+        self.assertEqual(loaded.interaction, original.interaction)
+        self.assertEqual(loaded.oracle.behavior_styles.mouse_attention.id, 'mouse_attention.curious')
+        self.assertEqual(loaded.oracle.behavior_styles.mouse_attention.version, 'v1:'+'0'*64)
 
     def test_single_executable_uses_bundled_defaults_and_external_local_file(self):
         bundled = self.root/'bundle/presets/behavior_styles'

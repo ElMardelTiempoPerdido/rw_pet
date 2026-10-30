@@ -4477,7 +4477,7 @@ The first launch takes a little time to prepare game assets.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/behavior_settings.py" line="65" />
-      <source>鼠标停留半径</source>
+      <source>关注鼠标范围半径</source>
       <translation>Mouse hover radius</translation>
     </message>
     <message>
@@ -4502,7 +4502,7 @@ The first launch takes a little time to prepare game assets.</translation>
     </message>
     <message>
       <location filename="../oracle/ui/behavior_settings.py" line="57" />
-      <source>鼠标观察与避让</source>
+      <source>鼠标观察</source>
       <translation>Mouse attention and avoidance</translation>
     </message>
     <message>
@@ -4536,6 +4536,36 @@ The first launch takes a little time to prepare game assets.</translation>
       <location filename="../oracle/ui/space.py" line="36" />
       <source>；建议降低显示倍率以留出活动余量</source>
       <translation>; lower the display scale to allow more movement</translation>
+    </message>
+    <message>
+      <location filename="../interaction/config.py" line="25" />
+      <source>interaction.petting_enabled 必须为布尔值</source>
+      <translation>interaction.petting_enabled must be a boolean</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="78" />
+      <source>允许中断时间</source>
+      <translation>Interruption tolerance</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="74" />
+      <source>可以摸摸小迭</source>
+      <translation>Allow petting reactions</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="76" />
+      <source>摸摸反应触发延迟</source>
+      <translation>Petting time to respond</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="83" />
+      <source>摸摸人偶期间允许鼠标短暂离开范围，返回后可以继续</source>
+      <translation>Progress pauses when the cursor leaves or stops. Resume petting within this time to keep progress; otherwise start again.</translation>
+    </message>
+    <message>
+      <location filename="../oracle/ui/behavior_settings.py" line="81" />
+      <source>将鼠标悬浮在人偶上可以摸摸噢，不会打断人偶当前已经开始的动作</source>
+      <translation>Moving the cursor over the puppet lowers its head and closes its eyes. Movement and pearl tasks continue.</translation>
     </message>
   </context>
 </TS>

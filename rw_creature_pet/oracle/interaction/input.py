@@ -1,4 +1,5 @@
 """Oracle 的可见人偶轮廓；柔性附件、发光、机械臂、线缆、珍珠和光环保持鼠标穿透"""
+from PySide6.QtCore import QPointF
 from PySide6.QtGui import QPainter
 
 from ...interaction.hitmap import PixelHitMap
@@ -23,14 +24,7 @@ class PuppetHitMap:
                outfit_definition(scene.config.active_outfit, scene.config.outfit_settings),
                scene.config.body_appearance, scene.config.active_custom_appearance)
         if key != self.key:
-            parts = (app.head, *app.hands, *app.feet, *app.cloth)
-            if app.prince_robe is not None:
-                parts += tuple(app.prince_robe.points)
-            extra = outfit_padding(scene.config)
-            bounds = point_bounds((p.sample(alpha) for p in parts), 20+extra)
-            bounds = bounds.united(cape_bounds(scene))
-            bounds = bounds.united(point_bounds((app.head.sample(alpha),),
-                                                ear_radius(scene.config.active_custom_appearance)+extra))
+            bounds = self.bounds(scene, alpha)
             image, rect = local_canvas(bounds, density)
             painter = QPainter(image)
             try:
@@ -47,3 +41,22 @@ class PuppetHitMap:
             self.key = key
             self.value = PixelHitMap(image, Vec2(rect.x(), rect.y()), density)
         return self.value
+
+    @staticmethod
+    def bounds(scene, alpha):
+        app = scene.appearance
+        parts = (app.head, *app.hands, *app.feet, *app.cloth)
+        if app.prince_robe is not None:
+            parts += tuple(app.prince_robe.points)
+        extra = outfit_padding(scene.config)
+        bounds = point_bounds((p.sample(alpha) for p in parts), 20+extra)
+        bounds = bounds.united(cape_bounds(scene))
+        bounds = bounds.united(point_bounds((app.head.sample(alpha),),
+                                            ear_radius(scene.config.active_custom_appearance)+extra))
+        return bounds
+
+    def contains(self, renderer, scene, point, alpha=1., *, raster_scale=1.):
+        # 远离人偶时只检查廉价外框，静止时复用局部像素轮廓
+        if point is None or not self.bounds(scene, alpha).contains(QPointF(point.x, point.y)):
+            return False
+        return self.get(renderer, scene, alpha, raster_scale=raster_scale).contains(point)

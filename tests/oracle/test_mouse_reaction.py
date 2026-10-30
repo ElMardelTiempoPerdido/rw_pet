@@ -227,8 +227,8 @@ class OracleMouseWindowTests(unittest.TestCase):
             self.app.processEvents()
             checkbox = d2.controls['interaction.hover_avoidance_enabled']
             probability = d2.controls['interaction.hover_probability']
-            self.assertLess(checkbox.mapTo(d2, QPoint(0, checkbox.height())).y(),
-                            probability.mapTo(d2, QPoint()).y())
+            self.assertTrue(d2.behavior_styles.groups['mouse_avoidance'].content.isAncestorOf(checkbox))
+            self.assertTrue(d2.behavior_styles.groups['mouse_attention'].content.isAncestorOf(probability))
             checkbox.setChecked(False)
             d2.save()
             self.assertFalse(store.load().interaction.hover_avoidance_enabled)

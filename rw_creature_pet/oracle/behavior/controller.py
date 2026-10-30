@@ -518,6 +518,9 @@ class OracleBehavior:
                 self.end_drift(scene)
                 self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
             return
+        if scene.mouse_reaction.petting.active:
+            # 当前曲线继续走到终点，但不续接、新增跨边或发起读珠；到期恢复仍照常执行
+            return
         if scene.mouse_reaction.avoidance.moving:
             return  # 躲避本段完成前不接续漫游、跨边或自动召珠，总漫游计时继续
         self.continue_drift(scene)
@@ -687,6 +690,9 @@ class OracleBehavior:
         self.drift_cooldown = max(0, self.drift_cooldown-1)
         if self.drift_active:
             self.drift_ticks += 1
+        if self.state == Activity.IDLE and scene.mouse_reaction.petting.active:
+            # 只暂停下一次行动的选择和停留倒计时，不中止已经开始的移动、读珠或冥想
+            return
         avoidance = scene.mouse_reaction.avoidance
         if self.state == Activity.IDLE and avoidance.busy and (avoidance.moving or not scene.pose.settled):
             self.state_ticks = 0  # 让当前短暂躲避收敛，再选择下一次自主行动

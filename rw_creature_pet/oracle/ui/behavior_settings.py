@@ -54,7 +54,7 @@ def build_behavior_settings(dialog, form, config):
     build_drift_settings(dialog, form, o.drift)
 
     root.addRow(PixelRuleThin())
-    dialog.section_heading(root, '鼠标观察与避让')
+    dialog.section_heading(root, '鼠标观察')
     form = styles.add('mouse_attention', root)
     left, right = dialog.two_columns(form)
     dialog.spin(left, '面向鼠标概率', 'interaction.hover_probability', interaction.hover_probability * 100,
@@ -62,15 +62,26 @@ def build_behavior_settings(dialog, form, config):
     dialog.spin(right, '注视鼠标时睁眼概率', 'interaction.hover_open_probability', interaction.hover_open_probability * 100,
                 0, 100, decimals=1, suffix=' %')
     left, right = dialog.two_columns(form)
-    dialog.spin(left, '鼠标停留半径', 'interaction.hover_radius', interaction.hover_radius,
+    dialog.spin(left, '关注鼠标范围半径', 'interaction.hover_radius', interaction.hover_radius,
                 1, 2000, decimals=1, suffix=' px')
     dialog.spin(right, '鼠标停留时间', 'interaction.hover_dwell_seconds', interaction.hover_dwell_seconds,
                 0, 60, decimals=1, step=.1, suffix=' 秒')
-    hover_note = QLabel('*鼠标进入此范围时，人偶可能会观察鼠标')
-    hover_note.setStyleSheet(NOTE_STYLE)
-    hover_note.setWordWrap(True)
-    hover_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-    form.addRow(hover_note)
+    # hover_note = QLabel('*鼠标进入此范围时，人偶可能会观察鼠标')
+    # hover_note.setStyleSheet(NOTE_STYLE)
+    # hover_note.setWordWrap(True)
+    # hover_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    # form.addRow(hover_note)
+    dialog.check(form, '可以摸摸小迭', 'interaction.petting_enabled', interaction.petting_enabled)
+    left, right = dialog.two_columns(form)
+    dialog.spin(left, '摸摸反应触发延迟', 'interaction.petting_seconds', interaction.petting_seconds,
+                .1, 60, decimals=2, step=.1, suffix=' 秒')
+    dialog.spin(right, '允许中断时间', 'interaction.petting_grace_seconds', interaction.petting_grace_seconds,
+                0, 10, decimals=2, step=.1, suffix=' 秒')
+    dialog.controls['interaction.petting_enabled'].setToolTip(
+        '将鼠标悬浮在人偶上可以摸摸噢，不会打断人偶当前已经开始的动作')
+    dialog.controls['interaction.petting_grace_seconds'].setToolTip(
+        '摸摸人偶期间允许鼠标短暂离开范围，返回后可以继续')
+    dialog.controls['interaction.petting_enabled'].toggled.connect(dialog.sync_dependencies)
     form = styles.add('mouse_avoidance', root)
     dialog.check(form, '人偶可能会躲避鼠标', 'interaction.hover_avoidance_enabled', interaction.hover_avoidance_enabled)
     build_mouse_avoidance_settings(dialog, form, o.mouse_avoidance)
@@ -133,6 +144,8 @@ def build_behavior_settings(dialog, form, config):
 
 def sync_behavior_dependencies(dialog):
     c = dialog.controls
+    for path in ('interaction.petting_seconds', 'interaction.petting_grace_seconds'):
+        c[path].setEnabled(c['interaction.petting_enabled'].isChecked())
     character = CHARACTERS[c['oracle.body_appearance'].value()]
     for key, control in c.items():
         if key.startswith('oracle.mouse_avoidance.'):

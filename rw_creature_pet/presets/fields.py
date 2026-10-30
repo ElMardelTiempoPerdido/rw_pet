@@ -34,6 +34,7 @@ FIELD_SCOPES = build_registry((
     ('interaction', _PROFILE, (
         'hover_radius', 'hover_dwell_seconds', 'hover_probability',
         'hover_open_probability', 'hover_avoidance_enabled',
+        'petting_enabled', 'petting_seconds', 'petting_grace_seconds',
     )),
     # 设备空间、显示偏好、性能后端及路径均不随角色预设覆盖
     ('oracle', _LOCAL, (

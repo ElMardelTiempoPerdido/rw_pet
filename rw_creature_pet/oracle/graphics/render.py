@@ -17,6 +17,7 @@ from .raster import (local_canvas, painter_density, painter_scale,
 from .glow import GlowLayer
 from .styles import style_for
 from .face_decals import draw_face_decals
+from .eyes import EyeLidTransition
 from .inner_robe import inner_collar_path, inner_robe_clip, inner_robe_path
 from .neckline import neckline_paths, sleeve_neckline_path
 from .shoulders import attach_sleeve_root, follow_gown_root
@@ -843,7 +844,7 @@ class OracleRenderer(OutfitRenderer):
 
     def draw_head(self, painter, head, upper, direction, look, openness=0., *, pixelated=False,
                   raster_scale=1., outfit='normal', near_phone=None, shape=None, outfit_settings=None,
-                  body_appearance=None, head_direction=None):
+                  body_appearance=None, head_direction=None, eye_closure=0.):
         head_direction = unit(head-upper, direction) if head_direction is None else head_direction
         side_axis = perpendicular(head_direction)
         gx = max(-1., min(1., look.x*side_axis.x+look.y*side_axis.y))
@@ -853,19 +854,21 @@ class OracleRenderer(OutfitRenderer):
         # 不按绘制帧保存或推进朝向状态，主画面、放大镜和命中图得到相同结果。
         gx, gy, angle = round(gx, 6), round(gy, 6), stable_pixel_angle(angle)
         openness = max(0., min(1., openness))
+        eye_closure = max(0., min(1., eye_closure))
         density = pixel_density('adaptive', raster_scale)
         style = style_for(shape, body_appearance)
         phone_widths, phone_cosmetic, mark_pixels = style.head_options(self, density)
         # 场景传入固定步更新后的滞回状态；独立静态预览按当前视线决定层级。
         near_phone = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
         head_length = shape.head_length if shape else 1.
-        geometry_key = (gx, gy, openness, self.colors, phone_widths, phone_cosmetic, mark_pixels, near_phone,
+        geometry_key = (gx, gy, openness, eye_closure, self.colors, phone_widths, phone_cosmetic, mark_pixels, near_phone,
                         head_length, style.name, style.head_assets_key(shape))
         if geometry_key != self._head_geometry_key:
             commands = PaintCommands()
             style.draw_head(self, commands, gx, gy, openness,
                                  phone_widths=phone_widths, phone_cosmetic=phone_cosmetic,
-                                 mark_pixels=mark_pixels, near_phone=near_phone, head_length=head_length, shape=shape)
+                                 mark_pixels=mark_pixels, near_phone=near_phone, head_length=head_length, shape=shape,
+                                 eye_closure=eye_closure)
             self._head_geometry_key, self._head_frame = geometry_key, commands
         definition = outfit_definition(outfit, outfit_settings)
         key = (geometry_key, angle, density, definition)
@@ -940,7 +943,7 @@ class OracleRenderer(OutfitRenderer):
         else:
             parts.replay(painter)
 
-    def draw_face(self, painter, gx, gy, openness=0., head_length=1., *, shape=None):
+    def draw_face(self, painter, gx, gy, openness=0., head_length=1., *, shape=None, eye_closure=0.):
         """通用头部轮廓、自定义面部贴图和睁闭眼，耳机由外观入口绘制"""
         c = self.colors
         painter.setPen(Qt.PenStyle.NoPen)
@@ -957,15 +960,27 @@ class OracleRenderer(OutfitRenderer):
             eye = Vec2(max(-5., min(5., gx*3+2.5*sign)), 2-gy*3)
             foreshortening = max(0., min(1., (sign*gx-.5)*2))
             width = self.OPEN_EYE_WIDTH-foreshortening
-            opened = settings.openness(openness) if settings is not None else openness
-            if settings is not None and settings.height_mode == 'lower':
+            # 临时睁眼与摸摸闭眼都是开度上限，不能相乘导致同一闭眼进度被重复衰减
+            opened = min(settings.openness(openness) if settings is not None else openness, 1-eye_closure)
+            lower = settings is not None and settings.height_mode == 'lower'
+            if 0 < eye_closure < 1 and 0 < opened < 1:
+                closed_rect = QRectF(eye.x-width/2, eye.y+float(lower)-.5, width, 1)
+                open_rect = QRectF(eye.x-width/2, eye.y-self.OPEN_EYE_HEIGHT/2, width, self.OPEN_EYE_HEIGHT)
+                transition = EyeLidTransition(closed_rect, open_rect, opened,
+                                             settings.color if settings is not None else c.eyes)
+                if isinstance(painter, PaintCommands):
+                    painter.draw_deferred(transition)
+                else:
+                    transition.replay(painter)
+                continue
+            if lower:
                 # 头部局部坐标下移；随睁眼动画回到原位，完全睁眼时保持原有位置
                 eye += Vec2(0, 1-opened)
             height = 1+(self.OPEN_EYE_HEIGHT-1)*opened
             painter.drawRect(QRectF(eye.x-width/2, eye.y-height/2, width, height))
 
     def draw_head_parts(self, painter, gx, gy, openness=0., *, phone_widths=(1., 1.),
-                        phone_cosmetic=False, mark_pixels=None, near_phone=None, head_length=1.):
+                        phone_cosmetic=False, mark_pixels=None, near_phone=None, head_length=1., eye_closure=0.):
         c = self.colors
         head_rect = self.head_rect(head_length)
         def phone(sign):
@@ -979,7 +994,7 @@ class OracleRenderer(OutfitRenderer):
         # 会盖掉已经向该侧移动的眼睛，而背后的附件反倒浮在脸上。
         near = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
         phone(-near)
-        self.draw_face(painter, gx, gy, openness, head_length)
+        self.draw_face(painter, gx, gy, openness, head_length, eye_closure=eye_closure)
         mark = Vec2(gx*2.5, self.FOREHEAD_CENTER_Y-gy*1.5)
         # Bell 两侧的小标记与额头图案共享面部坐标和透视，不增加物理节点。
         # 大幅侧视时让标记自然隐入头部轮廓，避免像附件一样突出脸侧。
@@ -1375,6 +1390,7 @@ class OracleRenderer(OutfitRenderer):
         look = scene.previous_look_direction.lerp(scene.look_direction, alpha)
         self.draw_head(painter, app.head.sample(alpha), upper, direction, look,
                        scene.eyes.sample(alpha if eye_alpha is None else eye_alpha), pixelated=pixelated,
+                       eye_closure=scene.eyes.sample_closure(alpha if eye_alpha is None else eye_alpha),
                        raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
                        outfit=scene.config.active_outfit, near_phone=app.near_phone,
                        shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings,
@@ -1492,6 +1508,7 @@ class OracleRenderer(OutfitRenderer):
                 self.draw_body_front(painter, scene, alpha, upper, lower, direction, head, look, include_head=False)
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
+                           eye_closure=scene.eyes.sample_closure(alpha),
                            raster_scale=painter_density(painter, scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x),
                            outfit=scene.config.active_outfit, near_phone=app.near_phone,
                            shape=scene.config.active_custom_appearance, outfit_settings=scene.config.outfit_settings,
@@ -1524,7 +1541,15 @@ class OracleRenderer(OutfitRenderer):
         sleeves = QPainterPath()
         sleeves.addRect(QRectF(upper.x-30, upper.y-30, 60, 60))
         painter.save()
-        painter.setClipPath(sleeves.subtracted(sleeve_opening), Qt.ClipOperation.IntersectClip)
+        painter.setClipPath(sleeves, Qt.ClipOperation.IntersectClip)
+        # 领口与露肩区有重叠，衣料轻微变形后 Qt 对整条复合路径做差集可能
+        # 留下错误的小岛，令袖色盖回皮肤。逐片排除，再取裁剪交集，避免重叠差集
+        for polygon in sleeve_opening.toSubpathPolygons():
+            cutout = QPainterPath()
+            cutout.setFillRule(sleeve_opening.fillRule())
+            cutout.addPolygon(polygon)
+            cutout.closeSubpath()
+            painter.setClipPath(sleeves.subtracted(cutout), Qt.ClipOperation.IntersectClip)
         self.draw_limbs(painter, scene, alpha, upper, lower, direction, hands=True)
         painter.restore()
         self.draw_collar(collar_painter, scene, alpha, upper, direction, trim, gown)
@@ -1544,6 +1569,7 @@ class OracleRenderer(OutfitRenderer):
             painter.restore()
         if include_head:
             self.draw_head(painter, head, upper, direction, look, scene.eyes.sample(alpha),
+                           eye_closure=scene.eyes.sample_closure(alpha),
                            raster_scale=painter_density(painter, scene.config.pixel_mode, coarse_pixels_4x=scene.config.coarse_pixels_4x), outfit=scene.config.active_outfit,
                            near_phone=scene.appearance.near_phone, shape=scene.config.active_custom_appearance,
                            outfit_settings=scene.config.outfit_settings, body_appearance=scene.config.body_appearance)

@@ -31,7 +31,8 @@ DIMENSION_PATHS = {
     'drift': (*_group('oracle.drift', DriftConfig), 'oracle.antigravity_probability',
               'oracle.antigravity_duration_seconds', 'oracle.drift_speed'),
     'mouse_attention': ('interaction.hover_radius', 'interaction.hover_dwell_seconds',
-                        'interaction.hover_probability', 'interaction.hover_open_probability'),
+                        'interaction.hover_probability', 'interaction.hover_open_probability',
+                        'interaction.petting_enabled', 'interaction.petting_seconds', 'interaction.petting_grace_seconds'),
     'mouse_avoidance': (*_group('oracle.mouse_avoidance', MouseAvoidanceConfig),
                         'interaction.hover_avoidance_enabled'),
     'drag_reactions': (*_group('oracle.drag_reactions', DragReactionConfig),
@@ -93,6 +94,13 @@ def _validate(data):
         if not isinstance(data[name], str) or not data[name].strip() or len(data[name]) > 1000:
             raise ValueError('Invalid style text: '+name)
     values = data['values']
+    # 旧关注风格仅补齐新增摸摸字段，原有字段缺失或未知字段仍按错误处理
+    legacy = {'interaction.hover_radius', 'interaction.hover_dwell_seconds',
+              'interaction.hover_probability', 'interaction.hover_open_probability'}
+    if (dimension == 'mouse_attention' and isinstance(values, dict)
+            and legacy <= set(values) <= set(DIMENSION_PATHS[dimension])):
+        values = {'interaction.petting_enabled': True, 'interaction.petting_seconds': 1.5,
+                  'interaction.petting_grace_seconds': .6, **values}
     if not isinstance(values, dict) or set(values) != set(DIMENSION_PATHS[dimension]):
         raise ValueError('Style must contain exactly its dimension parameters')
     defaults, changes, normalized = AppConfig(), {}, {}

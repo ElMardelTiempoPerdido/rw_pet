@@ -3,7 +3,7 @@
   "version": 2,
   "id": "6acc3887-c4cf-44f1-a826-38ce4b4123ed",
   "name": "moon",
-  "updated_at": "2026-10-27T08:51:02.538153+00:00",
+  "updated_at": "2026-10-27T09:27:13.642904+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -118,9 +118,9 @@
       "voice": "none"
     }
   },
-  "state": "history/state-d0255a199ab24eb0b5eae05ae31c9df6.json",
+  "state": "history/state-390243ba10004849b1f67548a94aa7e3.json",
   "appearance": {
     "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
-    "path": "appearance/d0255a199ab24eb0b5eae05ae31c9df6/appearance.json"
+    "path": "appearance/390243ba10004849b1f67548a94aa7e3/appearance.json"
   }
 }

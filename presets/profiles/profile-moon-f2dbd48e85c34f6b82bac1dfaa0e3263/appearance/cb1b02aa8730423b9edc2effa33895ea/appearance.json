@@ -3,7 +3,7 @@
   "version": 2,
   "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
   "name": "moon",
-  "updated_at": "2026-10-27T08:51:02.538153+00:00",
+  "updated_at": "2026-10-30T09:47:39.033599+00:00",
   "config": {
     "oracle": {
       "body_appearance": "custom",
@@ -281,22 +281,22 @@
       },
       "pearl_bubble_color": "#ff81b3",
       "prince_colors": {
-        "arm": "#7b7889",
-        "arm_highlight": "#b3afbd",
+        "arm": "#000000",
+        "arm_highlight": "#616670",
         "beads": "#9cddd8",
         "collar_trim": "#ff949f",
         "eyes": "#050000",
         "head_highlight": "#e0e5e9",
         "head_shell": "#adb3b9",
         "inner_robe": "#ffb7c5",
-        "joints": "#474451",
+        "joints": "#615da5",
         "pearl": "#d8cdc5",
         "pearl_glyph": "#b6a1cc",
         "pearl_primary": "#b597c9",
         "pearl_secondary": "#889bab",
-        "robe_bottom": "#171620",
-        "robe_top": "#302e3b",
-        "skin": "#34313f",
+        "robe_bottom": "#5e70d8",
+        "robe_top": "#000000",
+        "skin": "#000000",
         "third_eye": "#bc29e7"
       }
     }

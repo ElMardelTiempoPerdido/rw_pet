@@ -228,9 +228,9 @@
   "appearance_source": {
     "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
     "name": "moon",
-    "updated_at": "2026-10-15T10:50:50.824491+00:00",
-    "path": "D:\\CODES\\PY\\rw_creature_pet\\presets\\profiles\\profile-moon-f2dbd48e85c34f6b82bac1dfaa0e3263\\appearance\\appearance.json",
-    "revision": "9673b3fedfe1a18ba87534107d7771fa3ae1fa47b93b391e26c13e1d8a8b878a"
+    "updated_at": "2026-10-18T10:39:47.154174+00:00",
+    "path": "D:\\CODES\\PY\\rw_creature_pet\\presets\\profiles\\profile-moon-f2dbd48e85c34f6b82bac1dfaa0e3263\\appearance-6a7c94aafcde43f093ea7e07b657741b\\appearance.json",
+    "revision": "e237c10bd7aa54107673d0226e55e5095d3bb3af63b3284b030a53c003cae35a"
   },
-  "migration_key": "01ab5eef43a1362e803035b54dea872b50307630ea708ab41b6ae06a8050bc79"
+  "migration_key": "441cf195a64224c59c5eea2cffe6fcc68d725e27c603059710795b274d4d8813"
 }
