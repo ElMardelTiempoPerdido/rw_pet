@@ -1,10 +1,12 @@
-"""真实图集的五种像素效果及中英文设置行离屏检查，不写用户配置"""
+"""真实图集的像素效果及中英文设置行离屏检查，不写用户配置"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from dataclasses import replace
+from contextlib import ExitStack
 from pathlib import Path
 import sys
 import tempfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -16,6 +18,8 @@ from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.presets.profile_library import ProfileLibrary
+from rw_creature_pet.presets.startup import BELL_PROFILE_ID
 from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 
 
@@ -31,12 +35,12 @@ def main():
                                 pearl_orbits_enabled=False, pixel_mode='adaptive'))
     for _ in range(700):
         scene.step()
-    sheet = QImage(1200, 560, QImage.Format.Format_ARGB32_Premultiplied)
+    sheet = QImage(1440, 560, QImage.Format.Format_ARGB32_Premultiplied)
     sheet.fill(QColor('#182630'))
     painter = QPainter(sheet)
     try:
         for row, outfit in enumerate(('normal', 'maid')):
-            for col, (scale, coarse) in enumerate(((1., False), (2., False), (3., False),
+            for col, (scale, coarse) in enumerate(((1., False), (2., False), (2., True), (3., False),
                                                   (4., False), (4., True))):
                 scene.config = replace(scene.config, outfit=outfit, coarse_pixels_4x=coarse)
                 x, y = col*240, row*280
@@ -56,15 +60,23 @@ def main():
     output = ROOT/'artifacts'
     output.mkdir(exist_ok=True)
     sheet.save(str(output/'oracle-large-scales.png'))
-    with tempfile.TemporaryDirectory() as temp:
+    with tempfile.TemporaryDirectory() as temp, ExitStack() as stack:
+        root = Path(temp)
+        stack.enter_context(patch('rw_creature_pet.presets.profile_library.default_profile_directory',
+                                  return_value=root/'profiles'))
+        stack.enter_context(patch('rw_creature_pet.presets.library.default_appearance_directory',
+                                  return_value=root/'appearances'))
+        ProfileLibrary().export(config, 'Pixel preview', preset_id=BELL_PROFILE_ID)
         for language in ('zh', 'en'):
             cfg = replace(config, ui=replace(config.ui, language=language),
                           desktop=replace(config.desktop, scale=4.))
             dialog = OracleSettingsDialog(cfg, SettingsStore(Path(temp)/'settings.json'))
             try:
+                dialog._migration_notice = False
+                dialog.preset_workflow.set_autosave(False)
                 dialog.show()
                 app.processEvents()
-                for scale in (4., 3.):
+                for scale in (2., 4., 3.):
                     control = dialog.controls['desktop.scale']
                     control.setCurrentIndex(control.findData(scale))
                     app.processEvents()

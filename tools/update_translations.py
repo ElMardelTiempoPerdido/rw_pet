@@ -15,11 +15,14 @@ CATALOG = PACKAGE/'translations/en.ts'
 FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py', 'oracle/ui/space.py',
          'oracle/ui/character_menu.py',
          'oracle/ui/behavior_settings.py', 'oracle/ui/behavior_styles.py',
+         'oracle/ui/number_range.py',
+         'oracle/ui/behavior_proportions.py',
          'oracle/ui/resource_settings.py',
          'oracle/ui/daily_activity_settings.py', 'oracle/behavior_config.py',
          'oracle/ui/drift_settings.py', 'oracle/drift_config.py',
          'oracle/ui/mouse_settings.py', 'oracle/mouse_avoidance_config.py',
          'oracle/ui/drag_settings.py', 'oracle/drag_reaction_config.py', 'oracle/ui/reading_settings.py',
+         'oracle/ui/drag_expression_settings.py', 'oracle/drag_expression_config.py',
          'oracle/ui/outfit_settings.py', 'oracle/outfit_config.py',
          'oracle/ui/cape_settings.py', 'oracle/cape_config.py',
          'oracle/ui/appearance_presets.py', 'presets/appearance.py', 'presets/library.py',
@@ -57,8 +60,9 @@ def sources():
     # 只抽取清单中面向用户的提示，不把 missing/check 等维护说明送入翻译
     resource_file = 'resources/catalog.toml'
     resource_text = (PACKAGE/resource_file).read_text(encoding='utf-8')
-    for resource in tomllib.loads(resource_text)['resources'].values():
-        for key in ('unavailable_message', 'recovery_hint'):
+    catalog = tomllib.loads(resource_text)
+    for resource in (*catalog['resources'].values(), *catalog['settings'].values()):
+        for key in ('unavailable_message', 'recovery_hint', 'unavailable_label'):
             if text := resource.get(key):
                 line = next((i for i, value in enumerate(resource_text.splitlines(), 1)
                              if value.startswith(key+' = ') and text in value), 1)

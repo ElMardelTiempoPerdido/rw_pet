@@ -11,6 +11,7 @@ from .cape_config import Cape
 from .clothing_config import CLOTHING_DECAL_FIELDS, ClothingDecal
 from .behavior_config import DailyActivityConfig, ReadingConfig
 from .drag_reaction_config import DragReactionConfig
+from .drag_expression_config import DragExpressionConfig
 from .drift_config import DriftConfig
 from .style_config import BehaviorStyleSelections
 from .mouse_avoidance_config import MouseAvoidanceConfig
@@ -251,7 +252,7 @@ class OracleConfig:
     halo_arcs_enabled: bool = True
     halo_arc_max_count: int = 3
     pixel_mode: str = 'adaptive'  # 人偶与光环：classic 原始像素 / adaptive 精细像素。
-    coarse_pixels_4x: bool = False  # 4× 改用 1× 像素画布；默认使用 2×，3× 始终使用 1×
+    coarse_pixels_4x: bool = False  # 兼容旧字段名：2×／4× 改用 1× 像素画布；3× 始终使用 1×
     outfit: str = 'normal'  # normal 原有外观 / maid 叠加女仆套装。
     outfit_settings: OutfitSettings = OutfitSettings()
     body_appearance: str = 'bell'  # 固定角色与自定义模板使用独立配色和绘制入口
@@ -264,6 +265,7 @@ class OracleConfig:
     glow_radius: float = 2.  # 外发光扩散半径，逻辑像素；跟随桌宠显示倍率。
     glow_opacity: float = .4  # 仅调节柔光合成强度；0 隐藏，1 为完整强度。
     drag_reactions: DragReactionConfig = DragReactionConfig()
+    drag_expressions: DragExpressionConfig = DragExpressionConfig()
     voice: str = 'bell'  # 角色行为选项，与主体外观、眼睛和手臂能力无关
     voice_directory: str = 'auto'  # 首次从 game_dir 准备语音并缓存，也可指定已处理 WAV 目录。
     behavior_styles: BehaviorStyleSelections = BehaviorStyleSelections()
@@ -275,6 +277,8 @@ class OracleConfig:
     def __post_init__(self):
         if not isinstance(self.behavior_styles, BehaviorStyleSelections):
             raise ValueError("Invalid behavior style selections")
+        if not isinstance(self.drag_expressions, DragExpressionConfig):
+            raise ValueError('拖动表情配置无效')
         if not isinstance(self.drift, DriftConfig) or not isinstance(self.mouse_avoidance, MouseAvoidanceConfig):
             raise ValueError('漫游或鼠标躲避配置无效')
         if not isinstance(self.daily_activity, DailyActivityConfig) or not isinstance(self.reading, ReadingConfig):
@@ -309,7 +313,7 @@ class OracleConfig:
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
             raise ValueError('oracle.voice_directory 必须为非空路径字符串')
         if not isinstance(self.voice, str) or self.voice not in VOICE_CLIPS:
-            raise ValueError('oracle.voice 必须为 bell / none')
+            raise ValueError('oracle.voice 必须为 bell / moon / pebbles / sig / prince / none')
         if type(self.halo_enabled) is not bool:
             raise ValueError('oracle.halo_enabled 必须为布尔值')
         if type(self.halo_arcs_enabled) is not bool:
@@ -414,6 +418,7 @@ class OracleConfig:
         data['custom_appearance'] = CustomAppearance.from_mapping(data.get('custom_appearance', {}),
                                                                  eye_color=data['custom_colors'].eyes)
         data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))
+        data['drag_expressions'] = DragExpressionConfig.from_mapping(data.get('drag_expressions', {}))
         data['outfit_settings'] = OutfitSettings.from_mapping(data.get('outfit_settings', {}))
         data['daily_activity'] = DailyActivityConfig(**data.get('daily_activity', {}))
         data['reading'] = ReadingConfig(**data.get('reading', {}))

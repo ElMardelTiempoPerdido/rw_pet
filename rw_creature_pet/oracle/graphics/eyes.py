@@ -1,9 +1,32 @@
-"""摸摸时的眼睑覆盖率过渡，保留静态眼睛的硬像素轮廓"""
+"""固定像素眼形与摸摸时的眼睑覆盖率过渡"""
 from math import ceil, floor, hypot
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter
+
+
+# 坐标相对常规 2×2 睁眼矩形的左上角；第一份对应眼睛1，第二份对应眼睛2
+EYE_PIXELS = {
+    'squeezed': (((0, 0), (1, 1), (0, 2)), ((1, 0), (0, 1), (1, 2))),
+    'slant_in': (((0, 0), (1, 1)), ((1, 0), (0, 1))),
+    'slant_out': (((1, 0), (0, 1)), ((0, 0), (1, 1))),
+    'round': (((1, 0), (0, 1), (2, 1), (1, 2)),)*2,
+    'chevron_up': (((1, 0), (0, 1), (2, 1)),)*2,
+    'chevron_down': (((0, 0), (2, 0), (1, 1)),)*2,
+}
+
+
+def draw_eye_shape(painter, kind, sign, rect):
+    """复用头部坐标和横向透视，固定表情不受睁闭眼或较低眼位影响"""
+    cell_width = rect.width()/2
+    for x, y in EYE_PIXELS[kind][0 if sign < 0 else 1]:
+        painter.drawRect(QRectF(rect.x()+x*cell_width, rect.y()+y, cell_width, 1))
+    if kind == 'round':
+        painter.save()
+        painter.setBrush(QColor('#ffffff'))
+        painter.drawRect(QRectF(rect.x()+cell_width, rect.y()+1, cell_width, 1))
+        painter.restore()
 
 
 class EyeLidTransition:

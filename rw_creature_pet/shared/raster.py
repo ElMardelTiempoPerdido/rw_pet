@@ -3,6 +3,7 @@
 
 def pixel_density(mode, scale, coarse_pixels_4x=False):
     scale = round(max(1., min(4., scale)), 6)
-    if mode == 'classic' or scale == 3. or (scale == 4. and coarse_pixels_4x):
+    # 保留 coarse_pixels_4x 名称以兼容旧配置，开关现在同时作用于 2× 和 4×
+    if mode == 'classic' or scale == 3. or (scale in (2., 4.) and coarse_pixels_4x):
         return 1.
     return 2. if scale == 4. else scale

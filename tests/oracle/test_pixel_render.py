@@ -92,7 +92,7 @@ class PixelRenderTests(unittest.TestCase):
             scene.step()
         # 珍珠贴图原本独立绘制；此处逐像素比较人偶所有部件、机械臂、线缆和光环
         with patch.object(renderer, 'draw_pearl'):
-            for scale, coarse, base_scale in ((3., False, 1.), (3., True, 1.),
+            for scale, coarse, base_scale in ((2., True, 1.), (3., False, 1.), (3., True, 1.),
                                                (4., False, 2.), (4., True, 1.)):
                 scene.config = replace(scene.config, coarse_pixels_4x=coarse)
                 base = self.paint(renderer, scene, scale=base_scale)
@@ -105,9 +105,11 @@ class PixelRenderTests(unittest.TestCase):
                 self.assertIs(renderer._head_image, head)
                 self.assertIs(renderer._halo_image, halo)
 
-    def test_coarse_option_only_changes_four_x_and_rejects_non_boolean(self):
-        for scale in (1., 1.5, 2., 3.):
+    def test_coarse_option_changes_two_and_four_x_and_rejects_non_boolean(self):
+        for scale in (1., 1.5, 3.):
             self.assertEqual(pixel_density('adaptive', scale, False), pixel_density('adaptive', scale, True))
+        self.assertEqual(pixel_density('adaptive', 2.), 2.)
+        self.assertEqual(pixel_density('adaptive', 2., True), 1.)
         self.assertEqual(pixel_density('adaptive', 4.), 2.)
         self.assertEqual(pixel_density('adaptive', 4., True), 1.)
         for value in (None, 0, 1, 'true'):
@@ -125,7 +127,7 @@ class PixelRenderTests(unittest.TestCase):
         glyph.setPixelColor(2, 3, Qt.GlobalColor.cyan)
         renderer = OracleRenderer(glyphs=Mock(sprite=Mock(return_value=glyph)))
         with patch.object(renderer, 'draw_pixel_layer'), patch.object(renderer, 'draw_scene_head'):
-            for scale, coarse, base_scale in ((3., False, 1.), (4., False, 2.), (4., True, 1.)):
+            for scale, coarse, base_scale in ((2., True, 1.), (3., False, 1.), (4., False, 2.), (4., True, 1.)):
                 scene.config = replace(scene.config, coarse_pixels_4x=coarse)
                 base = self.paint(renderer, scene, scale=base_scale)
                 actual = self.paint(renderer, scene, scale=scale)
@@ -192,7 +194,7 @@ class PixelRenderTests(unittest.TestCase):
             scene.step()
         cache = PuppetHitMap()
         with patch.object(renderer, 'draw_pearl'), patch.object(renderer, 'draw_arm'):
-            for scale, coarse in ((1., False), (1.5, False), (2., False), (3., False),
+            for scale, coarse in ((1., False), (1.5, False), (2., False), (2., True), (3., False),
                                   (4., False), (4., True)):
                 scene.config = replace(scene.config, coarse_pixels_4x=coarse)
                 density = pixel_density('adaptive', scale, coarse)

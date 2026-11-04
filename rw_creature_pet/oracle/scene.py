@@ -27,6 +27,7 @@ from .pearls.fixed import FixedPearls
 from .behavior.pose import OraclePose
 from .interaction.drag import OracleDrag
 from .interaction.drag_reactions import OracleDragReactions
+from .interaction.drag_expressions import OracleDragExpressions
 from .behavior.window_reaction import OracleWindowReaction
 from .behavior.mouse_reaction import OracleMouseReaction
 
@@ -420,13 +421,15 @@ class OracleScene:
         if previous_window_reaction is not None:
             self.window_reaction.attention.random.setstate(previous_window_reaction.attention.random.getstate())
         self.drag_reactions = OracleDragReactions(self.config.drag_reactions)
+        self.drag_expressions = OracleDragExpressions(self.config.drag_expressions)
         self.projection = self.drag_reactions.projection
         if previous_projection is not None:
             self.projection.available = previous_projection.available
             self.projection.inherit_cooldown(previous_projection)
-        self._reset_fixed_pearls()
+        self.fixed_pearls = None
         self.pearl_matrix = None
         self.set_pearl_matrix(self.pearl_matrix_enabled)
+        self._reset_fixed_pearls()
         self.pearl_orbits = None
         self.set_pearl_orbits(self.pearl_orbits_enabled)
         self.ticks = 0
@@ -579,6 +582,9 @@ class OracleScene:
                 self.behavior.resume_or_idle(self)
             self.pearl_matrix = None
 
+        if self.fixed_pearls is not None:
+            self.fixed_pearls.set_matrix(self.pearl_matrix)
+
     @property
     def orbit_center(self):
         # 原版 OracleGraphics.Halo.Center：从上身穿过头部，继续向外 20。
@@ -600,7 +606,7 @@ class OracleScene:
         region = self.navigator.region if self.navigator else self.body_region
         self.fixed_pearls = FixedPearls(self.world, region, self.body.chunks[0].position,
             self.base_normal(), self.config.pearl_follow_width, self.config.pearl_follow_height,
-            self.config.pearl_fixed_count, self.config.pearl_satellite_count)
+            self.config.pearl_fixed_count, self.config.pearl_satellite_count, matrix=self.pearl_matrix)
 
     def set_pearl_counts(self, *, matrix=None, inner=None, outer=None, fixed=None, satellite=None):
         """调试即时数量预览；先验证整份配置，再重建发生变化的组。"""
@@ -779,6 +785,7 @@ class OracleScene:
         else:
             self._step_motion()
         self.drag_reactions.step(self)
+        self.drag_expressions.step(self)
         self._step_appearance()
         self.drag.after_step()
 
@@ -871,9 +878,9 @@ class OracleScene:
         upper = self.body.chunks[0]
         # 珍珠本轮尚不可抓取，仍在活动带内跟随人偶对应的边缘投影。
         pearl_center = self.project_target(upper.position) if self.drag.controlling else upper.position
-        self.fixed_pearls.step(pearl_center, self.observed_pearl if self.behavior.controls_pearl else None)
         if self.pearl_matrix is not None:
             self.pearl_matrix.step(pearl_center)
+        self.fixed_pearls.step(pearl_center, self.observed_pearl if self.behavior.controls_pearl else None)
         if self.behavior.looking:
             self.look_target = self.observed_pearl.position
         self.previous_look_direction = self.look_direction

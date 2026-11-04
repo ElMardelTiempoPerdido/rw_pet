@@ -8,7 +8,7 @@
 - 完整机器可读映射：同一命令增加 `--json`
 - 回归检查：`python -m unittest tests.test_resource_catalog`
 
-资源检测结果已接入桌面启动和设置面板。游戏本体主图集仍是正常启动的必要资源；Bell 语音、扫描图片、珍珠字形、珍珠播放动画分别检测、分别降级，并按清单标注对应设置“不可用”
+资源检测结果已接入桌面启动和设置面板。游戏本体主图集仍是正常启动的必要资源；各套语音、扫描图片、珍珠字形、珍珠播放动画分别检测、分别降级，并按清单标注对应设置“不可用”
 
 游戏目录旁的“重新检查资源”会在后台重新准备素材，结果可更新当前运行实例，但不写入角色参数。缺失资源不会把已保存的 `bell`、概率或开关改为默认值；补齐素材后重新检查即可恢复相关控件。程序自身的文件仍应完整，Prince、套装和字体等随包文件不属于用户必须额外安装的 DLC
 
@@ -18,12 +18,12 @@
 | --- | --- |
 | `format_version` | 清单结构版本，当前为 1 |
 | `required` | 正常桌宠启动的必要资源 ID，当前只有 `main_atlas`；调试几何降级仍由启动入口处理 |
-| `origins.<id>` | 内容来源分类：游戏本体、Downpour、Watcher、随包或用户素材 |
+| `origins.<id>` | 内容来源分类：游戏本体、Downpour、Watcher、模组、随包或用户素材 |
 | `resources.<id>` | 资源组、原始来源、交付方式、现有加载器、校验要求、缺失影响、缓存与候选来源 |
 | `unavailable_message` / `recovery_hint` | 资源组中专供用户查看和翻译的简短原因与修复提示；`missing`、`check`、`notes` 不直接展示 |
-| `resources.<id>.sources` | 当前实际获取位置，`root=game/package/setting` 分别以游戏根目录、Python 包根目录、实际配置字段解释 `paths` |
+| `resources.<id>.sources` | 当前实际获取位置，`root=game/package/setting/mod` 分别以游戏根目录、Python 包根目录、实际配置字段、加载器定位的模组资源目录解释 `paths` |
 | `features.<id>` | 功能所需资源 ID；`sprites` 登记该功能使用的主图集帧；无额外素材的计算效果可写空数组 |
-| `settings.<id>` | 关联的真实配置叶路径、功能 ID、影响方式、可选的下拉选项值 |
+| `settings.<id>` | 关联的真实配置叶路径、功能 ID、影响方式、可选的下拉选项值；`unavailable_label` 可指定缺失时的完整选项文案 |
 
 所有 ID 稳定且独立于显示名称。`paths` 不接受目录通配符；`overseer.slots[].appearance` 中的 `[]` 是配置结构中每个槽位的字段，不是文件匹配。来源候选如何选取以现有加载器为准，不能把一个 `sources.paths` 数组一律解释为“全部存在”或“任一存在即可”
 
@@ -39,6 +39,10 @@
 | `pearl_glyphs` | 同一容器内的 `glyphs`，提取遮罩缓存 | 珍珠字符及其颜色；不影响珍珠数量、布局和普通阅读 |
 | `scan_images` | 本体 `illustrations/aiimg3a.png`、`aiimg3b.png` | 拖动扫描投影概率、冷却；两帧都必需 |
 | `bell_voice` | Watcher 的 `RWTW_ATalkShow`，或用户指定的已处理 Bell 片段 | `oracle.voice=bell`；语音开关、音量、拖动语音概率是关联项，不直接固定为 Watcher 开关 |
+| `moon_voice` | 本体 `MoonChat1～5`，有效独立 WAV 或共用音效包 | `oracle.voice=moon`；只影响本套语音及选用时的语音参数 |
+| `pebbles_voice` | 本体 `PebblesChat1～5`，有效独立 WAV 或共用音效包 | `oracle.voice=pebbles`；只影响本套语音及选用时的语音参数 |
+| `prince_voice` | Watcher 的 `RWTW_PrinceTalk1_01～22`，有效独立 WAV 或共用音效包 | `oracle.voice=prince`；仅影响本套语音及选用时的语音参数 |
+| `sig_voice` | Hunter Expansion 本地 2 段 ShortDialogue 和 3 段 LongDialogue WAV | `oracle.voice=sig`；仅检查文件可用，不要求订阅、启用模组或安装前置 |
 | `pearl_playback_curve` | Watcher 曲目 Soft Gesture 的预生成数据，已随包分发 | 播放动画概率、气泡大小及颜色；无需游戏音乐，不播放原曲 |
 | `prince_visuals` | 随包的头部及前后衣袍 PNG | `oracle.body_appearance=prince` |
 | `prince_layout` | 随包 `skin/prince/tentacles.toml` | Prince 触须布局及物理参数 |
@@ -53,7 +57,7 @@
 
 光环、电弧、Bell 额头标记、念珠项链、身体/衣袍网格和多数运动是程序计算效果，没有额外的 DLC 文件需求。共享主图集仍按正常启动要求检查，不需要把每个计算效果重复登记为游戏素材
 
-目前没有单独从 Downpour 读取的运行时资源。保留 `downpour` 来源 ID，尚未为其虚构依赖项。Pebbles、Moon、Sig/猎手拓展与自定义语音库属于后续实现，不登记为已存在的可选语音；当前代码中的 `VOICE_CLIPS` 仍只有 `bell` 和 `none`
+目前没有单独从 Downpour 读取的运行时资源。保留 `downpour` 来源 ID，尚未为其虚构依赖项。`VOICE_CLIPS` 包含 `bell`、`moon`、`pebbles`、`sig`、`prince` 和 `none`；通用自定义语音库仍未实现。`hunter_expansion` 来源的 `kind=mod`，资源 `root=mod` 表示由加载器定位的模组资源目录，`paths` 仍是明确的相对文件路径
 
 ## 设置影响规则
 
@@ -89,9 +93,15 @@ catalog.bindings_for("oracle.voice", option="bell")
 
 Bell 自动流程优先使用完整的独立 WAV，再尝试共用音效 AssetBundle 中指定的条目。零字节占位 WAV、共用包存在、Watcher 目录存在，都不等于 Bell 音频可用。显式 `voice_directory` 除旧版兼容路径外，缺文件时不会自动回退游戏目录；当前只验证预期的十个文件存在，解码错误仍可能发生在实际播放阶段
 
-角色选择 `none` 时不会提取 Bell 音频，也不会仅凭 DLC 目录或共用音效包判断 Bell 可用。尚未检查的语音保持 `UNKNOWN`，用户选择 Bell 后后台准备并显示结果；显式“重新检查资源”会检查 Bell，即使当前选的是 `none`。切换语音或语音来源会检查资源是否可复用，不能仅按游戏目录复用先前的空音频结果
+角色选择 `none` 时不提取语音。尚未检查的本体及 Prince 语音保持 `UNKNOWN`，选择后后台准备并显示结果；Sig 是独立 WAV，正常资源准备时即检测，使缺失模组的选项在首次打开设置时就有明确状态。显式“重新检查资源”会检查 Bell、Moon、Pebbles、Sig、Prince，即使当前选的是 `none`。相同来源的已检查语音可累积复用，但错误与可用性按所选语音分别判断，不能将另一套语音的失败带入当前播放，也不使用迟到结果覆盖尚未准备好的新选择
+
+Moon 与 Pebbles 仅提取 Chat，每套五段；Prince 仅提取 `Prince_Talk` 的 01～22 段。完整音频无需切分，每套片段都须通过 PCM 完整性验证，缺少其中一段不会发布部分缓存，也不影响其他语音。`audio/chat_assets.py` 按源文件路径、大小、修改时间和版本建立缓存，校验片段帧数与 SHA256；Moon、Pebbles 和 Prince 同时冷准备时共用一次音效包读取，热缓存不解包。缓存写入 `%LOCALAPPDATA%/rw_creature_pet/voices/<语音>-<指纹>/`，多进程锁及最后提交 manifest 避免半成品被当成可用素材。`oracle.voice_directory` 仍仅覆盖 Bell，不影响 Chat / Prince Talk 来源
 
 语音、投影、字形和播放曲线的错误分别保留，不中断主图集已经成功准备的启动流程。扫描图片缺失不会禁用摆手、睁眼、光环或共用的投影不透明度；字符缺失不会关闭珍珠实体和普通阅读。包内 Prince、套装、字体及用户逐槽 PNG 仍沿用现有安装完整性与素材校验，不将其错误当成缺少 DLC，也不把聚合资源组整体作为可选内容禁用
+
+Sig 由 `shared/game_mods.py` 从所选游戏所属 Steam 库、注册表发现的 Steam 安装目录及 `libraryfolders.vdf` 定位 `steamapps/workshop/content/312520/3186608452`；同时检查游戏 `RainWorld_Data/StreamingAssets/mods` 下 `modinfo.json` 的 ID `Quaeledy.hunterexpansion`。不读取订阅或启用清单，不加载 DLL。`audio/mod_assets.py` 使用模组 `newest` 覆盖文件或根目录文件，一个副本须提供完整五段可读 16 位 PCM；多个不完整副本不会拼接，坏副本不会阻止尝试其他完整安装。直接使用源 WAV，不生成可在卸载后继续复用的语音缓存
+
+`settings.voice_sig.unavailable_label` 定义下拉选项的特定提示，其他选项沿用“（不可用）”。提示中的“未订阅”是面向用户的安装引导文案，实际判定为本地资源缺失或损坏；工具提示说明可修复安装且无需启用模组。语音缺失只影响当前所选语音的参数，不回写角色配置；修复后重新检查即可恢复。专项验证入口：`python -m unittest tests.oracle.test_sig_voice`
 
 资源归属本轮依据当前加载器、已采用素材与本机游戏内容整理。当前设备安装了 DLC，未以“仅安装本体”的干净环境实际启动验收；原反编译路径 `D:/CODES/CS/rw/_src` 当前不在本机，未重新对照那份源码。这里不把内容分类当作 Steam 购买状态检测
 

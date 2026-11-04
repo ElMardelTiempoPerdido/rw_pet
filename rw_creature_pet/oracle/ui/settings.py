@@ -48,6 +48,7 @@ from ...presets.appearance import apply_appearance, appearance_paths
 from ...presets.common import get_value, replace_fields
 from ...presets.profile import apply_profile
 from ...presets.fields import paths_for
+from ...presets.personal import apply_values
 from ...presets.registry import FieldScope
 from ...presets.startup import prepare_character
 from .settings_style import (PixelRule, apply_settings_style, pixel_box, settings_font, PixelRuleThin,
@@ -63,6 +64,7 @@ PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity
                'overseer.observation_probability'}
 PERCENTAGES.update(('oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve'))
 PERCENTAGES.update('oracle.drag_reactions.'+name for name, _ in DRAG_PROBABILITIES)
+PERCENTAGES.add('oracle.drag_expressions.probability')
 PERCENTAGES.update('oracle.drift.'+name for name in DRIFT_PERCENT_FIELDS)
 PERCENTAGES.update('oracle.mouse_avoidance.'+name for name in AVOIDANCE_PERCENT_FIELDS)
 PERCENTAGES.update('oracle.drag_reactions.'+name for name in DRAG_PERCENT_FIELDS)
@@ -371,13 +373,15 @@ class OverseerSlotsEditor(QWidget):
 
 
 class AssetPreparation(QThread):
-    def __init__(self, config, parent):
+    def __init__(self, config, parent, *, check_all_voices=False):
         super().__init__(parent)
         self.config, self.result, self.error = config, None, ''
+        self.check_all_voices = check_all_voices
 
     def run(self):
         try:
-            self.result = prepare_oracle_assets(self.config)
+            self.result = (prepare_oracle_assets(self.config, check_all_voices=True) if self.check_all_voices
+                           else prepare_oracle_assets(self.config))
         except Exception as exc:
             self.error = Message('资源准备失败：{error}', error=exc)
 
@@ -391,8 +395,10 @@ class OracleSettingsDialog(QDialog):
         self.setWindowTitle('桌宠初始化设置' if first_run else '桌宠设置')
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         initialization = initialization or prepare_character(config, store)
-        config = initialization.config
         self.character_state = initialization.state
+        # 运行快照可能仍持有被清理的旧代次路径；先应用当前角色，再创建任何预览控件
+        entry = self.character_state.entries[self.character_state.active]
+        config = apply_values(initialization.config, entry.values)
         self._migration_notice = initialization.notice
         self.original, self.store = config, store
         language_manager().set_language(config.ui.language)
@@ -476,7 +482,7 @@ class OracleSettingsDialog(QDialog):
         left, right = self.two_columns(general)
         left.addRow('桌宠显示大小', scale)
         self.check(right, '使用更加狗啃的像素化效果', 'oracle.coarse_pixels_4x', config.oracle.coarse_pixels_4x)
-        self.controls['oracle.coarse_pixels_4x'].setToolTip('仅用于 4×：勾选后放大 1× 像素，默认放大 2× 像素')
+        self.controls['oracle.coarse_pixels_4x'].setToolTip('用于 2× 和 4×：勾选后按 1× 计算像素并直接放大，关闭时使用 2× 像素')
         self.check(general, '人偶想去哪去哪', 'desktop.autonomous', config.desktop.autonomous)
 
         auto_note = QLabel('*勾选此项时，人偶会自主移动')
@@ -586,6 +592,8 @@ class OracleSettingsDialog(QDialog):
         self.section_heading(custom, '眼睛')
         shape = config.oracle.custom_appearance
         for column, (name, title) in zip(self.two_columns(custom), EYE_LABELS.items()):
+            # 独立眼形会显示不同数量的参数，整个编辑器从列顶部对齐
+            column.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
             editor = EyeEditor(title, getattr(shape, name))
             self.eye_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
@@ -598,7 +606,8 @@ class OracleSettingsDialog(QDialog):
         # png_note.setStyleSheet(NOTE_STYLE)
         # custom.addRow(png_note)
         for name, title in (('forehead', '额头标记 PNG'), ('face', '面部装饰 PNG')):
-            editor = FaceDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            editor = FaceDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images',
+                                     assets_active=config.oracle.body_appearance == 'custom')
             self.face_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
             custom.addRow(editor)
@@ -606,7 +615,8 @@ class OracleSettingsDialog(QDialog):
 
         self.section_heading(custom, '耳机部件')
         for name, title in EAR_LABELS.items():
-            editor = EarPartEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            editor = EarPartEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images',
+                                   assets_active=config.oracle.body_appearance == 'custom')
             self.ear_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
             custom.addRow(editor)
@@ -673,7 +683,8 @@ class OracleSettingsDialog(QDialog):
         custom.addRow(PixelRuleThin())
         self.section_heading(custom, '服装贴图')
         for name, title in CLOTHING_LABELS:
-            editor = ClothingDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images')
+            editor = ClothingDecalEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images',
+                                         assets_active=config.oracle.body_appearance == 'custom')
             self.clothing_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
             custom.addRow(editor)
@@ -689,7 +700,7 @@ class OracleSettingsDialog(QDialog):
         # custom.addRow(soft_note)
         for name, title in SOFT_PART_LABELS:
             editor = SoftPartEditor(title, getattr(shape, name), self.store.path.parent/'appearance/images',
-                                    columns=self.two_columns)
+                                    columns=self.two_columns, assets_active=config.oracle.body_appearance == 'custom')
             self.soft_part_editors[name] = editor
             self.controls['oracle.custom_appearance.'+name] = editor
             custom.addRow(editor)
@@ -952,6 +963,15 @@ class OracleSettingsDialog(QDialog):
         return (*self.face_editors.values(), *self.ear_editors.values(), *self.soft_part_editors.values(),
                 *self.clothing_editors.values())
 
+    def sync_image_assets(self):
+        active = (self.controls['oracle.body_appearance'].value() == 'custom'
+                  and not getattr(self, '_filling_image_values', False))
+        editors = self.image_editors
+        if self.face_preview is not None:
+            editors += (*self.face_preview.face_editors.values(), *self.face_preview.ear_editors.values())
+        for editor in editors:
+            editor.set_assets_active(active)
+
     def appearance_draft(self):
         """导出不依赖游戏路径或其他页签是否填写完整，只读取当前主体的外观草稿"""
         paths = appearance_paths(self.controls['oracle.body_appearance'].value())
@@ -995,11 +1015,18 @@ class OracleSettingsDialog(QDialog):
     def _fill_preset(self, config, paths):
         # 未展示字段同样进入草稿基准；仅填入本次范围，保留其他控件中的未保存修改
         self.original = config
-        for key, control in self.controls.items():
-            if key not in paths and not any(path.startswith(key+'.') for path in paths):
-                continue
-            value = get_value(config, key)
-            self.fill_control(key, control, value)
+        # 一组字段填完后再读图片，避免主体先切换而 PNG 路径仍属于上一个角色
+        self._filling_image_values = True
+        self.sync_image_assets()
+        try:
+            for key, control in self.controls.items():
+                if key not in paths and not any(path.startswith(key+'.') for path in paths):
+                    continue
+                value = get_value(config, key)
+                self.fill_control(key, control, value)
+        finally:
+            self._filling_image_values = False
+            self.sync_image_assets()
         self.behavior_styles.refresh()
         self.sync_dependencies()
         self.refresh_space()
@@ -1422,6 +1449,11 @@ class OracleSettingsDialog(QDialog):
         form.addRow(note)
 
     def spin(self, form, label, key, value, minimum, maximum, *, decimals=0, step=1, suffix=''):
+        control = self.spin_control(key, value, minimum, maximum, decimals=decimals, step=step, suffix=suffix)
+        form.addRow(label, control)
+
+    def spin_control(self, key, value, minimum, maximum, *, decimals=0, step=1, suffix=''):
+        """普通数值和范围端点共用注册、精度与旧值保护"""
         control = WheelSafeDoubleSpinBox() if decimals else WheelSafeSpinBox()
         if decimals:
             control.setDecimals(decimals)
@@ -1433,7 +1465,7 @@ class OracleSettingsDialog(QDialog):
         control.setSuffix(suffix)
         control.setKeyboardTracking(False)
         self.controls[key] = control
-        form.addRow(label, control)
+        return control
 
     @staticmethod
     def value(control):
@@ -1447,6 +1479,7 @@ class OracleSettingsDialog(QDialog):
         if hasattr(self, 'resource_settings'):
             self.resource_settings.restore()
         c = self.controls
+        self.sync_image_assets()
         sync_outfit_dependencies(self)
         sync_cape_settings(self)
         self.bell_parameters.setVisible(c['oracle.body_appearance'].value() == 'bell')
@@ -1468,7 +1501,7 @@ class OracleSettingsDialog(QDialog):
         self.neckline_color.setEnabled(trim)
         for key, control in self.projection_colors.items():
             control.setVisible(key == self.projection_color_key())
-        c['oracle.coarse_pixels_4x'].setEnabled(c['desktop.scale'].currentData() == 4.)
+        c['oracle.coarse_pixels_4x'].setEnabled(c['desktop.scale'].currentData() in (2., 4.))
         for key in c:
             if key.startswith('overseer.') and key not in ('overseer.enabled', 'overseer.slots', 'overseer.appearance_mode'):
                 c[key].setEnabled(c['overseer.enabled'].isChecked())
@@ -1496,6 +1529,8 @@ class OracleSettingsDialog(QDialog):
         if hasattr(self, 'resource_settings'):
             self.resource_settings.apply()
             self.resource_settings.dependencies_changed()
+        for editor in getattr(self, 'proportion_groups', {}).values():
+            editor.refresh()
 
     def browse(self):
         path = QFileDialog.getExistingDirectory(self, tr('选择 Rain World 安装目录'), self.game_dir.text(),

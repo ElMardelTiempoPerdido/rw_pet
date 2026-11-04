@@ -5,6 +5,15 @@ import re
 from ..shared.messages import Message
 
 EYE_FIELDS = ('eye_1', 'eye_2')
+EYE_KINDS = (
+    ('normal', '常规眼睛'),
+    ('squeezed', '> <'),
+    ('slant_in', '\\ /'),
+    ('slant_out', '/ \\'),
+    ('round', 'o o'),
+    ('chevron_up', '^ ^'),
+    ('chevron_down', 'ˇ ˇ'),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +22,7 @@ class EyeAppearance:
     visible: bool = True
     default_open: bool = False
     height_mode: str = 'normal'
+    kind: str = 'normal'
 
     def __post_init__(self):
         if not isinstance(self.color, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', self.color):
@@ -22,6 +32,8 @@ class EyeAppearance:
                 raise ValueError(Message('眼睛参数 {name} 必须为布尔值', name=name))
         if self.height_mode not in ('normal', 'lower'):
             raise ValueError('眼位高度必须为 normal 或 lower')
+        if not isinstance(self.kind, str) or self.kind not in dict(EYE_KINDS):
+            raise ValueError(Message('不支持的眼睛形态：{kind}', kind=self.kind))
 
     def openness(self, reaction):
         # 现有动画表达临时睁眼意愿；结束后回到各自的默认状态

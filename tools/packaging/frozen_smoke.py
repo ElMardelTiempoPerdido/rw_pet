@@ -18,9 +18,9 @@ def main(argv):
     started = monotonic()
     try:
         from dataclasses import replace
-        from PySide6.QtCore import QEventLoop, QTimer, QUrl
+        from PySide6.QtCore import QEventLoop, QTimer
         from PySide6.QtGui import QImage, QPainter
-        from PySide6.QtMultimedia import QSoundEffect
+        from rw_creature_pet.interaction.audio_backend import QtMediaBackend
         from PySide6.QtWidgets import QApplication, QDialog, QSystemTrayIcon
         from rw_creature_pet.settings_store import SettingsStore, default_template_path
         from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
@@ -71,24 +71,27 @@ def main(argv):
         assert solver.signatures
         report['numba'] = True
 
-        sound = QSoundEffect()
-        sound.setSource(QUrl.fromLocalFile(str(next(iter(assets.voice_paths.values())))))
-        sound_loop = QEventLoop()
-        sound.statusChanged.connect(lambda: sound_loop.quit() if sound.status() in
-                                    (QSoundEffect.Status.Ready, QSoundEffect.Status.Error) else None)
-        QTimer.singleShot(10000, sound_loop.quit)
-        if sound.status() == QSoundEffect.Status.Loading:
+        sound = QtMediaBackend(app)
+        try:
+            sound.set_volume(0.)  # 与产品共用媒体后端，验证发行包包含解码和输出依赖
+            sound.play(next(iter(assets.voice_paths.values())))
+            sound_loop = QEventLoop()
+            sound_timer = QTimer()
+            sound_timer.timeout.connect(lambda: sound_loop.quit() if sound.state in ('playing', 'error') else None)
+            sound_timer.start(20)
+            QTimer.singleShot(10000, sound_loop.quit)
             sound_loop.exec()
-        assert sound.status() == QSoundEffect.Status.Ready, f'Qt 音频解码失败：{sound.status()}'
-        report['qt_audio_decoding'] = True
-        sound.setVolume(0.)  # 静音验证实际播放通路，避免移除视频后端后只解码成功。
-        sound.play()
-        playback_loop = QEventLoop()
-        QTimer.singleShot(250, playback_loop.quit)
-        playback_loop.exec()
-        assert sound.isPlaying() and sound.status() == QSoundEffect.Status.Ready
-        sound.stop()
-        report['qt_audio_playback'] = True
+            sound_timer.stop()
+            assert sound.state == 'playing', f'Qt 音频播放失败：{sound.diagnostics()}'
+            report['qt_audio_decoding'] = True
+            playback_loop = QEventLoop()
+            QTimer.singleShot(250, playback_loop.quit)
+            playback_loop.exec()
+            assert sound.state == 'playing', sound.diagnostics()
+            report['qt_audio_playback'] = True
+            report['audio_backend'] = sound.diagnostics()
+        finally:
+            sound.close()
 
         # 离屏平台没有系统托盘，仅替代可用性检测，仍执行真实桌面窗口初始化。
         QSystemTrayIcon.isSystemTrayAvailable = staticmethod(lambda: True)

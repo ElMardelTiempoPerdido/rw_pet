@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (QCheckBox, QFileDialog, QFormLayout, QHBoxLayout,
 
 from ...i18n import tr
 from ...shared.messages import Message
-from ..graphics.face_assets import face_image, import_face_png, read_face_png
+from ..graphics.face_assets import import_face_png, read_face_png
+from .image_preview_state import ImagePreviewEditor
 from ..soft_part_config import SOFT_PART_RANGES, SoftPart
 from .inputs import ColorButton, WheelSafeComboBox, WheelSafeDoubleSpinBox
 from .settings_style import NOTE_STYLE, parameter_group_background
@@ -26,11 +27,11 @@ CHOICES = {
 PERCENT_FIELDS = ('softness', 'damping', 'tip_width_ratio')
 
 
-class SoftPartEditor(QWidget):
+class SoftPartEditor(ImagePreviewEditor):
     valueChanged = Signal(object)
 
-    def __init__(self, title, value, directory, *, columns):
-        super().__init__()
+    def __init__(self, title, value, directory, *, columns, assets_active=True):
+        super().__init__(assets_active=assets_active)
         self.directory = Path(directory)
         self._value, self._error = None, ''
         self.parameter_controls = {}
@@ -173,7 +174,7 @@ class SoftPartEditor(QWidget):
         self.png_panel.setVisible(png)
         # 即使未启用，也允许先选择 PNG；导入成功后一次性启用并提交
         self.clear_button.setEnabled(bool(value.image_path))
-        image = face_image(value.image_path, value.IMAGE_MAX_SIZE) if png else None
+        image = self.preview_image(value)
         self.thumbnail.setPixmap(QPixmap.fromImage(image).scaled(
             64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.FastTransformation)
             if image is not None and not image.isNull() else QPixmap())
@@ -182,8 +183,8 @@ class SoftPartEditor(QWidget):
                 if image is not None and not image.isNull() else name or '尚未选择 PNG')
         self.file_label.setText(tr(text))
         self.file_label.setToolTip(value.image_path)
-        error = self._error
-        if not error and png and value.enabled and (image is None or image.isNull()):
+        error = self._error if self.assets_active else ''
+        if self.assets_active and not error and png and value.enabled and image.isNull():
             error = '请导入柔性部件 PNG、选择几何形状，或关闭此部件'
         self.message.setText(tr(error))
         self.message.setVisible(bool(error))

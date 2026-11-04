@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from rw_creature_pet.config import AppConfig
-from rw_creature_pet.interaction.audio import QtSoundBackend, VoicePlayer
+from rw_creature_pet.interaction.audio import VoicePlayer
 from rw_creature_pet.interaction.config import AudioConfig
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 from rw_creature_pet.oracle.config import OracleConfig
@@ -257,32 +257,6 @@ class VoicePlayerTests(unittest.TestCase):
         errors = [call.kwargs for call in self.events.call_args_list if call.args[0] == 'playback_error']
         self.assertEqual(errors[0]['reason'], 'backend_error')
         self.assertEqual(errors[0]['clip'], 'bell')
-
-
-class QtBackendCleanupTests(unittest.TestCase):
-    def test_disposal_revokes_late_ready_callback_and_releases_qt_object(self):
-        backend = QtSoundBackend.__new__(QtSoundBackend)
-        effect = backend.effect = Mock()
-        backend.requested = True
-        backend.close()
-        backend._ready()  # 已在事件队列中的旧回调也不能补播。
-        backend.close()
-        effect.statusChanged.disconnect.assert_called_once_with(backend._ready)
-        effect.stop.assert_called_once()
-        effect.deleteLater.assert_called_once()
-        effect.play.assert_not_called()
-        self.assertFalse(backend.requested)
-
-    def test_disposal_still_deletes_qt_object_if_stop_fails(self):
-        backend = QtSoundBackend.__new__(QtSoundBackend)
-        effect = backend.effect = Mock()
-        effect.stop.side_effect = RuntimeError('lost device')
-        backend.requested = True
-        with self.assertRaises(RuntimeError):
-            backend.close()
-        backend._ready()
-        effect.deleteLater.assert_called_once()
-        effect.play.assert_not_called()
 
 
 class AudioConfigTests(unittest.TestCase):

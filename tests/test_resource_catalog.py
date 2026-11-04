@@ -57,6 +57,17 @@ class ResourceCatalogTests(unittest.TestCase):
         states['pearl_playback_curve'] = A.UNAVAILABLE
         self.assertIs(self.catalog.feature_state('pearls', states), A.AVAILABLE)
 
+    def test_prince_voice_tracks_exact_talk_pool_as_optional_watcher_resource(self):
+        resource = self.catalog.resources['prince_voice']
+        self.assertEqual(resource.origins, ('watcher',))
+        self.assertEqual(set(resource.sources[0].objects),
+                         {f'AudioClip:{c.asset_name}' for c in VOICE_CLIPS['prince']})
+        self.assertEqual(len(resource.sources[0].objects), 22)
+        states = {'main_atlas': A.AVAILABLE, 'prince_voice': A.UNAVAILABLE, 'moon_voice': A.AVAILABLE}
+        self.assertIs(self.catalog.required_state(states), A.AVAILABLE)
+        self.assertIs(self.catalog.setting_state('voice_prince', states), A.UNAVAILABLE)
+        self.assertIs(self.catalog.setting_state('voice_moon', states), A.AVAILABLE)
+
     def test_shared_projection_opacity_and_drag_switch_survive_missing_optional_assets(self):
         states = {'pearl_glyphs': A.UNAVAILABLE, 'scan_images': A.UNAVAILABLE, 'bell_voice': A.UNAVAILABLE}
         self.assertIs(self.catalog.setting_state('scan_projection', states), A.UNAVAILABLE)

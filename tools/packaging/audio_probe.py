@@ -38,13 +38,13 @@ def main(argv=None):
         from rw_creature_pet.oracle.assets import prepare_oracle_assets
         from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
         from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS
-        from rw_creature_pet.interaction.audio import QtSoundBackend
+        from rw_creature_pet.interaction.audio_backend import QtMediaBackend
 
         config, _, _ = SettingsStore().startup()
         os.environ['LOCALAPPDATA'] = str(output/'profile')
         config = replace(config, interaction=replace(config.interaction, drag_enabled=True),
                          audio=replace(config.audio, enabled=True, volume=.7),
-                         oracle=replace(config.oracle, voice_directory='auto',
+                         oracle=replace(config.oracle, voice='bell', voice_directory='auto',
                              drag_reactions=replace(config.oracle.drag_reactions, voice_probability=1.)))
         app = QApplication.instance() or QApplication([])
         app.setQuitOnLastWindowClosed(False)
@@ -69,20 +69,22 @@ def main(argv=None):
         player = window.voice_player
         scene.set_autonomous(True)
 
-        class TracedSound(QtSoundBackend):
+        class TracedSound(QtMediaBackend):
             def __init__(self, parent):
                 super().__init__(parent)
-                self.effect.setMuted(True)  # 仍进行真实设备加载/播放，只让测试保持安静。
-                self.effect.playingChanged.connect(self.changed)
-                self.effect.statusChanged.connect(self.status_changed)
+                self.output.setMuted(True)  # 仍进行真实设备加载/播放，只让测试保持安静。
+                self.player.playbackStateChanged.connect(self.changed)
+                self.player.mediaStatusChanged.connect(self.status_changed)
 
-            def changed(self):
-                record('device_playing', playing=self.effect.isPlaying(),
-                       file=self.effect.source().toLocalFile(), drag=scene.drag.active,
+            def changed(self, _state):
+                if self.player is None:
+                    return
+                record('device_playing', playing=self.player.isPlaying(),
+                       file=self.player.source().toLocalFile(), drag=scene.drag.active,
                        reacting=scene.drag_reactions.active)
 
-            def status_changed(self):
-                record('device_status', status=self.effect.status().name)
+            def status_changed(self, status):
+                record('device_status', status=status.name)
 
             def play(self, path):
                 record('play_request', file=path.name, drag=scene.drag.active,

@@ -55,7 +55,7 @@ class SoftPartIntegrationTests(unittest.TestCase):
         images = {}
         for coarse in (False, True):
             scene.config = replace(scene.config, coarse_pixels_4x=coarse)
-            for scale, expected in ((1., 1.), (1.5, 1.5), (2., 2.), (3., 1.), (4., 1. if coarse else 2.)):
+            for scale, expected in ((1., 1.), (1.5, 1.5), (2., 1. if coarse else 2.), (3., 1.), (4., 1. if coarse else 2.)):
                 for dpr in (1., 1.5, 2.):
                     with self.subTest(coarse=coarse, scale=scale, dpr=dpr):
                         render(renderer, scene, scale, dpr=dpr)

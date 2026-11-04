@@ -2,65 +2,10 @@
 from pathlib import Path
 from time import monotonic
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QObject, Signal
+from .audio_backend import QtMediaBackend
 from .audio_log import voice_event
 from .config import AudioConfig
-
-
-class QtSoundBackend:
-    """惰性创建一个 QSoundEffect；异步加载本地 WAV，停止会撤销尚未完成的加载播放。"""
-    def __init__(self, parent):
-        from PySide6.QtMultimedia import QMediaDevices, QSoundEffect
-        if QMediaDevices.defaultAudioOutput().isNull():
-            raise RuntimeError('没有可用的音频输出设备')
-        self.effect = QSoundEffect(parent)
-        self.effect.setLoopCount(1)
-        self.requested = False
-        self.effect.statusChanged.connect(self._ready)
-
-    def _ready(self):
-        if self.effect is not None and self.requested and self.effect.status() == self.effect.Status.Ready:
-            self.requested = False
-            self.effect.play()
-
-    def play(self, path):
-        self.stop()
-        self.requested = True
-        self.effect.setSource(QUrl.fromLocalFile(str(path.resolve())))
-        self._ready()  # 连续选择相同文件时，Qt 可直接复用已解码数据。
-
-    def stop(self):
-        self.requested = False
-        self.effect.stop()
-
-    def set_volume(self, volume):
-        self.effect.setVolume(volume)
-
-    def close(self):
-        """撤销延迟播放、断开回调并释放 Qt 对象；异常恢复不能留下旧实例。"""
-        self.requested = False
-        effect, self.effect = self.effect, None
-        if effect is None:
-            return
-        try:
-            effect.statusChanged.disconnect(self._ready)
-            effect.stop()
-        finally:
-            effect.deleteLater()
-
-    def diagnostics(self):
-        from PySide6.QtMultimedia import QMediaDevices
-        return dict(device=self.effect.audioDevice().description(),
-                    default_device=QMediaDevices.defaultAudioOutput().description(),
-                    qt_status=self.effect.status().name, playing=self.effect.isPlaying())
-
-    @property
-    def state(self):
-        if self.effect.status() == self.effect.Status.Error:
-            return 'error'
-        if self.requested:
-            return 'loading'
-        return 'playing' if self.effect.isPlaying() else 'idle'
 
 
 class VoicePlayer(QObject):
@@ -68,7 +13,7 @@ class VoicePlayer(QObject):
     status_changed = Signal(str)
 
     def __init__(self, clips, config=AudioConfig(), parent=None, *,
-                 backend_factory=QtSoundBackend, time_source=monotonic, asset_error=''):
+                 backend_factory=QtMediaBackend, time_source=monotonic, asset_error=''):
         super().__init__(parent)
         self.clips = {key: Path(path) for key, path in clips.items()}
         self.enabled, self.volume = config.enabled, config.volume

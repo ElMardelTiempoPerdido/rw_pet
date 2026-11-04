@@ -17,8 +17,8 @@ PART_LABELS = (('robe', '衣袍'), ('left_sleeve', '左袖子'), ('right_sleeve'
 
 
 class ClothingDecalEditor(FaceDecalEditor):
-    def __init__(self, title, value, directory):
-        super().__init__(title, value, directory)
+    def __init__(self, title, value, directory, *, assets_active=True):
+        super().__init__(title, value, directory, assets_active=assets_active)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         layout = self.layout()
         layout.removeWidget(self.message)

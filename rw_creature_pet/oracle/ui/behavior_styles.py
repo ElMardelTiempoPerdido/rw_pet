@@ -8,12 +8,12 @@ from ...presets.behavior_styles import (BehaviorStyleLibrary, DIMENSION_PATHS, P
                                        SELECTION_PREFIX, set_selection)
 from .form_layout import ContentForm
 from .inputs import WheelSafeComboBox
-from .settings_style import NOTE_STYLE
+from .settings_style import NOTE_STYLE, parameter_group_background
 
 
 DIMENSION_LABELS = {
     'daily_activity': '日常活动', 'drift': '反重力漫游', 'mouse_attention': '鼠标关注',
-    'mouse_avoidance': '鼠标躲避', 'drag_reactions': '拖动反应',
+    'mouse_avoidance': '鼠标躲避', 'drag_reactions': '拖动动作',
     'reading_habits': '阅读频率', 'pearl_interaction': '阅读行动方式',
 }
 
@@ -41,10 +41,12 @@ class StyleGroup(QWidget):
         self.description.setStyleSheet(NOTE_STYLE)
         self.description.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.description)
+        self.description.hide()  # 当前说明由风格选项的悬浮提示展示，不保留空白行
         self.content = QWidget(self)
+        parameter_group_background(self.content)
         self.body = ContentForm(self.content)
-        self.body.setContentsMargins(0, 0, 0, 0)
-        self.body.setVerticalSpacing(form.verticalSpacing())
+        self.body.setContentsMargins(12, 12, 12, 12)
+        self.body.setVerticalSpacing(14)
         self.body.setHorizontalSpacing(form.horizontalSpacing())
         self.body.setFieldGrowthPolicy(form.fieldGrowthPolicy())
         self.body.setLabelAlignment(form.labelAlignment())

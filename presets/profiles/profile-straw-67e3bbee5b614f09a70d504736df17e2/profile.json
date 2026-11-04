@@ -3,19 +3,52 @@
   "version": 2,
   "id": "72e93f37-aaba-470e-85cf-4f5be68d8ce6",
   "name": "straw",
-  "updated_at": "2026-10-27T09:27:14.853742+00:00",
+  "updated_at": "2026-11-02T10:47:45.570991+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
       "hover_dwell_seconds": 1.0,
       "hover_open_probability": 0.0,
       "hover_probability": 0.5,
-      "hover_radius": 300.0
+      "hover_radius": 300.0,
+      "petting_enabled": true,
+      "petting_grace_seconds": 0.6,
+      "petting_seconds": 1.5
     },
     "oracle": {
       "antigravity_duration_seconds": 300.0,
       "antigravity_probability": 0.08,
       "base_speed": 2.8,
+      "behavior_styles": {
+        "daily_activity": {
+          "id": "",
+          "version": ""
+        },
+        "drag_reactions": {
+          "id": "",
+          "version": ""
+        },
+        "drift": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_attention": {
+          "id": "",
+          "version": ""
+        },
+        "mouse_avoidance": {
+          "id": "",
+          "version": ""
+        },
+        "pearl_interaction": {
+          "id": "",
+          "version": ""
+        },
+        "reading_habits": {
+          "id": "",
+          "version": ""
+        }
+      },
       "cross_edge_probability": 0.05,
       "daily_activity": {
         "cross_edge_check_seconds": 20.0,
@@ -33,15 +66,78 @@
         "move_min_distance": 60.0,
         "move_weight": 35.0
       },
-      "drag_projection_cooldown_seconds": 45.0,
-      "drag_projection_probability": 0.1,
+      "drag_expressions": {
+        "chevron_down": {
+          "enabled": true,
+          "large_only": false,
+          "weight": 1
+        },
+        "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "probability": 0.5,
+        "round": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "slant_in": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "slant_out": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "squeezed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        }
+      },
+      "drag_projection_cooldown_seconds": 120.0,
+      "drag_projection_probability": 0.0,
       "drag_reactions": {
-        "alternating_probability": 0.47,
+        "alternating_probability": 0.6,
         "enabled": true,
-        "eye_open_probability": 0.65,
-        "flutter_probability": 0.85,
-        "gesture_probability": 0.9,
-        "voice_probability": 0.55
+        "eye_delay_max_seconds": 1.5,
+        "eye_delay_min_seconds": 0.4,
+        "eye_duration_max_seconds": 1.5,
+        "eye_duration_min_seconds": 0.7,
+        "eye_interval_max_seconds": 6.0,
+        "eye_interval_min_seconds": 3.0,
+        "eye_open_probability": 0.15,
+        "flutter_probability": 0.15,
+        "flutter_sync_probability": 0.2,
+        "gesture_delay_max_seconds": 2.5,
+        "gesture_delay_min_seconds": 0.8,
+        "gesture_duration_max_seconds": 1.3,
+        "gesture_duration_min_seconds": 0.6,
+        "gesture_interval_max_seconds": 6.0,
+        "gesture_interval_min_seconds": 2.5,
+        "gesture_max_amplitude": 0.4,
+        "gesture_min_amplitude": 0.1,
+        "gesture_probability": 0.2,
+        "gesture_speed": 0.7,
+        "projection_delay_max_seconds": 2.5,
+        "projection_delay_min_seconds": 1.0,
+        "projection_duration_max_seconds": 7.0,
+        "projection_duration_min_seconds": 5.0,
+        "projection_frame_seconds": 0.375,
+        "projection_interval_max_seconds": 3.0,
+        "projection_interval_min_seconds": 1.5,
+        "projection_lift_delay_seconds": 0.5,
+        "projection_move_max_seconds": 2.4,
+        "projection_move_min_seconds": 1.2,
+        "voice_delay_max_seconds": 3.0,
+        "voice_delay_min_seconds": 1.0,
+        "voice_interval_max_seconds": 12.0,
+        "voice_interval_min_seconds": 6.0,
+        "voice_probability": 0.1
       },
       "drift": {
         "bout_max_seconds": 10.0,
@@ -113,14 +209,35 @@
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
+        "approach_weight": 35.0,
+        "avoidance_probability": 0.35,
+        "drift_delay_max_seconds": 24.0,
+        "drift_delay_min_seconds": 12.0,
+        "drift_interval_max_seconds": 40.0,
+        "drift_interval_min_seconds": 20.0,
+        "drift_probability": 1.0,
+        "eye_open_probability": 0.1,
+        "interval_max_seconds": 0.0,
+        "interval_min_seconds": 0.0,
+        "matrix_probability": 0.5,
+        "notice_max_seconds": 1.5,
+        "notice_min_seconds": 0.9,
+        "observe_distance": 50.0,
+        "observe_max_seconds": 60.0,
+        "observe_min_seconds": 40.0,
+        "orbit_weight": 30.0,
+        "playback_max_seconds": 120.0,
+        "playback_min_seconds": 90.0,
+        "recall_distance": 38.0,
+        "recall_weight": 35.0,
         "start_probability": 0.25
       },
       "voice": "none"
     }
   },
-  "state": "history/state-b0e71159f3eb4ce5a2f34484bffd8af7.json",
+  "state": "history/state-4e12aed6691f4138baaa21b8f1566af9.json",
   "appearance": {
     "id": "6312b790-3c6e-423c-a91b-7621a6d99f51",
-    "path": "appearance/b0e71159f3eb4ce5a2f34484bffd8af7/appearance.json"
+    "path": "appearance/4e12aed6691f4138baaa21b8f1566af9/appearance.json"
   }
 }

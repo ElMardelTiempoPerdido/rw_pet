@@ -205,7 +205,8 @@ class SettingsStyle(QProxyStyle):
         cc, sc = QStyle.ComplexControl, QStyle.SubControl
         if control in (cc.CC_ComboBox, cc.CC_SpinBox):
             enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
-            pixel_box(painter, option.rect, border=INK if enabled else MUTED)
+            if control == cc.CC_ComboBox or option.frame:
+                pixel_box(painter, option.rect, border=INK if enabled else MUTED)
             buttons = ((sc.SC_ComboBoxArrow, False),) if control == cc.CC_ComboBox else (
                 (sc.SC_SpinBoxUp, True), (sc.SC_SpinBoxDown, False))
             for part, up in buttons:

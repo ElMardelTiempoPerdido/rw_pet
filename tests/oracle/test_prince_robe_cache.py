@@ -85,7 +85,7 @@ class PrinceRobeCacheTests(unittest.TestCase):
         scene = self.scene()
         for angle in (0., pi/2, pi, -pi/2):
             self.pose(scene, angle)
-            for scale, coarse in ((1., False), (1.5, False), (2., False), (3., False),
+            for scale, coarse in ((1., False), (1.5, False), (2., False), (2., True), (3., False),
                                   (4., False), (4., True)):
                 scene.config = replace(scene.config, coarse_pixels_4x=coarse)
                 for alpha in (0., .5, 1.):

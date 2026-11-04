@@ -1,4 +1,4 @@
-"""首次从本机游戏准备 Bell 语音；后续启动只校验并使用用户缓存。"""
+"""角色语音准备入口及 Bell 采访缓存，Chat 与模组资源由各自加载器负责"""
 import gc
 from hashlib import sha256
 import io
@@ -10,10 +10,7 @@ import wave
 
 from .voice import BELL_VOICE_CLIPS, bell_voice_paths
 from .processing import PROCESSING_VERSION, prepare_clips
-
-
-class VoiceAssetError(RuntimeError):
-    pass
+from .errors import VoiceAssetError
 
 
 LEGACY_DIRECTORY = 'artifacts/oracle-voice-reference/bell-clips'
@@ -145,13 +142,28 @@ def ensure_bell_voice(game_dir, *, cache_root=None):
         raise VoiceAssetError(f'准备 Bell 语音失败：{exc}') from exc
 
 
-def make_bell_voice_player(config, config_path=None, parent=None, *, initialize=True, source=None):
+def make_voice_player(config, config_path=None, parent=None, *, initialize=True, source=None):
     """桌面/调试共用入口；初始化失败只禁用语音，不妨碍桌宠其他功能。"""
     from ...interaction.audio import VoicePlayer
     if source is not None:
         return VoicePlayer(source.clips, config.audio, parent, asset_error=source.asset_error)
-    paths, error = prepare_bell_voice(config, config_path, initialize=initialize)
+    paths, error = prepare_voice(config, config_path, initialize=initialize)
     return VoicePlayer(paths, config.audio, parent, asset_error=error)
+
+
+def prepare_voice(config, config_path=None, *, initialize=True):
+    """按角色选择准备语音；Bell 覆盖目录不改变其他语音的来源"""
+    if config.oracle.voice == 'none':
+        return {}, ''
+    if config.oracle.voice == 'bell':
+        return prepare_bell_voice(config, config_path, initialize=initialize)
+    if not initialize:
+        return {}, '几何预览未初始化语音；请通过正常启动入口准备游戏资源'
+    if config.oracle.voice == 'sig':
+        from .mod_assets import prepare_sig_voice
+        return prepare_sig_voice(config.game_dir)
+    from .chat_assets import prepare_chat_voices
+    return prepare_chat_voices(config.game_dir, (config.oracle.voice,))[config.oracle.voice]
 
 
 def prepare_bell_voice(config, config_path=None, *, initialize=True):

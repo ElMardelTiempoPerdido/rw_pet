@@ -16,7 +16,7 @@ _COLOR_FIELDS = (
 _DECAL_FIELDS = ('enabled', 'image_path', 'image_name', 'offset_x', 'offset_y')
 _EAR_FIELDS = (*_DECAL_FIELDS, 'kind', 'width', 'height', 'rotation', 'tone')
 _CLOTHING_FIELDS = (*_DECAL_FIELDS, 'part')
-_EYE_FIELDS = ('color', 'visible', 'default_open', 'height_mode')
+_EYE_FIELDS = ('color', 'visible', 'default_open', 'height_mode', 'kind')
 _OUTFIT_PART_FIELDS = ('enabled', 'anchor', 'layer', 'offset_x', 'offset_y', 'mirror', 'hue',
                        'saturation', 'brightness')
 _SOFT_PART_FIELDS = ('enabled', 'anchor', 'offset_x', 'offset_y', 'angle', 'length', 'width',
@@ -109,6 +109,14 @@ FIELD_SCOPES = build_registry((
         'projection_frame_seconds', 'projection_lift_delay_seconds',
         'projection_move_min_seconds', 'projection_move_max_seconds',
     )),
+    # 拖动表情独立于拖动动作的风格组合，仍随角色保存和分享
+    ('oracle.drag_expressions', _PROFILE, ('probability',)),
+    ('oracle.drag_expressions.squeezed', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.slant_in', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.slant_out', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.round', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.chevron_up', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.chevron_down', _PROFILE, ('enabled', 'weight', 'large_only')),
     # 播放光晕颜色暂保留当前存储路径，未来迁移配色时须同步更新清单
     ('oracle', _APPEARANCE, ('body_appearance', 'outfit', 'pearl_bubble_color')),
     ('oracle.outfit_settings.maid.head', _APPEARANCE, _OUTFIT_PART_FIELDS),

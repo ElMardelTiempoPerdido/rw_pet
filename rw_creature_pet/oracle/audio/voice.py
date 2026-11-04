@@ -1,4 +1,4 @@
-"""Bell 采访片段时间表及自定义音频路径；自动初始化见 voice_assets。"""
+"""内置语音索引及 Bell 采访切片时间表"""
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,7 +41,48 @@ def _playback_clips():
 
 
 BELL_VOICE_CLIPS = tuple(_playback_clips())
-VOICE_CLIPS = {'bell': BELL_VOICE_CLIPS, 'none': ()}
+
+
+@dataclass(frozen=True)
+class ChatVoiceClip:
+    clip_id: str
+    asset_name: str
+    duration: float
+
+    @property
+    def filename(self):
+        return self.clip_id+'.wav'
+
+
+# 本体 sounds.txt 的 SL/SS_AI_Talk_1～5，完整独立录音，不包含 Protest 或 Pain
+CHAT_VOICE_CLIPS = {
+    'moon': tuple(ChatVoiceClip(f'moon_chat_{i:02}', f'MoonChat{i}', duration)
+                  for i, duration in enumerate((5.316, 6.896, 3.400, 6.274, 6.705), 1)),
+    'pebbles': tuple(ChatVoiceClip(f'pebbles_chat_{i:02}', f'PebblesChat{i}', duration)
+                     for i, duration in enumerate((2.858, 5.064, 7.677, 2.164, 5.390), 1)),
+}
+# Hunter Expansion 的完整日常对话，不使用 Attacked / Break / Recover
+SIG_VOICE_CLIPS = tuple(
+    ChatVoiceClip(f'sig_{kind}_{i:02}', f'NSH-{asset}-{i}', duration)
+    for kind, asset, durations in (
+        ('short', 'ShortDialogue', (12.240, 9.504)),
+        ('long', 'LongDialogue', (17.808, 20.880, 20.928)),
+    ) for i, duration in enumerate(durations, 1)
+)
+# Watcher 的 Prince_Talk，共 22 段完整录音；不包含机械臂、印记等音效
+# 帧数来自原始 44100 Hz PCM，便于播放调度使用完整时长
+PRINCE_VOICE_CLIPS = tuple(
+    ChatVoiceClip(f'prince_talk_{i:02}', f'RWTW_PrinceTalk1_{i:02}', frames/44100)
+    for i, frames in enumerate((
+        120304, 134921, 95569, 73216, 128175, 66336, 84326, 94445, 80590, 98942,
+        127050, 107937, 104564, 149537, 145040, 80953, 104564, 119180, 110185,
+        107937, 112434, 109061,
+    ), 1)
+)
+GAME_VOICE_CLIPS = {**CHAT_VOICE_CLIPS, 'prince': PRINCE_VOICE_CLIPS}
+VOICE_CLIPS = {'bell': BELL_VOICE_CLIPS, **CHAT_VOICE_CLIPS, 'sig': SIG_VOICE_CLIPS,
+               'prince': PRINCE_VOICE_CLIPS, 'none': ()}
+VOICE_RESOURCES = {name: name+'_voice' for name in VOICE_CLIPS if name != 'none'}
 
 
 def legacy_voice(body_appearance):

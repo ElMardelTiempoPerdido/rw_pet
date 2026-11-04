@@ -18,7 +18,7 @@ from rw_creature_pet.oracle.config import DragReactionConfig, OracleConfig
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopWindow
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
-from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS
+from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS, PRINCE_VOICE_CLIPS
 from tests.interaction.test_audio import FakeSound
 
 
@@ -135,6 +135,32 @@ class VoiceWindowTests(unittest.TestCase):
                             self.assertFalse(scene.drag_reactions.gesturing)
                             self.assertFalse(scene.projection.busy)
                             self.assertEqual(scene.eyes.openness, 0.)
+                    finally:
+                        w.close()
+                        self.app.processEvents()
+
+    def test_every_character_can_play_prince_voice_on_drag_in_both_windows(self):
+        paths = {clip.clip_id: Path(self.directory.name)/clip.filename for clip in PRINCE_VOICE_CLIPS}
+        for path in paths.values():
+            path.touch()
+        for body in ('bell', 'custom', 'prince'):
+            config = replace(self.config, oracle=replace(self.config.oracle, body_appearance=body, voice='prince'))
+            for window_type in (OracleDesktopWindow, OracleDebugWindow):
+                with self.subTest(body=body, window=window_type.__name__), patch(
+                        'rw_creature_pet.oracle.ui.desktop.QSystemTrayIcon.isSystemTrayAvailable', return_value=True), patch(
+                        'rw_creature_pet.oracle.audio.assets.prepare_voice', return_value=(paths, '')):
+                    w = (window_type(config, renderer=OracleRenderer()) if window_type is OracleDesktopWindow
+                         else window_type(config, load_atlas=False))
+                    try:
+                        sound = self.attach_sound(w)
+                        scene = w.scene if window_type is OracleDebugWindow else w.motion.scene
+                        self.grab(scene)
+                        self.wait_for_voice(w)
+                        self.assertEqual(len(sound.paths), 1)
+                        self.assertIn(sound.paths[0], paths.values())
+                        self.assertIn(w.voice_player.current.clip_id, paths)
+                        if body == 'prince':
+                            self.assertFalse(scene.drag_reactions.gesturing)
                     finally:
                         w.close()
                         self.app.processEvents()

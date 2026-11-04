@@ -14,7 +14,7 @@ from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
 from rw_creature_pet.oracle.audio.processing import prepare_clips
 from rw_creature_pet.oracle.audio.assets import (LEGACY_DIRECTORY, VoiceAssetError, _extract_interview,
-                                                _find_source, ensure_bell_voice, make_bell_voice_player)
+                                                _find_source, ensure_bell_voice, make_voice_player)
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
 
 
@@ -144,22 +144,22 @@ class VoiceAssetsTests(unittest.TestCase):
             (custom/clip.filename).write_bytes(b'user audio')
         config = AppConfig(game_dir=self.game, oracle=OracleConfig(voice_directory='custom'))
         with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', side_effect=AssertionError('custom extraction')):
-            player = make_bell_voice_player(config, config_path)
+            player = make_voice_player(config, config_path)
             self.assertFalse(player.asset_error)
             self.assertEqual(player.clips['bell_04_02'].read_bytes(), b'user audio')
             (custom/'bell_04_02.wav').unlink()
-            failed = make_bell_voice_player(config, config_path)
+            failed = make_voice_player(config, config_path)
             self.assertIn('bell_04_02.wav', failed.asset_error)
         for directory in ('auto', LEGACY_DIRECTORY):
             with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', return_value=custom) as ensure:
                 config = replace(config, oracle=OracleConfig(voice_directory=directory))
-                player = make_bell_voice_player(config, config_path)
+                player = make_voice_player(config, config_path)
                 ensure.assert_called_once_with(self.game)
                 self.assertFalse(player.asset_error)
 
     def test_missing_game_nonfatal_and_failure_reason_survives_drag_requests(self):
         config = AppConfig(game_dir=self.root/'missing')
-        player = make_bell_voice_player(config)
+        player = make_voice_player(config)
         self.assertIn('game_dir', player.asset_error)
         original_error = player.error
         channel = VoiceCueChannel()
@@ -172,11 +172,11 @@ class VoiceAssetsTests(unittest.TestCase):
     def test_geometry_preview_skips_extraction_and_debug_handoff_reuses_paths(self):
         config = AppConfig(game_dir=self.game)
         with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', side_effect=AssertionError('preview extraction')):
-            preview = make_bell_voice_player(config, initialize=False)
+            preview = make_voice_player(config, initialize=False)
             self.assertTrue(preview.asset_error)
             preview.clips = {'bell_01': self.root/'prepared.wav'}
             preview.asset_error = preview.error = ''
-            debug = make_bell_voice_player(config, initialize=False, source=preview)
+            debug = make_voice_player(config, initialize=False, source=preview)
             self.assertEqual(debug.clips, preview.clips)
             self.assertIsNot(debug.clips, preview.clips)
             self.assertFalse(debug.asset_error)

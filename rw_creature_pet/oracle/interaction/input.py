@@ -20,7 +20,7 @@ class PuppetHitMap:
         if app.sleeping:
             alpha = 1.
         density = pixel_density(scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
-        key = (app, app.revision, alpha, renderer.colors, renderer.atlas, density,
+        key = (app, app.revision, scene.eyes.revision, alpha, renderer.colors, renderer.atlas, density,
                outfit_definition(scene.config.active_outfit, scene.config.outfit_settings),
                scene.config.body_appearance, scene.config.active_custom_appearance)
         if key != self.key:

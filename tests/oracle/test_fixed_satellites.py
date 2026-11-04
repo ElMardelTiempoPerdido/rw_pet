@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.shared.geometry import Vec2
 from rw_creature_pet.oracle.behavior.controller import Activity
+from rw_creature_pet.oracle.behavior_config import ReadingConfig
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.ui.debug_window import OracleDebugWindow
 from rw_creature_pet.oracle.ui.desktop import OracleDesktopMotion, OracleDesktopViewport
@@ -72,7 +73,8 @@ class FixedSatelliteTests(unittest.TestCase):
         self.assertEqual(len(scene.fixed_pearls.satellites), 1)
 
     def test_matrix_only_observation_and_orbit_only_skip(self):
-        scene = self.scene(pearl_fixed_count=0, pearl_matrix_enabled=True, pearl_matrix_count=1)
+        scene = self.scene(pearl_fixed_count=0, pearl_matrix_enabled=True, pearl_matrix_count=1,
+                           reading=ReadingConfig(observe_min_seconds=2., observe_max_seconds=3.))
         self.assertTrue(scene.observe_pearl('approach'))
         self.assertTrue(scene.behavior.matrix_observation)
         for tick in range(2000):
@@ -113,7 +115,8 @@ class FixedSatelliteTests(unittest.TestCase):
     def test_parent_observation_preserves_satellites_at_all_edges(self):
         for side in ('top', 'right', 'bottom', 'left'):
             scene = self.scene(world_width=640, world_height=480, base_side=side,
-                               pearl_fixed_count=1, pearl_satellite_count=5)
+                               pearl_fixed_count=1, pearl_satellite_count=5,
+                               reading=ReadingConfig(observe_min_seconds=2., observe_max_seconds=3.))
             group = scene.fixed_pearls
             home = scene.pearl.home
             scene.observe_pearl('recall')

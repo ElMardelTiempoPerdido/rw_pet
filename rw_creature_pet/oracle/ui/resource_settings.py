@@ -80,16 +80,22 @@ class ResourceSettings(QObject):
             d.resource_refresh.setText(tr('正在检查资源...'))
         for key, binding in self.catalog.settings.items():
             state = self.catalog.setting_state(key, self.report.states)
-            if key == 'voice_controls' and d.controls['oracle.voice'].currentData() == 'bell':
-                state = self.catalog.feature_state('voice_bell', self.report.states)
+            if key == 'voice_controls':
+                selected = d.controls['oracle.voice'].currentData()
+                binding = self.catalog.settings['voice_'+selected]
+                state = self.catalog.feature_state('voice_'+selected, self.report.states)
+                # 借用所选语音的错误说明，但禁用的仍是共用音量/触发参数
+                paths = self.catalog.settings[key].paths
+            else:
+                paths = binding.paths
             if state != Availability.UNAVAILABLE:
                 continue
             reason = self._reason(binding)
-            for path in binding.paths:
+            for path in paths:
                 control = d.controls.get(path)
                 if control is None:
                     continue
-                if binding.option is not None:
+                if binding.option is not None and key != 'voice_controls':
                     if not isinstance(control, QComboBox):
                         continue
                     index = control.findData(binding.option)
@@ -100,7 +106,8 @@ class ResourceSettings(QObject):
                     self._undo.append(lambda i=item, t=text, h=tip, f=flags:
                                       (i.setText(t), i.setToolTip(h), i.setFlags(f)))
                     with QSignalBlocker(control):
-                        item.setText(tr('{label}（不可用）', label=text))
+                        item.setText(tr(binding.unavailable_label) if binding.unavailable_label else
+                                     tr('{label}（不可用）', label=text))
                         item.setToolTip(reason)
                         item.setEnabled(False)
                     if control.currentData() == binding.option:
@@ -151,6 +158,7 @@ class ResourceSettings(QObject):
         d = self.dialog
         config, self._runtime_request = self._runtime_request, None
         runtime = config is not None
+        force = False
         if not runtime:
             force, self._force = self._force, False
             directory = Path(d.game_dir.text().strip().strip('"')).expanduser().resolve()
@@ -160,11 +168,8 @@ class ResourceSettings(QObject):
                 if d.assets is None or (self.checked_assets is not None and self.checked_key == resource_key(config)
                                        and self.checked_assets.reusable(config)):
                     return
-            # 显式重新检查包含未选中的 Bell，但不改变用户选中的 none
-            if force:
-                config = replace(config, oracle=replace(config.oracle, voice='bell'))
         from .settings import AssetPreparation
-        self.worker = AssetPreparation(config, d)
+        self.worker = AssetPreparation(config, d, check_all_voices=force)
         self.worker.for_runtime = runtime
         self.worker.finished.connect(self.ready)
         d.resource_refresh.setEnabled(False)
@@ -204,12 +209,14 @@ class ResourceSettings(QObject):
                 self._finish_close_request()
             return
         d.resource_refresh.setToolTip('')
+        worker.result.include_checked_voices(self.checked_assets)
+        worker.result.include_checked_voices(d.assets)
         if matches_draft:
             self.report = worker.result.resources
             self.checked_assets = worker.result
             self.checked_key = resource_key(worker.config)
         # 不把对尚未保存安装目录的检查写进当前运行实例
-        if d.assets is not None and matches_runtime:
+        if d.assets is not None and matches_runtime and worker.result.reusable(applied):
             d.assets = worker.result
             d.prepared_assets = worker.result
             if d.resource_commit is not None:

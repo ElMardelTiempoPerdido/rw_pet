@@ -69,6 +69,7 @@ class SettingBinding:
     mode: str = 'all'
     option: str | None = None
     notes: str = ''
+    unavailable_label: str = ''
 
 
 def _combine(states, mode='all'):
@@ -165,7 +166,7 @@ def _record(cls, value, location):
                 continue
             if not isinstance(item, str):
                 raise CatalogError(f'{location}.{field.name} 必须为字符串')
-            if field.name not in ('notes', 'cache', 'unavailable_message', 'recovery_hint') and not item.strip():
+            if field.name not in ('notes', 'cache', 'unavailable_message', 'recovery_hint', 'unavailable_label') and not item.strip():
                 raise CatalogError(f'{location}.{field.name} 不可为空')
     return result
 
@@ -208,7 +209,7 @@ def parse_catalog(data):
     required = _strings(data['required'], 'required')
     _references(required, groups['resources'], 'required')
     for key, item in groups['origins'].items():
-        _choice(item.kind, ('base_game', 'dlc', 'bundle', 'user'), f'origins.{key}.kind')
+        _choice(item.kind, ('base_game', 'dlc', 'bundle', 'user', 'mod'), f'origins.{key}.kind')
     for key, item in groups['resources'].items():
         if not item.origins:
             raise CatalogError(f'resources.{key}.origins 不可为空')
@@ -216,7 +217,7 @@ def parse_catalog(data):
         _choice(item.delivery, ('extract', 'files', 'resolved', 'bundled', 'configured'), f'resources.{key}.delivery')
         for source in item.sources:
             _references((source.origin,), groups['origins'], f'resources.{key}.sources')
-            _choice(source.root, ('game', 'package', 'setting'), f'resources.{key}.sources.root')
+            _choice(source.root, ('game', 'package', 'setting', 'mod'), f'resources.{key}.sources.root')
             if not source.paths:
                 raise CatalogError(f'resources.{key}.sources.paths 不可为空')
             if source.root != 'setting':

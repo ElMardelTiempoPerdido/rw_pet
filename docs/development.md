@@ -146,7 +146,7 @@ python tools/packaging/verify_bell.py
 
 调试窗口仅通过命令行进入：`.\dist\BellPet.exe --debug`，或源码入口 `python run_bell.py --debug`。默认沿用已保存设置，`--config config.toml` 可指定调试用 TOML；`--debug` 与 `--desktop` 互斥。托盘双击不再打开调试窗口。
 
-默认启用组件裁剪：移除未使用的 QML/虚拟键盘、PDF 插件、软件 OpenGL 回退、视频 FFmpeg 后端及 Pillow AVIF 编解码器。当前产品使用 QWidget/QPainter、PNG 和本地 WAV，保留原生 Windows 音频、系统输入法、NumPy 和 Numba/LLVM。`--full` 可恢复自动收集的完整依赖，供新增功能时对照。
+默认启用组件裁剪：移除未使用的 QML/虚拟键盘、PDF 插件、软件 OpenGL 回退及 Pillow AVIF 编解码器。当前产品使用 QWidget/QPainter、PNG 和本地 WAV，保留原生 Windows 音频、系统输入法、NumPy 和 Numba/LLVM。语音改用 `QMediaPlayer` 后，必须保留 `ffmpegmediaplugin.dll` 及自动收集的 FFmpeg 解码、重采样依赖，不能再按“未播放视频”裁掉它们。`--full` 可恢复自动收集的完整依赖，供新增功能时对照。
 
 可选使用 [UPX 官方发行版](https://github.com/upx/upx/releases)（本轮使用 5.2.1 win64）：
 

@@ -17,7 +17,13 @@ class OracleEyes:
         self.openness = self.previous_openness = 0.
         self.forced_closed = False
         self.closure = self.previous_closure = 0.
+        self.expression = None
         self.revision = 0
+
+    def set_expression(self, kind):
+        if kind != self.expression:
+            self.expression = kind
+            self.revision += 1
 
     def begin_observation(self, *, restart=False, probability=None):
         if not self.enabled:
@@ -53,6 +59,7 @@ class OracleEyes:
         self.attention_target = None
         self.forced_closed = False
         self.closure = self.previous_closure = 0.
+        self.expression = None
         self.revision += 1
 
     @property

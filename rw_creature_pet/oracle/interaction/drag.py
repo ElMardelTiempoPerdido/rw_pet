@@ -65,6 +65,7 @@ class OracleDrag:
         s.arm.corridor = self.free_arm
         self.prince_target = self.controller.target
         s.drag_reactions.begin(s)
+        s.drag_expressions.begin(s)
         if s.prince_tentacles is not None:
             s.prince_tentacles.begin_drag()
         return True
@@ -78,6 +79,8 @@ class OracleDrag:
             self.release(cancel=True)
 
     def release(self, *, cancel=False):
+        if cancel:
+            self.scene.drag_expressions.cancel(self.scene)
         if not self.controller.release():
             return
         self.prince_target = None
@@ -86,6 +89,7 @@ class OracleDrag:
         self.recovering = True
         s.pose.recover_upright(s)
         s.drag_reactions.end(s, cancel=cancel)
+        s.drag_expressions.release(s, cancel=cancel)
         s.look_target = None
         if s.prince_tentacles is not None:
             support = s.prince_tentacles

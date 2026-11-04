@@ -18,8 +18,8 @@ TONE_LABELS = (('shell', '附件底色'), ('highlight', '附件高光'), ('split
 
 
 class EarPartEditor(FaceDecalEditor):
-    def __init__(self, title, value, directory):
-        super().__init__(title, value, directory)
+    def __init__(self, title, value, directory, *, assets_active=True):
+        super().__init__(title, value, directory, assets_active=assets_active)
         layout = self.layout()
         layout.removeWidget(self.message)
         layout.addWidget(self.message, 8, 0, 1, 5)

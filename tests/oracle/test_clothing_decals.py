@@ -124,7 +124,7 @@ class ClothingDecalTests(unittest.TestCase):
                 self.assertIs(frame, renderer._body_frame)
                 self.assertEqual(cached, paint(renderer, scene, scale=scale, cached=False))
         scene, _, _ = self.scene('both')
-        for scale, source, coarse in ((3., 1., False), (4., 2., False), (4., 1., True)):
+        for scale, source, coarse in ((2., 1., True), (3., 1., False), (4., 2., False), (4., 1., True)):
             scene.config = replace(scene.config, coarse_pixels_4x=coarse)
             small = paint(renderer, scene, scale=source, complete=True)
             large = paint(renderer, scene, scale=scale, complete=True)

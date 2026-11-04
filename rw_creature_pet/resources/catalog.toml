@@ -15,6 +15,10 @@ notes = "当前没有必须从 Downpour 单独获取的已引用资源；保留�
 [origins.watcher]
 title = "The Watcher"
 kind = "dlc"
+[origins.hunter_expansion]
+title = "Hunter Expansion 猎手拓展"
+kind = "mod"
+notes = "模组 ID Quaeledy.hunterexpansion，创意工坊 ID 3186608452；只读取本地 WAV，不要求模组启用、前置模组或在线订阅状态"
 [origins.project_bundle]
 title = "桌宠随包素材"
 kind = "bundle"
@@ -91,6 +95,124 @@ root = "game"
 paths = ["RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_ATalkShow.wav", "RainWorld_Data/StreamingAssets/AssetBundles/loadedsoundeffects"]
 objects = ["container basename:rwtw_atalkshow.wav", "AudioClip:RWTW_ATalkShow"]
 notes = "先尝试有效独立 WAV，再查 AssetBundle；这两个路径是加载器规定的候选，不是全部必需文件"
+
+[resources.moon_voice]
+unavailable_message = "Moon 语音资源不可用"
+recovery_hint = "请检查游戏本体音效资源，然后重新检查资源"
+title = "Moon Chat 语音片段"
+origins = ["base_game"]
+delivery = "extract"
+loader = "rw_creature_pet.oracle.audio.chat_assets:prepare_chat_voices"
+check = "五段 Chat 均须可解码为完整 16bit PCM WAV；缓存验证源文件指纹、帧数及 SHA256"
+missing = "仅 moon 语音选项不可用；不阻止启动或其他语音"
+cache = "%LOCALAPPDATA%/rw_creature_pet/voices/moon-<源文件与版本指纹>/"
+notes = "只使用 MoonChat1～5，不包含 MoonProtest 和 MoonPain；不受 Bell 专用 voice_directory 影响"
+[[resources.moon_voice.sources]]
+origin = "base_game"
+root = "game"
+paths = ["RainWorld_Data/StreamingAssets/loadedsoundeffects/MoonChat1.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/MoonChat2.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/MoonChat3.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/MoonChat4.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/MoonChat5.wav", "RainWorld_Data/StreamingAssets/AssetBundles/loadedsoundeffects"]
+objects = ["AudioClip:MoonChat1", "AudioClip:MoonChat2", "AudioClip:MoonChat3", "AudioClip:MoonChat4", "AudioClip:MoonChat5"]
+notes = "逐段优先有效独立 WAV，否则从同名 AudioClip 提取；0 字节占位文件不算可用"
+
+[resources.pebbles_voice]
+unavailable_message = "Pebbles 语音资源不可用"
+recovery_hint = "请检查游戏本体音效资源，然后重新检查资源"
+title = "Pebbles Chat 语音片段"
+origins = ["base_game"]
+delivery = "extract"
+loader = "rw_creature_pet.oracle.audio.chat_assets:prepare_chat_voices"
+check = "五段 Chat 均须可解码为完整 16bit PCM WAV；缓存验证源文件指纹、帧数及 SHA256"
+missing = "仅 pebbles 语音选项不可用；不阻止启动或其他语音"
+cache = "%LOCALAPPDATA%/rw_creature_pet/voices/pebbles-<源文件与版本指纹>/"
+notes = "只使用 PebblesChat1～5，不受 Bell 专用 voice_directory 影响"
+[[resources.pebbles_voice.sources]]
+origin = "base_game"
+root = "game"
+paths = ["RainWorld_Data/StreamingAssets/loadedsoundeffects/PebblesChat1.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/PebblesChat2.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/PebblesChat3.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/PebblesChat4.wav", "RainWorld_Data/StreamingAssets/loadedsoundeffects/PebblesChat5.wav", "RainWorld_Data/StreamingAssets/AssetBundles/loadedsoundeffects"]
+objects = ["AudioClip:PebblesChat1", "AudioClip:PebblesChat2", "AudioClip:PebblesChat3", "AudioClip:PebblesChat4", "AudioClip:PebblesChat5"]
+notes = "逐段优先有效独立 WAV，否则从同名 AudioClip 提取；两套 Chat 共用一次音效包读取"
+
+[resources.prince_voice]
+unavailable_message = "Prince 语音资源不可用"
+recovery_hint = "请检查 Watcher 音效资源，然后重新检查资源"
+title = "Prince Talk 语音片段"
+origins = ["watcher"]
+delivery = "extract"
+loader = "rw_creature_pet.oracle.audio.chat_assets:prepare_chat_voices"
+check = "22 段 Talk 均须可解码为完整 16bit PCM WAV；缓存验证源文件指纹、帧数及 SHA256"
+missing = "仅 prince 语音选项不可用；保留角色选择，不阻止启动或其他语音"
+cache = "%LOCALAPPDATA%/rw_creature_pet/voices/prince-<源文件与版本指纹>/"
+notes = "试听确认的 01～22；只使用 Prince_Talk，不包含移动、关节、印记或房间提示音效；不受 Bell 专用 voice_directory 影响"
+[[resources.prince_voice.sources]]
+origin = "watcher"
+root = "game"
+paths = [
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_01.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_02.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_03.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_04.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_05.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_06.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_07.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_08.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_09.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_10.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_11.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_12.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_13.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_14.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_15.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_16.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_17.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_18.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_19.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_20.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_21.wav",
+    "RainWorld_Data/StreamingAssets/loadedsoundeffects/RWTW_PrinceTalk1_22.wav",
+    "RainWorld_Data/StreamingAssets/AssetBundles/loadedsoundeffects",
+]
+objects = [
+    "AudioClip:RWTW_PrinceTalk1_01",
+    "AudioClip:RWTW_PrinceTalk1_02",
+    "AudioClip:RWTW_PrinceTalk1_03",
+    "AudioClip:RWTW_PrinceTalk1_04",
+    "AudioClip:RWTW_PrinceTalk1_05",
+    "AudioClip:RWTW_PrinceTalk1_06",
+    "AudioClip:RWTW_PrinceTalk1_07",
+    "AudioClip:RWTW_PrinceTalk1_08",
+    "AudioClip:RWTW_PrinceTalk1_09",
+    "AudioClip:RWTW_PrinceTalk1_10",
+    "AudioClip:RWTW_PrinceTalk1_11",
+    "AudioClip:RWTW_PrinceTalk1_12",
+    "AudioClip:RWTW_PrinceTalk1_13",
+    "AudioClip:RWTW_PrinceTalk1_14",
+    "AudioClip:RWTW_PrinceTalk1_15",
+    "AudioClip:RWTW_PrinceTalk1_16",
+    "AudioClip:RWTW_PrinceTalk1_17",
+    "AudioClip:RWTW_PrinceTalk1_18",
+    "AudioClip:RWTW_PrinceTalk1_19",
+    "AudioClip:RWTW_PrinceTalk1_20",
+    "AudioClip:RWTW_PrinceTalk1_21",
+    "AudioClip:RWTW_PrinceTalk1_22",
+]
+notes = "逐段优先有效独立 WAV，否则从同名 AudioClip 提取；0 字节占位文件不算可用，不以 DLC 目录存在代替素材校验"
+
+[resources.sig_voice]
+unavailable_message = "未找到完整可用的猎手拓展 Sig 对话语音"
+recovery_hint = "请安装或修复 Hunter Expansion 后重新检查资源，无需在游戏中启用模组"
+title = "Sig 日常对话语音"
+origins = ["hunter_expansion"]
+delivery = "files"
+loader = "rw_creature_pet.oracle.audio.mod_assets:prepare_sig_voice"
+check = "两段 ShortDialogue 和三段 LongDialogue 均须为完整可读取的 16bit PCM WAV"
+missing = "仅 sig 语音选项不可用；保留角色选择，不阻止启动或其他语音"
+cache = "直接读取本地模组 WAV，不复制缓存；重新检查资源时再次验证原文件"
+notes = "从所选游戏的 StreamingAssets/mods 和 Steam 各库 workshop/content/312520/3186608452 定位；newest 优先于根目录。同一副本须提供全部五段，损坏副本不遮蔽另一份完整安装；不受 Bell 的 voice_directory 影响"
+[[resources.sig_voice.sources]]
+origin = "hunter_expansion"
+root = "mod"
+paths = ["soundeffects/NSH-ShortDialogue-1.wav", "soundeffects/NSH-ShortDialogue-2.wav", "soundeffects/NSH-LongDialogue-1.wav", "soundeffects/NSH-LongDialogue-2.wav", "soundeffects/NSH-LongDialogue-3.wav"]
+notes = "路径相对于查找到的 Hunter Expansion 模组资源目录；不使用 Attacked、Break、Recover"
 
 [resources.pearl_playback_curve]
 unavailable_message = "珍珠播放动画数据缺失或损坏"
@@ -261,6 +383,18 @@ resources = ["scan_images"]
 [features.voice_bell]
 title = "Bell 语音播放"
 resources = ["bell_voice"]
+[features.voice_moon]
+title = "Moon 语音播放"
+resources = ["moon_voice"]
+[features.voice_pebbles]
+title = "Pebbles 语音播放"
+resources = ["pebbles_voice"]
+[features.voice_sig]
+title = "Sig 语音播放"
+resources = ["sig_voice"]
+[features.voice_prince]
+title = "Prince 语音播放"
+resources = ["prince_voice"]
 [features.voice_none]
 title = "不使用语音"
 resources = []
@@ -298,7 +432,7 @@ resources = ["ui_font", "ui_icons", "ui_translations"]
 [settings.game_directory]
 title = "游戏目录"
 paths = ["game_dir"]
-features = ["lizard_visuals", "oracle_visuals", "overseer_standard", "pearl_glyphs", "scan_projection", "voice_bell"]
+features = ["lizard_visuals", "oracle_visuals", "overseer_standard", "pearl_glyphs", "scan_projection", "voice_bell", "voice_moon", "voice_pebbles", "voice_sig", "voice_prince"]
 effect = "related"
 notes = "缺失时仍应允许用户操作此输入框修正路径"
 [settings.voice_bell]
@@ -307,6 +441,32 @@ paths = ["oracle.voice"]
 features = ["voice_bell"]
 effect = "unavailable"
 option = "bell"
+[settings.voice_moon]
+title = "使用的语音 - moon"
+paths = ["oracle.voice"]
+features = ["voice_moon"]
+effect = "unavailable"
+option = "moon"
+[settings.voice_pebbles]
+title = "使用的语音 - pebbles"
+paths = ["oracle.voice"]
+features = ["voice_pebbles"]
+effect = "unavailable"
+option = "pebbles"
+[settings.voice_sig]
+title = "使用的语音 - sig"
+paths = ["oracle.voice"]
+features = ["voice_sig"]
+effect = "unavailable"
+option = "sig"
+unavailable_label = "sig（未订阅猎手拓展，暂不可用）"
+notes = "显示文案沿用未订阅提示，实际只要求本地五段对话可用，不检查订阅或启用状态"
+[settings.voice_prince]
+title = "使用的语音 - prince"
+paths = ["oracle.voice"]
+features = ["voice_prince"]
+effect = "unavailable"
+option = "prince"
 [settings.voice_none]
 title = "使用的语音 - 不使用语音"
 paths = ["oracle.voice"]
@@ -316,9 +476,9 @@ option = "none"
 [settings.voice_controls]
 title = "语音开关、音量与拖动触发概率"
 paths = ["audio.enabled", "audio.volume", "oracle.drag_reactions.voice_probability", "oracle.drag_reactions.voice_delay_min_seconds", "oracle.drag_reactions.voice_delay_max_seconds", "oracle.drag_reactions.voice_interval_min_seconds", "oracle.drag_reactions.voice_interval_max_seconds"]
-features = ["voice_bell"]
+features = ["voice_bell", "voice_moon", "voice_pebbles", "voice_sig", "voice_prince"]
 effect = "related"
-notes = "应按当前选择的语音判断，不硬编码 Watcher；未来新增语音后扩充此关联"
+notes = "按当前选择的语音判断；其他语音缺失不影响当前所选语音的参数"
 [settings.voice_directory]
 title = "Bell 语音覆盖目录（配置文件项）"
 paths = ["oracle.voice_directory"]
@@ -327,7 +487,7 @@ effect = "related"
 [settings.drag_reactions]
 title = "拖动互动总开关"
 paths = ["oracle.drag_reactions.enabled"]
-features = ["drag_reactions", "voice_bell", "scan_projection"]
+features = ["drag_reactions", "voice_bell", "voice_moon", "voice_pebbles", "voice_sig", "voice_prince", "scan_projection"]
 effect = "related"
 notes = "素材缺失不能关闭摆手与睁眼等计算动作"
 [settings.scan_projection]

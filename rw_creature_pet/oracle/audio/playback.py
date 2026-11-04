@@ -1,4 +1,13 @@
 """迭代器语音的运行时限制，不改写用户保存的音频偏好"""
+from .voice import VOICE_RESOURCES
+
+
+def prepared_voice_error(assets, voice):
+    if voice == 'none':
+        return ''
+    report = getattr(assets, 'resources', None)
+    status = report.items.get(VOICE_RESOURCES[voice]) if report is not None else None
+    return status.detail if status is not None else assets.voice_error
 
 
 def sync_oracle_voice(player, scene, *, paused=False):

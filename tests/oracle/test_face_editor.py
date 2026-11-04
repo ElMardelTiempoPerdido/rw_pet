@@ -1,6 +1,8 @@
 """面部草稿、实时预览、恢复默认与保存边界"""
 import os
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
@@ -16,8 +18,11 @@ from rw_creature_pet.oracle.assets import OracleAssets
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.face_config import FaceDecal
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.graphics.face_assets import face_image, read_face_png
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.settings_store import SettingsStore
+from rw_creature_pet.presets.personal import PersonalState
+from rw_creature_pet.presets.startup import CharacterInitialization
 from tests.oracle.character_fixture import isolate_characters
 
 
@@ -107,14 +112,16 @@ class FaceEditorTests(unittest.TestCase):
         self.assertEqual(d.candidate().oracle.custom_appearance.face, decal)
         d.controls['oracle.body_appearance'].setValue('custom')
         d.save(close=False)
-        self.assertEqual(self.store.load().oracle.custom_appearance.face, decal)
-        self.assertEqual(d.original.oracle.custom_appearance.face, decal)
+        saved = self.store.load().oracle.custom_appearance.face
+        self.assertEqual(replace(saved, image_path=decal.image_path), decal)
+        self.assertEqual(Path(saved.image_path).read_bytes(), Path(decal.image_path).read_bytes())
+        self.assertEqual(d.original.oracle.custom_appearance.face, saved)
         with patch('rw_creature_pet.oracle.ui.settings.load_defaults', return_value=self.config):
             d.restore_defaults(d.tabs.indexOf(d.pages['appearance']))
         self.assertEqual(editor.value(), FaceDecal())
-        self.assertEqual(self.store.load().oracle.custom_appearance.face, decal)
+        self.assertEqual(self.store.load().oracle.custom_appearance.face, saved)
         d.reject()
-        self.assertEqual(self.store.load().oracle.custom_appearance.face, decal)
+        self.assertEqual(self.store.load().oracle.custom_appearance.face, saved)
 
     def test_enabled_missing_file_blocks_custom_save_but_not_bell(self):
         d = self.dialog
@@ -143,3 +150,83 @@ class FaceEditorTests(unittest.TestCase):
         language_manager().set_language('zh')
         self.assertEqual(d.face_preview.view.itemText(0), '正面')
         self.assertIn('头部.png', d.face_editors['face'].file_label.text())
+
+    def test_fixed_body_does_not_read_hidden_custom_images_but_switching_back_reports_missing(self):
+        d = self.dialog
+        d.open_face_preview()
+        d.controls['oracle.body_appearance'].setValue('bell')
+        self.app.processEvents()
+        missing = FaceDecal(enabled=True, image_path=str(self.root/'removed-generation/mark.png'))
+        face_image.cache_clear()
+        with patch('rw_creature_pet.oracle.graphics.face_assets.read_face_png', wraps=read_face_png) as read:
+            d.face_editors['forehead'].setValue(missing)
+            language_manager().set_language('en')
+            self.app.processEvents()
+            read.assert_not_called()
+            self.assertEqual(d.face_editors['forehead'].value(), missing)
+            self.assertFalse(d.face_editors['forehead'].message.text())
+            with self.assertLogs('rw_creature_pet.oracle.graphics.face_assets', level='WARNING'):
+                d.controls['oracle.body_appearance'].setValue('custom')
+            self.assertTrue(read.called)
+            self.assertTrue(d.face_editors['forehead'].message.text())
+
+    def test_reopening_uses_committed_image_paths_before_constructing_editors(self):
+        d = self.dialog
+        d.face_editors['forehead'].import_file(self.source)
+        d.save(close=False)
+        current = self.store.load()
+        invalid = replace(current.oracle.custom_appearance.forehead,
+                          image_path=str(self.root/'removed-generation/mark.png'))
+        stale = replace(current, oracle=replace(current.oracle,
+                        custom_appearance=replace(current.oracle.custom_appearance, forehead=invalid)))
+        init = CharacterInitialization(stale, PersonalState(self.store.load_preset_state()))
+        face_image.cache_clear()
+        extra = None
+        try:
+            with patch('rw_creature_pet.oracle.graphics.face_assets.read_face_png', wraps=read_face_png) as read:
+                extra = OracleSettingsDialog(stale, self.store, assets=self.assets, initialization=init)
+                self.assertNotIn(invalid.image_path, [str(call.args[0]) for call in read.call_args_list])
+                self.assertEqual(extra.face_editors['forehead'].value(), current.oracle.custom_appearance.forehead)
+        finally:
+            if extra:
+                extra.shutdown()
+                extra.deleteLater()
+
+    def test_explicit_save_stabilizes_inactive_image_paths_for_runtime(self):
+        d = self.dialog
+        d.face_editors['forehead'].import_file(self.source)
+        d.save(close=False)
+        d.controls['oracle.body_appearance'].setValue('bell')
+        config, entry, state = d.preset_workflow.prepare_commit(d.candidate())
+        path = Path(config.oracle.custom_appearance.forehead.image_path)
+        self.assertEqual(path.parent, d.preset_workflow.directory)
+        self.assertTrue(path.is_file())
+
+    def test_all_hidden_image_editors_preserve_values_without_loading(self):
+        d = self.dialog
+        for body in ('bell', 'prince'):
+            d.controls['oracle.body_appearance'].setValue(body)
+            with patch('rw_creature_pet.oracle.graphics.face_assets.read_face_png') as read:
+                for editor in d.image_editors:
+                    prior = editor.value()
+                    changes = dict(enabled=True, image_path=str(self.root/'absent.png'))
+                    if hasattr(prior, 'kind'):
+                        changes['kind'] = 'png'
+                    expected = replace(prior, **changes)
+                    editor.setValue(expected)
+                    editor.refresh()
+                    self.assertEqual(editor.value(), expected)
+                    self.assertFalse(editor.message.text())
+                read.assert_not_called()
+
+    def test_install_keeps_rebased_paths_after_atomic_profile_save(self):
+        d = self.dialog
+        d.face_editors['forehead'].import_file(self.source)
+        d.save(close=False)
+        workflow = d.preset_workflow
+        workflow.state.autosave = True
+        workflow.install(workflow.key, deepcopy(workflow.entry), d.candidate())
+        self.assertEqual(d.original.oracle.custom_appearance.forehead,
+                         workflow.applied.oracle.custom_appearance.forehead)
+        self.assertEqual(d.face_editors['forehead'].value(),
+                         workflow.applied.oracle.custom_appearance.forehead)

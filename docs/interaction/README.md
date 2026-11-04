@@ -146,9 +146,17 @@ voice_probability = 0.55
 
 ### 语音播放与准备
 
+设置 → 行为 → 使用的语音支持 `bell`、`moon`、`pebbles`、`sig`、`prince`、`none`，按角色保存，选择不受角色名称或外观限制。Moon/Pebbles 只使用游戏本体 `MoonChat1～5` / `PebblesChat1～5`，不播放抗议或受伤片段；按需提取后复用本机缓存。Sig 只读取本地 Hunter Expansion 的 `NSH-ShortDialogue-1～2.wav`、`NSH-LongDialogue-1～3.wav`，不使用 Attacked、Break、Recover，无需启用模组或确认在线订阅。Prince 使用 Watcher 的 `RWTW_PrinceTalk1_01～22` 完整录音（试听目录中的 01～22），不使用移动、关节、印记等音效，选择后从游戏资源自动提取并缓存，无需复制试听目录；缺少素材时仅 `prince` 标为不可用。各套沿用同一套拖动延迟、概率、间隔、音量与暂停/取消规则，避免连续重复同一片段；Sig 使用完整对话，按实际 9.504～20.928 秒时长预占语音通道，避免长对话重叠。新增选项不更改原有角色配置。下文的采访切分和 `voice_directory` 仅适用于 Bell
+
 桌面和调试窗口通过 `interaction/audio.py` 消费 `VoiceCueChannel`，用 PySide6 自带的
-QtMultimedia 异步播放已处理的本地 WAV。第一次实际触发时才创建一个 `QSoundEffect`；
+QtMultimedia 异步播放已处理的本地 WAV。第一次实际触发时才创建一组 `QMediaPlayer + QAudioOutput`，
+设备适配集中在 `interaction/audio_backend.py`，播放器保持正常的 1 倍速；
 日常播放不做切分、混音或声音分离，不随绘制重建播放器；首次初始化单独准备缓存。
+
+输出跟随系统默认音频设备，设备通知发生或播放前更新输出选择。切换到另一个可用设备时，
+保留片段进度、音量和静音状态；同一设备的首选格式改变时也重新创建输出通道。
+全部输出断开时取消正在播放或加载的片段，重连后只响应新的语音请求，不补播旧片段。
+无输出或底层播放失败时仍不影响其他桌宠功能，错误后释放后端，由下一次请求重新创建。
 
 每次成功抓起后先随机等待 0～3 秒，再按 `voice_probability` 独立抽签。
 等待期间松手、取消拖动或重置会撤销本次等待；重新抓起重新抽取延时，不会补播。

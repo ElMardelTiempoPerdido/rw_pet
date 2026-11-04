@@ -9,16 +9,17 @@ from PySide6.QtWidgets import QCheckBox, QFileDialog, QGridLayout, QHBoxLayout, 
 from ...i18n import tr
 from ...shared.messages import Message
 from ..face_config import FaceDecal
-from ..graphics.face_assets import decal_image, image_size_limit, import_face_png, read_face_png
+from ..graphics.face_assets import image_size_limit, import_face_png, read_face_png
+from .image_preview_state import ImagePreviewEditor
 from .settings_style import parameter_group_background
 from .inputs import WheelSafeDoubleSpinBox
 
 
-class FaceDecalEditor(QWidget):
+class FaceDecalEditor(ImagePreviewEditor):
     valueChanged = Signal(object)
 
-    def __init__(self, title, value, directory):
-        super().__init__()
+    def __init__(self, title, value, directory, *, assets_active=True):
+        super().__init__(assets_active=assets_active)
         parameter_group_background(self)
         self.directory = Path(directory)
         self._value, self._error = None, ''
@@ -119,7 +120,7 @@ class FaceDecalEditor(QWidget):
 
     def refresh(self):
         value = self._value
-        image = decal_image(value)
+        image = self.preview_image(value)
         thumbnail = QPixmap.fromImage(image) if not image.isNull() else QPixmap()
         if thumbnail.width() > 38 or thumbnail.height() > 38:
             thumbnail = thumbnail.scaled(38, 38, Qt.AspectRatioMode.KeepAspectRatio,
@@ -133,7 +134,9 @@ class FaceDecalEditor(QWidget):
                 if not image.isNull() else name or '尚未选择 PNG')
         self.file_label.setText(tr(text))
         self.file_label.setToolTip(value.image_path)
-        error = self._error or ('贴图不可用，请重新导入或关闭此贴图' if value.image_path and image.isNull() else '')
+        error = (self._error or ('贴图不可用，请重新导入或关闭此贴图'
+                 if value.image_path and image.isNull() and getattr(value, 'kind', 'png') == 'png' else '')
+                 if self.assets_active else '')
         self.message.setText(tr(error))
         self.message.setVisible(bool(error))
 

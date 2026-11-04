@@ -31,9 +31,11 @@ class AssetAvailabilityTests(unittest.TestCase):
             atlas = Mock()
             stack.enter_context(patch('rw_creature_pet.oracle.assets.extract_atlas', return_value=Path('fixture')))
             stack.enter_context(patch('rw_creature_pet.oracle.assets.Atlas', return_value=atlas))
+            stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_sig_voice',
+                                     return_value=({}, 'fixture missing mod')))
             stack.enter_context(patch('rw_creature_pet.oracle.assets.load_pearl_glyphs',
                                      side_effect=glyph_error, return_value=object()))
-            voice = stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_bell_voice',
+            voice = stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_voice',
                                         return_value=({}, voice_error) if voice_error else ({'bell': Path('a.wav')}, '')))
             def curve(renderer):
                 renderer.playback_curve = None if curve_error else object()
@@ -68,6 +70,18 @@ class AssetAvailabilityTests(unittest.TestCase):
         with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice') as extract:
             self.assertEqual(prepare_bell_voice(config), ({}, ''))
             extract.assert_not_called()
+
+    def test_missing_prince_voice_is_optional_and_preserves_selection(self):
+        base = AppConfig()
+        config = replace(base, oracle=replace(base.oracle, voice='prince'))
+        assets, calls = self.prepare_with(config, voice_error='missing RWTW_PrinceTalk1_22')
+        self.assertEqual(calls, 1)
+        self.assertEqual(assets.resources.states['prince_voice'], A.UNAVAILABLE)
+        self.assertEqual(assets.resources.states['main_atlas'], A.AVAILABLE)
+        self.assertEqual(config.oracle.voice, 'prince')
+        self.assertEqual(assets.voice_paths, {})
+        self.assertTrue(assets.reusable(config))
+        self.assertTrue(assets.renderer.projection_images)
 
     def test_all_optional_game_resources_can_fail_together(self):
         assets, _ = self.prepare_with(AppConfig(), voice_error='missing voice',
@@ -137,6 +151,129 @@ class ResourceSettingsTests(unittest.TestCase):
         self.assertTrue(d.controls['oracle.drag_reactions.enabled'].isEnabled())
         self.assertEqual(d.candidate().oracle, d.original.oracle)
 
+    def test_chat_options_and_controls_use_only_selected_voice_availability(self):
+        d = self.dialog(('bell_voice',))
+        d.assets.resources.record('moon_voice', error='missing MoonChat4')
+        d.assets.resources.record('pebbles_voice')
+        d.resource_settings.install(d.assets)
+        voice = d.controls['oracle.voice']
+        with patch.object(d.resource_settings, 'schedule'):
+            for selected, enabled in (('moon', False), ('pebbles', True), ('none', False)):
+                voice.setCurrentIndex(voice.findData(selected))
+                self.assertEqual(d.candidate().oracle.voice, selected)
+                self.assertEqual(d.controls['oracle.drag_reactions.voice_probability'].isEnabled(), enabled)
+                self.assertTrue(d.controls['oracle.drag_reactions.gesture_probability'].isEnabled())
+            self.assertIn('不可用', voice.itemText(voice.findData('moon')))
+            self.assertNotIn('不可用', voice.itemText(voice.findData('pebbles')))
+            d.assets.resources.record('moon_voice')
+            d.resource_settings.install(d.assets)
+            voice.setCurrentIndex(voice.findData('moon'))
+            self.assertTrue(d.controls['oracle.drag_reactions.voice_probability'].isEnabled())
+            self.assertNotIn('不可用', voice.currentText())
+
+    def test_prince_missing_label_and_repair_preserve_choice_and_other_reactions(self):
+        self.config = replace(self.config, oracle=replace(self.config.oracle, voice='prince'))
+        assets = self.assets()
+        assets.resources.record('prince_voice', error='missing RWTW_PrinceTalk1_22')
+        d = OracleSettingsDialog(self.config, self.store, assets=assets)
+        self.dialogs.append(d)
+        voice = d.controls['oracle.voice']
+        index = voice.findData('prince')
+        self.assertEqual(voice.currentText(), 'prince（不可用）')
+        self.assertFalse(voice.model().item(index).isEnabled())
+        self.assertIn('Watcher', voice.toolTip())
+        self.assertEqual(d.candidate().oracle.voice, 'prince')
+        self.assertFalse(d.controls['oracle.drag_reactions.voice_probability'].isEnabled())
+        self.assertTrue(d.controls['oracle.drag_reactions.gesture_probability'].isEnabled())
+        self.assertTrue(voice.model().item(voice.findData('bell')).isEnabled())
+        self.assertTrue(voice.model().item(voice.findData('none')).isEnabled())
+        assets.resources.record('prince_voice')
+        d.resource_settings.install(assets)
+        self.assertEqual(voice.currentText(), 'prince')
+        self.assertTrue(voice.model().item(index).isEnabled())
+        self.assertTrue(d.controls['oracle.drag_reactions.voice_probability'].isEnabled())
+        self.assertEqual(d.candidate().oracle.voice, 'prince')
+
+    def test_explicit_refresh_checks_all_voices_without_changing_none(self):
+        self.config = replace(self.config, oracle=replace(self.config.oracle, voice='none'))
+        d = self.dialog()
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', return_value=self.assets()) as prepare:
+            d.resource_settings.schedule(force=True)
+            for _ in range(100):
+                QTest.qWait(20)
+                if d.resource_settings.worker is None and not d.resource_settings._queued:
+                    break
+            prepare.assert_called_once_with(self.config, check_all_voices=True)
+        self.assertEqual(d.controls['oracle.voice'].currentData(), 'none')
+
+    def test_sig_missing_label_selection_and_repair_do_not_change_character_preference(self):
+        self.config = replace(self.config, oracle=replace(self.config.oracle, voice='sig'))
+        assets = self.assets()
+        assets.resources.record('sig_voice', error='missing local mod')
+        d = OracleSettingsDialog(self.config, self.store, assets=assets)
+        self.dialogs.append(d)
+        voice = d.controls['oracle.voice']
+        index = voice.findData('sig')
+        self.assertEqual(voice.currentText(), 'sig（未订阅猎手拓展，暂不可用）')
+        self.assertGreater(voice.sizeHint().width(), voice.fontMetrics().horizontalAdvance(voice.currentText()))
+        self.assertFalse(voice.model().item(index).isEnabled())
+        self.assertIn('无需在游戏中启用', voice.toolTip())
+        self.assertEqual(d.candidate().oracle.voice, 'sig')
+        self.assertFalse(d.controls['oracle.drag_reactions.voice_probability'].isEnabled())
+        self.assertTrue(d.controls['oracle.drag_reactions.gesture_probability'].isEnabled())
+        self.assertTrue(voice.model().item(voice.findData('bell')).isEnabled())
+        self.assertTrue(voice.model().item(voice.findData('none')).isEnabled())
+        language_manager().set_language('en')
+        self.assertEqual(voice.currentData(), 'sig')
+        self.assertIn('Hunter Expansion not installed', voice.currentText())
+        language_manager().set_language('zh')
+        assets.resources.record('sig_voice')
+        d.resource_settings.install(assets)
+        self.assertEqual(voice.currentText(), 'sig')
+        self.assertTrue(voice.model().item(index).isEnabled())
+        self.assertTrue(d.controls['oracle.drag_reactions.voice_probability'].isEnabled())
+        self.assertEqual(d.candidate().oracle.voice, 'sig')
+
+    def test_late_chat_result_does_not_replace_new_runtime_voice(self):
+        d = self.dialog()
+        d.preset_workflow.set_autosave(False)
+        d.resource_commit = Mock()
+        finish = Event()
+        moon = replace(self.config, oracle=replace(self.config.oracle, voice='moon'))
+        pebbles = replace(self.config, oracle=replace(self.config.oracle, voice='pebbles'))
+        calls = []
+        def prepare(config):
+            voice = config.oracle.voice
+            calls.append(voice)
+            if voice == 'moon':
+                finish.wait(5)
+            result = self.assets()
+            result.resources.record(voice+'_voice')
+            from rw_creature_pet.oracle.audio.voice import VOICE_CLIPS
+            result.voice_paths = {c.clip_id: self.root/c.filename for c in VOICE_CLIPS[voice]}
+            return result
+        with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', side_effect=prepare):
+            try:
+                d.preset_workflow.applied = moon
+                d.controls['oracle.voice'].setCurrentIndex(d.controls['oracle.voice'].findData('moon'))
+                d.resource_settings.ensure_runtime(moon)
+                QTest.qWait(30)
+                d.preset_workflow.applied = pebbles
+                d.controls['oracle.voice'].setCurrentIndex(d.controls['oracle.voice'].findData('pebbles'))
+                d.resource_settings.ensure_runtime(pebbles)
+                finish.set()
+                for _ in range(100):
+                    QTest.qWait(20)
+                    if d.resource_settings.worker is None and not d.resource_settings._queued:
+                        break
+                self.assertEqual(calls, ['moon', 'pebbles'])
+                d.resource_commit.assert_called_once_with(d.assets)
+                self.assertIn('pebbles_chat_01', d.assets.voice_paths)
+                self.assertIn('moon_chat_01', d.assets.voice_paths)
+                self.assertEqual(d.preset_workflow.applied.oracle.voice, 'pebbles')
+            finally:
+                finish.set()
+
     def test_availability_restores_and_respects_normal_dependencies(self):
         d = self.dialog(('bell_voice', 'scan_images'))
         d.controls['oracle.drag_reactions.enabled'].setChecked(False)
@@ -195,7 +332,7 @@ class ResourceSettingsTests(unittest.TestCase):
     def test_failed_refresh_resumes_pending_autosave(self):
         d = self.dialog()
         finish = Event()
-        def fail(config):
+        def fail(config, **kwargs):
             finish.wait(5)
             raise OSError('failed probe')
         with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', side_effect=fail):
@@ -244,7 +381,7 @@ class ResourceSettingsTests(unittest.TestCase):
         d.resource_commit = Mock()
         finish = Event()
         new_game = self.root/'another-game'
-        def prepare(config):
+        def prepare(config, **kwargs):
             if config.game_dir == self.config.game_dir:
                 finish.wait(5)
             return replace(self.assets(), source_key=resource_key(config))

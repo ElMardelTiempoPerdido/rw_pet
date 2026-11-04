@@ -58,10 +58,10 @@ for target, source, _ in a.binaries:
 a.binaries = [entry for entry in a.binaries if entry[0].lower() not in incompatible_icu]
 if not full:
     # 自动收集的 Qt 插件会拉入其可选依赖。仅裁掉当前产品不走的分支；
-    # 保留原生 Windows 音频、系统输入法、qwindows / qoffscreen 和 QtSvg。
+    # 保留 QMediaPlayer 使用的 FFmpeg 媒体后端及转码库，以及原生 Windows 音频。
     unused_qt = {'opengl32sw.dll', 'qt6pdf.dll', 'qpdf.dll', 'qtvirtualkeyboardplugin.dll',
-                 'qt6virtualkeyboard.dll', 'ffmpegmediaplugin.dll', 'qt6multimediawidgets.dll'}
-    unused_prefixes = ('qt6qml', 'qt6quick', 'avcodec-', 'avformat-', 'avutil-', 'swscale-', 'swresample-')
+                 'qt6virtualkeyboard.dll', 'qt6multimediawidgets.dll'}
+    unused_prefixes = ('qt6qml', 'qt6quick')
     a.binaries = [entry for entry in a.binaries if not (
         entry[0].replace('\\', '/').startswith('PySide6/') and
         (Path(entry[0]).name.lower() in unused_qt or Path(entry[0]).name.lower().startswith(unused_prefixes)))]

@@ -152,14 +152,14 @@ class OracleSettingsTests(unittest.TestCase):
         d = self.dialog(assets=self.assets)
         c = d.controls
         choice = c['oracle.voice']
-        self.assertEqual([choice.itemData(i) for i in range(choice.count())], ['bell', 'none'])
+        self.assertEqual([choice.itemData(i) for i in range(choice.count())], ['bell', 'moon', 'pebbles', 'sig', 'prince', 'none'])
         for body in ('bell', 'custom', 'prince'):
             c['oracle.body_appearance'].setValue(body)
-            for source in ('none', 'bell'):
+            for source in ('none', 'bell', 'moon', 'pebbles', 'sig', 'prince'):
                 choice.setCurrentIndex(choice.findData(source))
                 self.assertTrue(choice.isEnabled())
                 self.assertEqual(d.candidate().oracle.voice, source)
-                self.assertEqual(c['oracle.drag_reactions.voice_probability'].isEnabled(), source == 'bell')
+                self.assertEqual(c['oracle.drag_reactions.voice_probability'].isEnabled(), source != 'none')
                 self.assertEqual(c['oracle.drag_reactions.gesture_probability'].isEnabled(), body != 'prince')
         try:
             choice.setCurrentIndex(choice.findData('none'))
@@ -449,7 +449,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertIsNone(w.settings_dialog)
         self.assertEqual(d.result(), QDialog.DialogCode.Accepted)
 
-    def test_large_scale_option_shares_row_enables_only_at_four_and_persists(self):
+    def test_large_scale_option_shares_row_enables_at_two_and_four_and_persists(self):
         # 离屏平台工作区很小，使用可容纳真实 4× 的活动带；此用例只检查像素选项
         self.config = replace(self.config, oracle=replace(self.config.oracle, arm_scale=.35, edge_fraction=.499))
         d = self.dialog(assets=self.assets)
@@ -460,11 +460,14 @@ class OracleSettingsTests(unittest.TestCase):
         scale.setCurrentIndex(scale.findData(4.))
         self.assertTrue(coarse.isEnabled())
         coarse.setChecked(True)
-        for value in (1., 1.5, 2., 3.):
+        scale.setCurrentIndex(scale.findData(2.))
+        self.assertTrue(coarse.isEnabled())
+        self.assertTrue(coarse.isChecked())
+        for value in (1., 1.5, 3.):
             scale.setCurrentIndex(scale.findData(value))
             self.assertFalse(coarse.isEnabled())
             self.assertTrue(coarse.isChecked())
-        scale.setCurrentIndex(scale.findData(4.))
+        scale.setCurrentIndex(scale.findData(2.))
         self.app.processEvents()
         a = scale.mapTo(d, scale.rect().center())
         b = coarse.mapTo(d, coarse.rect().center())
@@ -472,7 +475,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertLess(a.x(), b.x())
         d.save()
         self.config = self.store.load()
-        self.assertEqual(self.config.desktop.scale, 4.)
+        self.assertEqual(self.config.desktop.scale, 2.)
         self.assertTrue(self.config.oracle.coarse_pixels_4x)
         reopened = self.dialog(assets=self.assets)
         self.assertTrue(reopened.controls['oracle.coarse_pixels_4x'].isChecked())

@@ -26,7 +26,7 @@ from ..graphics.render import OracleRenderer, point
 from ..interaction.input import PuppetHitMap
 from ...interaction.desktop import mouse_button_down
 from ...shared.timing import FixedStepper
-from ..audio.assets import make_bell_voice_player
+from ..audio.assets import make_voice_player
 from ..audio.playback import sync_oracle_voice
 
 
@@ -406,7 +406,7 @@ class OracleDebugWindow(QMainWindow):
         self.scene = OracleScene(config.oracle)
         self.scene.mouse_reaction.configure(self.scene, config.interaction)
         self.scene.drag.set_enabled(config.interaction.drag_enabled)
-        self.voice_player = make_bell_voice_player(config, config_path, self,
+        self.voice_player = make_voice_player(config, config_path, self,
                                                   initialize=load_atlas, source=voice_source)
         sync_oracle_voice(self.voice_player, self.scene)
         self.clock = FixedStepper(self.scene.TICK_RATE)

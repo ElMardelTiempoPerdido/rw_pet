@@ -111,7 +111,7 @@ class FacePreviewDialog(QDialog):
             self.bind_editor(source, editor)
             self.eye_editors[name] = editor
             eye_layout.addWidget(editor)
-        state_hint = QLabel('*默认闭眼仍可在观察或互动时睁开')
+        state_hint = QLabel('*常规眼睛默认闭眼时，仍可在观察或互动时睁开')
         state_hint.setWordWrap(True)
         eye_layout.addWidget(state_hint)
         eye_layout.addStretch(1)
@@ -120,7 +120,7 @@ class FacePreviewDialog(QDialog):
         face_layout = QVBoxLayout(face_page)
         for name, source in parent.face_editors.items():
             title = '额头标记 PNG' if name == 'forehead' else '面部装饰 PNG'
-            editor = FaceDecalEditor(title, source.value(), source.directory)
+            editor = FaceDecalEditor(title, source.value(), source.directory, assets_active=source.assets_active)
             self.bind_editor(source, editor)
             self.face_editors[name] = editor
             face_layout.addWidget(editor)
@@ -132,7 +132,8 @@ class FacePreviewDialog(QDialog):
         self.ear_stack = QStackedWidget()
         for name, source in parent.ear_editors.items():
             self.ear_selector.addItem(EAR_LABELS[name], name)
-            editor = EarPartEditor(EAR_LABELS[name], source.value(), source.directory)
+            editor = EarPartEditor(EAR_LABELS[name], source.value(), source.directory,
+                                   assets_active=source.assets_active)
             self.bind_editor(source, editor)
             self.ear_editors[name] = editor
             panel = QWidget()

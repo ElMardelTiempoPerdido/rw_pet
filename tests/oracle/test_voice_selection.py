@@ -8,10 +8,11 @@ from unittest.mock import patch
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.config import OracleConfig
+from rw_creature_pet.oracle.audio.voice import VOICE_CLIPS
 from rw_creature_pet.presets.personal import PersonalEntry
 from rw_creature_pet.presets.profile import apply_profile, load_profile
 from rw_creature_pet.presets.profile_library import ProfileLibrary
-from rw_creature_pet.presets.startup import BELL_PROFILE_ID, default_bell, default_custom, default_prince
+from rw_creature_pet.presets.startup import default_bell, default_custom, default_prince
 from rw_creature_pet.settings_store import SettingsStore
 
 
@@ -20,10 +21,10 @@ class VoiceSelectionTests(unittest.TestCase):
         for body, expected in (('bell', 'bell'), ('custom', 'none'), ('prince', 'none')):
             with self.subTest(body=body):
                 self.assertEqual(OracleConfig.from_mapping({'body_appearance': body}).voice, expected)
-                for source in ('bell', 'none'):
+                for source in VOICE_CLIPS:
                     config = OracleConfig.from_mapping({'body_appearance': body, 'voice': source})
                     self.assertEqual(config.voice, source)
-        for source in ('moon', '', None, [], True):
+        for source in ('unknown', '', None, [], True):
             with self.subTest(source=source), self.assertRaises(ValueError):
                 OracleConfig(voice=source)
 
@@ -37,9 +38,9 @@ class VoiceSelectionTests(unittest.TestCase):
         self.assertGreater(len(profiles), 1)
         for path in profiles:
             data = json.loads(path.read_text(encoding='utf-8'))
-            expected = 'bell' if data['id'] == BELL_PROFILE_ID else 'none'
             with self.subTest(profile=data['name']):
-                self.assertEqual(data['config']['oracle']['voice'], expected)
+                # 角色可自行选择语音；缺省迁移规则由隔离用例验证，不约束用户当前选择
+                self.assertIn(data['config']['oracle']['voice'], VOICE_CLIPS)
 
     def test_settings_upgrade_and_restart_preserve_explicit_choice(self):
         with tempfile.TemporaryDirectory() as temp, patch(

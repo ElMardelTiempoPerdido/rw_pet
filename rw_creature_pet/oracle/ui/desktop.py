@@ -16,8 +16,8 @@ from ...interaction.config import AudioConfig
 from ...interaction.windows import desktop_window_tracker
 from ...overseer.ui.desktop import OverseerDesktopGroup
 from ...overseer.events import EventPhase
-from ..audio.assets import make_bell_voice_player
-from ..audio.playback import sync_oracle_voice
+from ..audio.assets import make_voice_player
+from ..audio.playback import prepared_voice_error, sync_oracle_voice
 from ..interaction.input import PuppetHitMap
 from ...shared.geometry import Vec2
 from ..scene import OracleScene, RailSide
@@ -153,6 +153,8 @@ class OracleDesktopMotion:
             self.scene.behavior.last_matrix_slot = previous.behavior.last_matrix_slot
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
             self.scene.eyes.random.setstate(previous.eyes.random.getstate())
+            for name in ('random', 'timing_random'):
+                getattr(self.scene.drag_expressions, name).setstate(getattr(previous.drag_expressions, name).getstate())
             self.scene.window_reaction.attention.random.setstate(previous.window_reaction.attention.random.getstate())
             self.scene.mouse_reaction.configure(self.scene, previous.mouse_reaction.config)
             self.scene.mouse_reaction.attention.random.setstate(previous.mouse_reaction.attention.random.getstate())
@@ -196,9 +198,10 @@ class OracleDesktopWindow(QWidget):
         if assets is not None:
             from ...interaction.audio import VoicePlayer
             renderer = assets.renderer
-            self.voice_player = VoicePlayer(assets.voice_paths, config.audio, self, asset_error=assets.voice_error)
+            self.voice_player = VoicePlayer(assets.voice_paths, config.audio, self,
+                                             asset_error=prepared_voice_error(assets, config.oracle.voice))
         else:
-            self.voice_player = make_bell_voice_player(config, config_path, self, initialize=renderer is None)
+            self.voice_player = make_voice_player(config, config_path, self, initialize=renderer is None)
         self.requested_scale = scale
         self.asset_message = assets.message if assets is not None else ''
         self.renderer = renderer
@@ -591,7 +594,7 @@ class OracleDesktopWindow(QWidget):
         self.renderer.colors = self.config.oracle.active_colors
         self.voice_player.stop()
         self.voice_player.clips = dict(assets.voice_paths)
-        self.voice_player.asset_error = self.voice_player.error = assets.voice_error
+        self.voice_player.asset_error = self.voice_player.error = prepared_voice_error(assets, self.config.oracle.voice)
         if self.motion is not None:
             self.motion.scene.pearl_playback_curve = self.renderer.playback_curve
             self.motion.scene.projection.available = bool(self.renderer.projection_images)
@@ -639,12 +642,14 @@ class OracleDesktopWindow(QWidget):
         self.config_store.save(config)
         self.voice_player.stop()
         self.drag_input.suspend()
+        if self.motion is not None:
+            self.motion.scene.drag_expressions.cancel(self.motion.scene)
         self.config, self.config_path = config, self.config_store.path
         self.prepared_resources = assets
         self.renderer, self.asset_message = assets.renderer, assets.message
         self.renderer.colors = config.oracle.active_colors
         self.voice_player.clips = dict(assets.voice_paths)
-        self.voice_player.asset_error = self.voice_player.error = assets.voice_error
+        self.voice_player.asset_error = self.voice_player.error = prepared_voice_error(assets, config.oracle.voice)
         self.voice_player.configure(enabled=config.audio.enabled, volume=config.audio.volume)
         self.requested_scale = config.desktop.scale
         self.drag_action.blockSignals(True)
@@ -716,6 +721,7 @@ class OracleDesktopWindow(QWidget):
             self.voice_player.stop()
             self.drag_input.suspend()
             if self.motion is not None:
+                self.motion.scene.drag_expressions.cancel(self.motion.scene)
                 self.motion.scene.window_reaction.cancel(self.motion.scene)
                 self.motion.scene.mouse_reaction.cancel(self.motion.scene)
             self.window_tracker.reset()

@@ -5,7 +5,7 @@ from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import QCheckBox, QFormLayout, QLabel, QWidget
 
 from ...i18n import tr
-from ..eye_config import EyeAppearance
+from ..eye_config import EYE_KINDS, EyeAppearance
 from .settings_style import parameter_group_background
 from .inputs import ColorButton, WheelSafeComboBox
 
@@ -28,6 +28,11 @@ class EyeEditor(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.visible = QCheckBox('显示')
         form.addRow(QLabel(title), self.visible)
+        self.kind = WheelSafeComboBox()
+        self.kind.setFixedWidth(100)
+        for data, label in EYE_KINDS:
+            self.kind.addItem(tr(label), data)
+        form.addRow('眼睛形态', self.kind)
         self.color = ColorButton(value.color, title)
         self.color.setFixedWidth(110)
         form.addRow('颜色', self.color)
@@ -42,6 +47,7 @@ class EyeEditor(QWidget):
             self.height_mode.addItem(tr(label), data)
         form.addRow('眼位高度', self.height_mode)
         self.visible.toggled.connect(lambda visible: self.change(visible=visible))
+        self.kind.currentIndexChanged.connect(lambda: self.change(kind=self.kind.currentData()))
         self.color.valueChanged.connect(lambda color: self.change(color=color))
         self.state.currentIndexChanged.connect(lambda: self.change(default_open=self.state.currentData()))
         self.height_mode.currentIndexChanged.connect(lambda: self.change(height_mode=self.height_mode.currentData()))
@@ -56,8 +62,9 @@ class EyeEditor(QWidget):
         if value == self._value:
             return
         self._value = value
-        blockers = [QSignalBlocker(widget) for widget in (self.visible, self.color, self.state, self.height_mode)]
+        blockers = [QSignalBlocker(widget) for widget in (self.visible, self.kind, self.color, self.state, self.height_mode)]
         self.visible.setChecked(value.visible)
+        self.kind.setCurrentIndex(self.kind.findData(value.kind))
         self.color.setValue(value.color)
         self.state.setCurrentIndex(self.state.findData(value.default_open))
         self.height_mode.setCurrentIndex(self.height_mode.findData(value.height_mode))
@@ -69,9 +76,14 @@ class EyeEditor(QWidget):
         self.setValue(replace(self._value, **values))
 
     def refresh(self):
+        self.kind.setEnabled(self._value.visible)
         self.color.setEnabled(self._value.visible)
         self.state.setEnabled(self._value.visible)
         self.height_mode.setEnabled(self._value.visible)
+        for control in (self.state, self.height_mode):
+            self.layout().setRowVisible(control, self._value.kind == 'normal')
+        for index, (_, label) in enumerate(EYE_KINDS):
+            self.kind.setItemText(index, tr(label))
         for index, (label, _) in enumerate(EYE_STATES):
             self.state.setItemText(index, tr(label))
         for index, (label, _) in enumerate(EYE_HEIGHTS):

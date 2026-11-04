@@ -76,7 +76,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 - `oracle/graphics/styles.py`：选择 Bell / 自定义 / Prince 绘制实现
 - `oracle/scene.py` 的 `sync_character()` 与外观的 `sync_shape()`：角色切换时清理不适用的动作并重建肢体点
 
-Prince 不生成双臂物理点，不执行眼睛开闭、拖动手势和抬手投影，默认不使用语音；可在行为页选择 Bell 语音，独立触发拖动语音反应。仍可拖动、移动、漂浮、观察及召近珍珠。切回 Bell 或自定义角色后恢复它们各自支持的能力
+Prince 不生成双臂物理点，不执行眼睛开闭、拖动手势和抬手投影，默认不使用语音；可在行为页选择 `prince` 或其他内置语音，独立触发拖动语音反应。`prince` 使用 Watcher 中 `Prince_Talk` 的 01～22 段完整录音，从本机游戏提取并缓存，排除机械臂和印记等音效；缺少素材时仅该语音选项不可用。仍可拖动、移动、漂浮、观察及召近珍珠。切回 Bell 或自定义角色后恢复它们各自支持的能力
 
 ## 检查
 
@@ -202,7 +202,7 @@ grip_directions = { top = [-1, -0.5], right = [0.45, -1], bottom = [1, 0.5], lef
 `[preview]` 仅控制观察画面：
 
 - `size`：画布逻辑宽高；`origin`：触手共用原点在画布中的位置
-- `scale`：1 / 1.5 / 2 / 3 / 4，像素密度遵循桌宠现有规则；3x 以 1x 为基础，4x 默认按 `coarse_pixels_4x` 选择 1x 或 2x 基础
+- `scale`：1 / 1.5 / 2 / 3 / 4，像素密度遵循桌宠现有规则；3x 以 1x 为基础，2x／4x 按 `coarse_pixels_4x` 选择 1x 或 2x 基础
 - `magnify`：额外整数观察倍率，不改变像素计算；例如检查 1x 可设 `scale = 1`、`magnify = 4`
 - `background`：`"#RRGGBB"` 或 `"transparent"`
 - `show_prince`：是否显示人偶；`back_offset`：触手原点相对胸部的位移

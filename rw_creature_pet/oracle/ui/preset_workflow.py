@@ -188,6 +188,7 @@ class PresetWorkflow:
     def install(self, key, entry, config):
         if self.state.autosave and self.settings.assets is not None:
             self.write(key, entry, config)
+            config = self.applied  # write 已刷新到新代次，不能再填回传入的旧路径
         with self.suspended():
             self.settings.fill_preset(config, entry.values)
         self.key, self.entry = key, entry
@@ -293,7 +294,8 @@ class PresetWorkflow:
         self.timer.stop()
         entry = deepcopy(self.entry)
         entry.update(config, self.directory)
-        config = apply_values(config, capture(config, entry.kind, self.directory))
+        # 运行快照中隐藏分支也使用稳定图片目录，不持有会随保存被清理的代次路径
+        config = apply_values(config, capture(config, entry.kind, self.directory, include_inactive=True))
         return config, entry, self.state.serialize(self.key, entry)
 
     def committed(self, config, entry):

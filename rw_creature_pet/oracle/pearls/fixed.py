@@ -11,6 +11,7 @@ from ...shared.geometry import Bounds, Vec2
 from ..motion.navigation import EdgeRegion
 from .model import PearlState
 from .layout import PearlGroupRegion, balanced_colors, group_follow_boxes
+from .placement import MatrixHomeClearance
 
 
 class FamilyRegion(EdgeRegion):
@@ -28,9 +29,13 @@ class FamilyRegion(EdgeRegion):
 class FixedPearl(PearlState):
     LABEL_OFFSET = Vec2(5.5, -5.5)
 
-    def __init__(self, preferred, world, body_region, center, width, height, radius, glyph, color):
+    def __init__(self, preferred, world, body_region, center, width, height, radius, glyph, color,
+                 *, placement=None):
         self.family_radius = radius
         self.body_region = body_region
+        self.placement = placement or MatrixHomeClearance()
+        self._placement_key = None
+        self._avoidance_ticks = 0
         self.half_size = Vec2(radius+11.5, radius+11.5)
         self.group_region = PearlGroupRegion(world, self.half_size)
         region = FamilyRegion(world, radius) if radius else body_region
@@ -40,17 +45,53 @@ class FixedPearl(PearlState):
 
     def nearby_home(self, point, center, region, width, height, *, inset=False):
         if not self.family_radius:
-            return PearlState.nearby_home(point, center, region, width, height, inset=inset)
-        boxes = group_follow_boxes(center, self.body_region, self.group_region, width, height, self.half_size)
-        candidates = []
-        for box in boxes:
-            dx = min(32., (box.right-box.left)*.25) if inset else 0.
-            dy = min(32., (box.bottom-box.top)*.25) if inset else 0.
-            q = Bounds(box.left+dx, box.top+dy, box.right-dx, box.bottom-dy).clamp(point+self.LABEL_OFFSET)
-            candidates.append(q-self.LABEL_OFFSET)
-        return min(candidates, key=lambda p: (p-point).length())
+            home = PearlState.nearby_home(point, center, region, width, height, inset=inset)
+        else:
+            boxes = group_follow_boxes(center, self.body_region, self.group_region, width, height, self.half_size)
+            candidates = []
+            for box in boxes:
+                dx = min(32., (box.right-box.left)*.25) if inset else 0.
+                dy = min(32., (box.bottom-box.top)*.25) if inset else 0.
+                q = Bounds(box.left+dx, box.top+dy, box.right-dx, box.bottom-dy).clamp(point+self.LABEL_OFFSET)
+                candidates.append(q-self.LABEL_OFFSET)
+            home = min(candidates, key=lambda p: (p-point).length())
+        if self.placement.matrix is None:
+            return home
+        boxes = self._home_boxes(center, region, width, height)
+        key = (home, boxes, self.placement.key)
+        if key == self._placement_key:
+            return home
+        home = self.placement.choose(home, boxes)
+        # 包括无足够空间的退让结果；静止时不重复搜索同一布局
+        self._placement_key = (home, boxes, self.placement.key)
+        return home
+
+    def _home_boxes(self, center, region, width, height):
+        if self.family_radius:
+            offset = self.LABEL_OFFSET
+            return tuple(Bounds(b.left-offset.x, b.top-offset.y, b.right-offset.x, b.bottom-offset.y)
+                         for b in group_follow_boxes(center, self.body_region, self.group_region,
+                                                     width, height, self.half_size))
+        x, y = width/2, height/2
+        boxes = []
+        for b in region.boxes:
+            if b.contains(center):
+                l, r = max(b.left, center.x-x), min(b.right, center.x+x)
+                t, bottom = max(b.top, center.y-y), min(b.bottom, center.y+y)
+                if l <= r and t <= bottom:
+                    boxes.append(Bounds(l, t, r, bottom))
+        return tuple(boxes)
 
     def follow_home(self, center, width, height, *, allow_motion=True):
+        self._avoidance_ticks = max(0, self._avoidance_ticks-1)
+        if self.placement.matrix is not None and self._avoidance_ticks == 0:
+            # 原悬浮点仍在跟随框内才单独避让；超距时由原逻辑带滞回地选点
+            if any(b.contains(self.home) for b in self._home_boxes(center, self.region, width, height)):
+                home = self.nearby_home(self.home, center, self.region, width, height)
+                if home != self.home:
+                    self.home = home
+                    self.revision += 1
+            self._avoidance_ticks = self.REPLAN_TICKS
         if not self.family_radius:
             return super().follow_home(center, width, height, allow_motion=allow_motion)
         self.follow_bounds = Bounds(center.x-width/2, center.y-height/2, center.x+width/2, center.y+height/2)
@@ -82,10 +123,12 @@ class FixedPearls:
     ROOT_COLORS = (1, 1, 2, 2, 0, 2, 2, 1, 1, 0, 0)
     SATELLITE_COLORS = (0, 1, 2, 1, 0)
 
-    def __init__(self, world, body_region, center, normal, width, height, fixed_count, satellite_count):
+    def __init__(self, world, body_region, center, normal, width, height, fixed_count, satellite_count,
+                 *, matrix=None):
         if any(type(n) is not int or not 0 <= n <= 32 for n in (fixed_count, satellite_count)):
             raise ValueError('固定珠和卫星珠数量必须为 0～32 的整数')
         self.width, self.height = width, height
+        self.placement = MatrixHomeClearance(matrix)
         # 没有母珠时不隐式补珠；保留配置，下次开启固定珠再恢复卫星。
         satellite_count = satellite_count if fixed_count else 0
         specs, reaches = [], [0.]*fixed_count
@@ -114,7 +157,7 @@ class FixedPearls:
                 candidates = [body_region.clamp(center+tangent*sign*90+Vec2(0, -12)) for sign in (1, -1)]
                 preferred = max(candidates, key=lambda p: (p-center).length())
             roots.append(FixedPearl(preferred, world, body_region, center, width, height,
-                                    reaches[i]*scales[i], random.randrange(14), color))
+                                    reaches[i]*scales[i], random.randrange(14), color, placement=self.placement))
         self.roots = tuple(roots)
         colors = balanced_colors(satellite_count, (2, 2, 1), self.SATELLITE_COLORS)
         satellites = []
@@ -127,6 +170,12 @@ class FixedPearls:
         self.satellites = tuple(satellites)
         self.tick = self._satellite_revision = 0
         self.positions = self.previous_positions = self._positions()
+
+    def set_matrix(self, matrix):
+        self.placement.matrix = matrix
+        for pearl in self.roots:
+            pearl._placement_key = None
+            pearl._avoidance_ticks = 0
 
     @property
     def roots_settled(self):

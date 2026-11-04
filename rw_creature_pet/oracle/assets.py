@@ -5,7 +5,9 @@ from pathlib import Path
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from .pearls.glyphs import load_pearl_glyphs
 from .graphics.render import OracleRenderer
-from .audio.assets import prepare_bell_voice
+from .audio.assets import prepare_voice
+from .audio.voice import VOICE_CLIPS, VOICE_RESOURCES
+from .audio.mod_assets import prepare_sig_voice
 from .pearls.playback_assets import prepare_pearl_playback
 from .effects.projection_assets import prepare_projection
 from ..resources.status import ResourceReport
@@ -29,10 +31,22 @@ class OracleAssets:
         if self.source_key is None:
             return True
         return self.source_key == resource_key(config) and (
-            config.oracle.voice == 'none' or 'bell_voice' in self.resources.items)
+            config.oracle.voice == 'none' or VOICE_RESOURCES[config.oracle.voice] in self.resources.items)
+
+    def include_checked_voices(self, previous):
+        """同一来源的已检查语音累积复用，新结果优先；不同游戏目录不混用"""
+        if previous is None or self.source_key is None or self.source_key != previous.source_key:
+            return self
+        for voice, resource in VOICE_RESOURCES.items():
+            if resource not in self.resources.items and resource in previous.resources.items:
+                self.resources.items[resource] = previous.resources.items[resource]
+                for clip in VOICE_CLIPS[voice]:
+                    if clip.clip_id in previous.voice_paths:
+                        self.voice_paths[clip.clip_id] = previous.voice_paths[clip.clip_id]
+        return self
 
 
-def prepare_oracle_assets(config):
+def prepare_oracle_assets(config, *, check_all_voices=False):
     atlas = Atlas(extract_atlas(config.game_dir))
     renderer = OracleRenderer(atlas, config.oracle.active_colors)
     report = ResourceReport()
@@ -45,14 +59,27 @@ def prepare_oracle_assets(config):
         report.record('pearl_glyphs', error=str(exc))
         messages.append(f'珍珠投影不可用：{exc}')
     paths, error = {}, ''
-    if config.oracle.voice != 'none':
+    # 独立 WAV 检测开销很小，启动即提供 Sig 选项状态，无需先选中缺失的模组
+    voice_results = {'sig': prepare_sig_voice(config.game_dir)}
+    if check_all_voices:
+        from dataclasses import replace
+        from .audio.chat_assets import prepare_chat_voices
+        voice_results.update(prepare_chat_voices(config.game_dir))
+        voice_config = replace(config, oracle=replace(config.oracle, voice='bell'))
+    else:
+        voice_config = config
+    if voice_config.oracle.voice != 'none' and voice_config.oracle.voice not in voice_results:
         try:
-            paths, error = prepare_bell_voice(config)
+            prepared = prepare_voice(voice_config)
         except Exception as exc:
-            error = str(exc)
-        report.record('bell_voice', error=error, available=bool(paths))
-        if error:
-            paths = {}
+            prepared = {}, str(exc)
+        voice_results[voice_config.oracle.voice] = prepared
+    for voice, (voice_paths, voice_error) in voice_results.items():
+        report.record(VOICE_RESOURCES[voice], error=voice_error, available=bool(voice_paths))
+        if not voice_error:
+            paths.update(voice_paths)
+        if voice == config.oracle.voice:
+            error = voice_error
     for key, prepare, attribute in (
         ('pearl_playback_curve', lambda: prepare_pearl_playback(renderer), 'playback_curve'),
         ('scan_images', lambda: prepare_projection(config.game_dir, renderer), 'projection_images'),
