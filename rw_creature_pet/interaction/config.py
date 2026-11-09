@@ -7,6 +7,7 @@ from ..shared.messages import Message
 @dataclass(frozen=True, slots=True)
 class InteractionConfig:
     drag_enabled: bool = False
+    drag_responsiveness: float = .5
     hover_radius: float = 160.
     hover_dwell_seconds: float = 1.5
     hover_probability: float = .60
@@ -23,7 +24,8 @@ class InteractionConfig:
             raise ValueError('interaction.hover_avoidance_enabled 必须为布尔值')
         if type(self.petting_enabled) is not bool:
             raise ValueError('interaction.petting_enabled 必须为布尔值')
-        for name, low, high in (('petting_seconds', .1, 60), ('petting_grace_seconds', 0, 10),
+        for name, low, high in (('drag_responsiveness', 0, 1),
+                                ('petting_seconds', .1, 60), ('petting_grace_seconds', 0, 10),
                                 ('hover_radius', 1, 2000), ('hover_dwell_seconds', 0, 60),
                                 ('hover_probability', 0, 1), ('hover_open_probability', 0, 1)):
             value = getattr(self, name)

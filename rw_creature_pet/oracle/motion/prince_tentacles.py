@@ -8,6 +8,7 @@ from ..config import EDGE_NAMES
 from ..prince_tentacles import TubePath, default_study, make_path
 from .navigation import RailPiece, RoundedRail, normalized
 from .prince_free_search import FreeTipSearch, WallProbe
+from .prince_gait import PrinceGait
 from .prince_tentacle_numeric import tentacle_solver
 
 
@@ -460,6 +461,7 @@ class PrinceTentacles:
         self.guard = None
         self.drag_limited = False
         self.drag_root_offset = self.root-self.body_position
+        self.gait = PrinceGait(self)
 
     def attachment(self, scene):
         frame = scene.prince_posture.frame(scene.appearance.upper, scene.appearance.direction)
@@ -546,15 +548,19 @@ class PrinceTentacles:
         return self.rail.bounded(nearest+distance*lo)
 
     def project_motion(self, scene, point):
-        """最长触手换点时身体等待，其他时间保持它的自然松弛余量"""
+        """最长触手换点时由已抓稳的其他触手接替，所有支撑保留松弛余量"""
         if not self.parts:
             return point
         guard = max(self.parts, key=lambda p: p.reference_length)
-        if not guard.attached:
+        supports = [guard] if guard.attached else [p for p in self.parts if self.gait.carries(p)]
+        if not supports:
             return self.body_position
-        offset = self.part_root(guard.definition)-self.body_position
-        center = guard.grip-offset
-        return center+limited(point-center, max(1., guard.reference_length*self.AUTO_REACH-self.AUTO_ROOT_MARGIN))
+        candidates = []
+        for part in supports:
+            offset = self.part_root(part.definition)-self.body_position
+            center = part.grip-offset
+            candidates.append(center+limited(point-center, self.gait.reach(part)))
+        return min(candidates, key=lambda p: (p-point).length())
 
     def project_destination(self, scene, point):
         """只有长触手够得着的深处，终点必须仍在当前支撑点的松弛范围内"""
@@ -610,6 +616,8 @@ class PrinceTentacles:
         active_before = [p for p in self.parts if p.transferring]
         budget = min(len(self.parts)-1, 2)
         lead = max(-self.LEAD_DISTANCE, min(self.LEAD_DISTANCE, self.travel*18.))
+        ahead = Vec2() if controlling else self.gait.preview(scene)
+        planning = ahead.length() > 2.
         # 松手后仍按一次一条重新抓回，不在同一帧把两条悬空触手直接贴回边缘
         transfers = 2 if drag is not None and drag.active else 1
         primary = max(self.parts, key=lambda p: p.reference_length, default=None)
@@ -617,8 +625,9 @@ class PrinceTentacles:
             if part.attached or part.transferring or sum(p.transferring for p in self.parts) >= transfers:
                 continue
             ideal = self.ideal_grip(part.definition, self.part_root(part.definition), part.reference_length)+lead
-            target = self.reachable_target(part, ideal, reach=(
-                None if controlling else part.reference_length*self.AUTO_REGRIP))
+            target = (self.gait.target(part, ahead) if planning else
+                      self.reachable_target(part, ideal, reach=(
+                          None if controlling else part.reference_length*self.AUTO_REGRIP)))
             if target is not None:
                 part.release(target, self.rail)
         while sum(not p.attached for p in self.parts) < budget:
@@ -635,18 +644,21 @@ class PrinceTentacles:
                     continue
                 strained = (distance > part.length_limit*.94 if controlling else
                             distance > part.reference_length*self.AUTO_REGRIP)
-                if strained or (abs(offset) > self.REPLANT_DISTANCE and part.cooldown == 0
+                needs_step = self.gait.needs_step(part, ahead, offset) if planning else abs(offset) > self.REPLANT_DISTANCE
+                if strained or (needs_step and part.cooldown == 0
                                 and self.cooldown == 0):
-                    target = self.reachable_target(part, ideal+lead, reach=(
-                        None if controlling else part.reference_length*self.AUTO_REGRIP))
+                    target = (self.gait.target(part, ahead) if planning else
+                              self.reachable_target(part, ideal+lead, reach=(
+                                  None if controlling else part.reference_length*self.AUTO_REGRIP)))
                     if not controlling and part is primary:
-                        # 长触手不可悬空等待；换点前必须已有另一条保持舒适支撑
-                        alternate = any(p is not part and p.attached and
-                            (p.grip-self.part_root(p.definition)).length() < p.reference_length*self.AUTO_REACH
-                            for p in self.parts)
-                        if target is None or not alternate:
+                        if target is None or not self.gait.can_handoff(part, target, ahead):
                             continue
-                    if (not controlling and target is not None and strained
+                    if planning and target is not None and not self.gait.worthwhile(part, target, ahead):
+                        if part is not primary and distance > part.reference_length*self.AUTO_REACH:
+                            target = None
+                        else:
+                            continue
+                    if (not controlling and not planning and target is not None and strained
                             and distance <= part.reference_length*self.AUTO_REACH
                             and (self.rail.sample(target)[0]-self.part_root(part.definition)).length() >= distance-2.):
                         # 已处于回抓后的舒适位置，不因浮点误差反复松开同一个点

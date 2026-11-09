@@ -3,7 +3,7 @@
   "version": 2,
   "id": "797805d8-a9eb-4729-983e-32d7c0923f6f",
   "name": "bell",
-  "updated_at": "2026-11-09T07:49:28.794371+00:00",
+  "updated_at": "2026-11-09T13:55:30.806434+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -73,6 +73,16 @@
           "weight": 1
         },
         "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_closed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_open": {
           "enabled": false,
           "large_only": false,
           "weight": 1
@@ -210,15 +220,9 @@
       "projection_opacity": 0.5,
       "reading": {
         "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
@@ -235,9 +239,9 @@
       "voice": "bell"
     }
   },
-  "state": "history/state-a31b57fb24914fbeb5acba7788a0e4e4.json",
+  "state": "history/state-7830d5c4174645cb97833866a5927b96.json",
   "appearance": {
     "id": "6375c097-9801-4f03-9ca3-ea09025c2c29",
-    "path": "appearance/a31b57fb24914fbeb5acba7788a0e4e4/appearance.json"
+    "path": "appearance/7830d5c4174645cb97833866a5927b96/appearance.json"
   }
 }

@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from .behavior_config import validate_number
 from .eye_config import EYE_KINDS
 
-EXPRESSION_KINDS = tuple(kind for kind, _ in EYE_KINDS if kind != 'normal')
+# 固定睁眼/闭眼只作为拖动覆盖，不扩展常规外观的眼形选项
+EXPRESSION_OPTIONS = EYE_KINDS[1:] + (('fixed_open', '· ·'), ('fixed_closed', '- -'))
+EXPRESSION_KINDS = tuple(kind for kind, _ in EXPRESSION_OPTIONS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +31,8 @@ class DragExpressionConfig:
     round: ExpressionChoice = ExpressionChoice()
     chevron_up: ExpressionChoice = ExpressionChoice()
     chevron_down: ExpressionChoice = ExpressionChoice()
+    fixed_open: ExpressionChoice = ExpressionChoice()
+    fixed_closed: ExpressionChoice = ExpressionChoice()
 
     def __post_init__(self):
         validate_number('oracle.drag_expressions.probability', self.probability, 0., 1.)

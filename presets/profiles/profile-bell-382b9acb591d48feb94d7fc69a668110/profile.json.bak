@@ -3,7 +3,7 @@
   "version": 2,
   "id": "797805d8-a9eb-4729-983e-32d7c0923f6f",
   "name": "bell",
-  "updated_at": "2026-11-05T03:16:15.693698+00:00",
+  "updated_at": "2026-11-09T07:49:28.794371+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -235,9 +235,9 @@
       "voice": "bell"
     }
   },
-  "state": "history/state-88078273311d49c2aa3d922ff0996cdc.json",
+  "state": "history/state-a31b57fb24914fbeb5acba7788a0e4e4.json",
   "appearance": {
     "id": "6375c097-9801-4f03-9ca3-ea09025c2c29",
-    "path": "appearance/88078273311d49c2aa3d922ff0996cdc/appearance.json"
+    "path": "appearance/a31b57fb24914fbeb5acba7788a0e4e4/appearance.json"
   }
 }

@@ -53,7 +53,14 @@ class DragController:
         return handle
 
 
-def follow_velocity(position, velocity, target, *, speed=7., acceleration=.8):
+def follow_velocity(position, velocity, target, *, speed=7., acceleration=.8, responsiveness=.5):
     """40 Hz 阻尼跟随；调用者先约束 target，限位外距离不会积累能量。"""
-    desired = limited((target-position)*.24, speed)
-    return limited(velocity + limited((desired-velocity)*.5, acceleration), speed)
+    delta = target-position
+    if responsiveness >= 1.:
+        return delta
+    # 50% 完整保留旧跟随；低档同时减弱追赶、加速和速度，0% 仍然能移动
+    rate = min(1., .25+1.5*responsiveness)
+    desired = limited(delta*(.24*rate), speed*rate)
+    follow = limited(velocity + limited((desired-velocity)*(.5*rate), acceleration*rate*rate), speed*rate)
+    # 高档逐渐增加当前目标的位置约束，避免靠无限增大弹簧或子步数换取跟手
+    return follow.lerp(delta, (responsiveness-.5)*2) if responsiveness > .5 else follow

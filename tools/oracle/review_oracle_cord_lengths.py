@@ -22,6 +22,7 @@ from rw_creature_pet.shared.atlas import Atlas, extract_atlas
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.scene import OracleScene
 from rw_creature_pet.oracle.graphics.cords import OracleCords
+from rw_creature_pet.oracle.cord_colors import FINE_CORD_SOURCE_INDICES
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 
 
@@ -31,7 +32,14 @@ def before_class():
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
-    return module.OracleCords
+    class BeforeCords(module.OracleCords):
+        def __init__(self, scene, head):
+            super().__init__(scene, head)
+            # 历史基线仍生成十四条，比较时选取现版本保留的四条
+            for name in ('fine', 'fine_lengths', 'head_dirs', 'colors'):
+                values = getattr(self, name)
+                setattr(self, name, [values[i] for i in FINE_CORD_SOURCE_INDICES])
+    return BeforeCords
 
 
 def create_scene(config, cords):

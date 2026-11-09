@@ -3,7 +3,7 @@
   "version": 2,
   "id": "c667448b-ba22-4532-a392-5682ce8aa492",
   "name": "sig",
-  "updated_at": "2026-11-09T08:05:46.441367+00:00",
+  "updated_at": "2026-11-09T13:34:38.235592+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -74,6 +74,16 @@
         },
         "chevron_up": {
           "enabled": true,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_closed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_open": {
+          "enabled": false,
           "large_only": false,
           "weight": 1
         },
@@ -229,9 +239,9 @@
       "voice": "sig"
     }
   },
-  "state": "history/state-5520b54bd75645c69d9d3c1f8e4c9b0a.json",
+  "state": "history/state-e93d4869e24947ec93e2da0b7e4577a8.json",
   "appearance": {
     "id": "35e16871-63e7-483e-abad-2eccc27ae608",
-    "path": "appearance/5520b54bd75645c69d9d3c1f8e4c9b0a/appearance.json"
+    "path": "appearance/e93d4869e24947ec93e2da0b7e4577a8/appearance.json"
   }
 }

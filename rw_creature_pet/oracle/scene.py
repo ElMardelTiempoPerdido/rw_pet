@@ -115,23 +115,28 @@ class MotionPoint:
 class OracleHead(MotionPoint):
     """健康 Oracle 的定长头部连接；积分速度与可见位移分开保存。"""
     drive_velocity: Vec2 = Vec2()
+    last_host_velocity: Vec2 = Vec2()
     neck_extension: float = 0.
     NECK_BASE_OFFSET = 6.
     CONNECTION_LENGTH = 8.
     SETTLE_DISTANCE = .003
     SETTLE_SPEED = .003
 
-    def step(self, upper, direction, look):
+    def step(self, upper, direction, look, *, transport=0.):
         self.previous_position = self.position
-        predicted = self.position+self.drive_velocity
+        # 高跟手时在身体的移动参考系中保留头部相对运动，避免快速反向把头压回胸前
+        drive = self.drive_velocity-self.last_host_velocity*transport
+        predicted = self.position+drive+(upper.position-upper.previous_position)*transport
         anchor = upper.position+direction*(self.NECK_BASE_OFFSET+self.neck_extension)
         self.position = anchor+unit(predicted-anchor, direction)*self.CONNECTION_LENGTH
         correction = self.position-predicted
         # GenericBodyPart.Update -> ConnectToPoint(push=True, adapt=.5,
         # exaggerate=.01) -> OracleGraphics 的健康状态受力（breathFac=1）。
-        velocity = self.drive_velocity*.995+upper.velocity*.01+correction
-        self.drive_velocity = ((velocity-upper.velocity)*.5+upper.velocity
-                               + direction+look*.5)
+        host = upper.velocity*(1-transport)
+        velocity = drive*.995+host*.01+correction
+        self.drive_velocity = ((velocity-host)*.5+host
+                               + direction+look*.5)+upper.velocity*transport
+        self.last_host_velocity = upper.velocity
         # 定长约束下仍会有极小的切向余震；若胸部已停稳且头已接近受力平衡，
         # 在固定步结束收尾，避免亚像素摆动被最终绘制放大成左右一整格。
         rest_axis = unit(direction+look*.5, direction)
@@ -373,6 +378,7 @@ class OracleScene:
 
     def reset(self):
         drag_enabled = self.drag.enabled if hasattr(self, 'drag') else False
+        drag_responsiveness = self.drag.responsiveness if hasattr(self, 'drag') else .5
         previous_projection = getattr(self, 'projection', None)
         previous_window_reaction = getattr(self, 'window_reaction', None)
         previous_mouse_reaction = getattr(self, 'mouse_reaction', None)
@@ -440,7 +446,7 @@ class OracleScene:
         self.soft_parts = SoftParts(self)
         self.halo = OracleHalo(self.world, self.orbit_center, self.config.halo_scale)
         self.halo_arcs = HaloArcs(self.world, self.config.halo_arc_max_count)
-        self.drag = OracleDrag(self, drag_enabled)
+        self.drag = OracleDrag(self, drag_enabled, drag_responsiveness)
 
     def set_halo_enabled(self, enabled):
         was_enabled = self.config.halo_enabled
@@ -897,9 +903,12 @@ class OracleScene:
         if self.prince_posture is not None:
             self.prince_posture.step(self.head, upper.position, self.body.direction, self.look_direction,
                                      grab=self.drag.prince_grab(), gravity=self.pose.gravity_scale,
-                                     weightlessness=self.pose.weightlessness)
+                                     weightlessness=self.pose.weightlessness,
+                                     drag_responsiveness=self.drag.responsiveness,
+                                     project_grab=(self.drag.project_prince_grip
+                                         if self.drag.active and self.drag.responsiveness > .5 else None))
         else:
-            self.head.step(upper, self.body.direction, self.look_direction)
+            self.head.step(upper, self.body.direction, self.look_direction, transport=self.drag.head_transport)
         if self.pearl_orbits is not None:
             self.pearl_orbits.step(pearl_center, self.orbit_center)
         if self.prince_posture is None:

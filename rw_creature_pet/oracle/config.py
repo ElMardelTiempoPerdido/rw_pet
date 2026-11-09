@@ -1,6 +1,7 @@
 """Oracle 调试配置：以完好 Moon / DM 为基础的 Bell 外观。"""
 from ..shared.messages import Message
 from .characters import CHARACTERS, PRINCE_COLORS, PRINCE_COLOR_NAMES
+from .cord_colors import complete_cord_colors, legacy_cord_colors
 from .space import ALL_EDGES, EDGE_FRACTION_MIN, EDGE_FRACTION_MAX, SpaceAssessment
 from .face_config import FaceDecal
 from .ear_config import EAR_PART_FIELDS, EarPart
@@ -9,7 +10,7 @@ from .outfit_config import OutfitSettings
 from .soft_part_config import SOFT_PART_FIELDS, SoftPart
 from .cape_config import Cape
 from .clothing_config import CLOTHING_DECAL_FIELDS, ClothingDecal
-from .behavior_config import DailyActivityConfig, ReadingConfig
+from .behavior_config import DailyActivityConfig, ReadingConfig, validate_number
 from .drag_reaction_config import DragReactionConfig
 from .drag_expression_config import DragExpressionConfig
 from .drift_config import DriftConfig
@@ -45,6 +46,8 @@ COLOR_LABELS = {
     'inner_robe': '内搭', 'collar_trim': '衣袍领边', 'beads': '念珠',
     'pearl': '普通珍珠色', 'pearl_primary': '彩珍珠主色', 'pearl_secondary': '彩珍珠辅色',
     'pearl_glyph': '投影',
+    'cord_short_1': '细线缆-短1', 'cord_short_2': '细线缆-短2',
+    'cord_long_1': '细线缆-长1', 'cord_long_2': '细线缆-长2',
 }
 
 # 自定义模板的双眼单独编辑，标记和念珠暂不使用公共调色项
@@ -88,8 +91,16 @@ class OracleColors:
     pearl_primary: str = '#75a9b9'  # Bell 肤色向白色混合约 25% 的初始值。
     pearl_secondary: str = '#ff8c8f'  # Bell 衣袍上部向白色混合约 25%。
     pearl_glyph: str = '#7faabc'
+    # 缺省时从原混色公式补齐，实例中始终保存最终颜色
+    cord_short_1: str | None = None
+    cord_short_2: str | None = None
+    cord_long_1: str | None = None
+    cord_long_2: str | None = None
 
     def __post_init__(self):
+        for name, value in legacy_cord_colors(self.joints).items():
+            if getattr(self, name) is None:
+                object.__setattr__(self, name, value)
         for field in fields(self):
             value = getattr(self, field.name)
             if not isinstance(value, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', value):
@@ -263,6 +274,7 @@ class OracleConfig:
     custom_appearance: CustomAppearance = CustomAppearance()
     custom_colors: OracleColors = OracleColors()
     prince_colors: OracleColors = OracleColors(**PRINCE_COLORS)
+    prince_neck_width: float = 3.  # Prince 独立颈部宽度，单位为逻辑像素
     hide_cords: bool = False  # 隐藏粗细线缆，同时停止线缆物理求解。
     glow_enabled: bool = False
     glow_color: str = '#ffffff'
@@ -329,6 +341,7 @@ class OracleConfig:
             raise ValueError('oracle.halo_scale 必须在 0.25～1.5')
         if self.physics_backend not in ('auto', 'python', 'numba'):
             raise ValueError('oracle.physics_backend 必须为 auto / python / numba')
+        validate_number('oracle.prince_neck_width', self.prince_neck_width, 1., 8.)
         for name in ('world_width', 'world_height', 'edge_fraction', 'base_fraction', 'arm_scale', 'float_speed', 'drift_speed', 'base_speed',
                      'cross_edge_probability', 'antigravity_probability', 'antigravity_duration_seconds',
                      'pearl_follow_width', 'pearl_follow_height', 'pearl_matrix_avoid_radius',
@@ -416,9 +429,9 @@ class OracleConfig:
         data = dict(data)
         data.setdefault('voice', legacy_voice(data.get('body_appearance', 'bell')))
         # 旧 TOML 仅有共用配色时，将它作为两套配色的初始值
-        data['custom_colors'] = OracleColors(**data.get('custom_colors', data.get('colors', {})))
-        data['colors'] = OracleColors(**data.get('colors', {}))
-        data['prince_colors'] = OracleColors(**{**PRINCE_COLORS, **data.get('prince_colors', {})})
+        data['custom_colors'] = OracleColors(**complete_cord_colors(data.get('custom_colors', data.get('colors', {}))))
+        data['colors'] = OracleColors(**complete_cord_colors(data.get('colors', {})))
+        data['prince_colors'] = OracleColors(**complete_cord_colors({**PRINCE_COLORS, **data.get('prince_colors', {})}))
         data['custom_appearance'] = CustomAppearance.from_mapping(data.get('custom_appearance', {}),
                                                                  eye_color=data['custom_colors'].eyes)
         data['drag_reactions'] = DragReactionConfig(**data.get('drag_reactions', {}))

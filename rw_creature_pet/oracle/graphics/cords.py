@@ -10,6 +10,7 @@ from random import Random
 
 from ...shared.geometry import Vec2
 from ..motion.numeric import rope_solver
+from ..cord_colors import FINE_CORD_SOURCE_INDICES, LEGACY_FINE_COUNT
 
 
 @dataclass(slots=True)
@@ -174,7 +175,7 @@ class Rope:
 class OracleCords:
     MAIN_COUNT = 80
     GUIDE_INDEX = 60
-    FINE_COUNT = 14
+    FINE_COUNT = len(FINE_CORD_SOURCE_INDICES)
     FINE_POINTS = 20
     JUNCTION_PULL_RADIUS = 80.
     MAIN_TAIL_LENGTH = 190.  # 原版导向点 60 到末端 79：19 段，每段 10。
@@ -198,16 +199,20 @@ class OracleCords:
         rng = Random(10544)
         self.fine = []
         self.head_dirs, self.colors, self.fine_lengths = [], [], []
-        for index in range(self.FINE_COUNT):
+        for index in range(LEGACY_FINE_COUNT):
             short = rng.random() < .5
             value = rng.random()
             length = 50.+15.*value if short else 50.+150.*value**1.5
             # 原版 20 个节点、19 段，每段取长度参数 / 20。
             length *= (self.FINE_POINTS-1)/self.FINE_POINTS
             direction = Vec2(rng.uniform(-1., 1.), rng.uniform(-.6, .6))
+            color = rng.randrange(3)
+            # 消耗原有随机序列，只为保留的四条创建节点和求解器
+            if index not in FINE_CORD_SOURCE_INDICES:
+                continue
             self.fine_lengths.append(length)
             self.head_dirs.append(direction)
-            self.colors.append(rng.randrange(3))
+            self.colors.append(color)
             # 仅初始化时分开绳子；运行后由受力决定弧线，不再追踪扇形目标。
             positions = [junction.lerp(head, k/19)+Vec2(sin(pi*k/19)*direction.x*8, 0)
                          for k in range(20)]

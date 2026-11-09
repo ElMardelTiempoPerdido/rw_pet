@@ -9,12 +9,14 @@ import unittest
 from unittest.mock import patch
 from zipfile import ZipFile
 
+from PIL import Image
+
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.presets.editing import PresetLink
 from rw_creature_pet.presets.personal import PersonalEntry, apply_values
 from rw_creature_pet.presets.profile import load_profile
 from rw_creature_pet.presets.profile_library import ProfileLibrary
-from rw_creature_pet.presets.sharing import write_snapshot
+from rw_creature_pet.presets.sharing import content_key, write_snapshot
 from rw_creature_pet.presets.startup import prepare_character
 from rw_creature_pet.presets.workspace import ensure_workspace, read_entry, save_entry, values_from_profile
 from rw_creature_pet.settings_store import SettingsStore
@@ -71,18 +73,91 @@ class ReleasePackageTests(unittest.TestCase):
             self.assertTrue(all(name.startswith('presets/profiles/'+self.role.path.parent.name+'/original/')
                 for name in archive.namelist() if name not in ('BellPet.exe', 'release.json', 'presets/voices/README.md', *styles)))
 
-    def test_local_current_changes_are_excluded_until_explicit_share_override(self):
+    def test_saved_changes_are_reexported_on_every_build_without_mutating_source(self):
+        ensure_workspace(self.role.path)
+        for color, speed in (('#123456', 1.23), ('#654321', .91)):
+            entry = read_entry(self.role.path)
+            entry.overrides.update({'oracle.colors.skin': color, 'oracle.float_speed': speed})
+            save_entry(entry)
+            current = load_profile(self.role.path)
+            before = {p: p.read_bytes() for p in self.role.path.parent.rglob('*') if p.is_file()}
+            self.build()
+            exported = load_profile(self.path()/'original/profile.json')
+            self.assertEqual(content_key(exported)[1], content_key(current)[1])
+            self.assertEqual(exported.appearance.oracle.colors.skin, color)
+            self.assertEqual(exported.config.oracle.float_speed, speed)
+            self.assertEqual(exported.id, self.role.id)
+            self.assertEqual(before, {p: p.read_bytes() for p in self.role.path.parent.rglob('*') if p.is_file()})
+        original = load_profile(self.role.path.parent/'original/profile.json')
+        self.assertEqual(original.appearance.oracle.colors.skin, self.config.oracle.colors.skin)
+
+    def test_explicit_override_takes_priority_over_saved_local_changes(self):
         ensure_workspace(self.role.path)
         entry = read_entry(self.role.path)
         entry.overrides['oracle.colors.skin'] = '#123456'
         save_entry(entry)
-        self.build()
-        self.assertEqual(load_profile(self.path()/'original/profile.json').appearance.oracle.colors.skin,
-                         self.config.oracle.colors.skin)
         archive = self.override('#abcdef', 'edited')
         self.build(overrides=[archive])
         self.assertEqual(load_profile(self.path()/'original/profile.json').appearance.oracle.colors.skin, '#abcdef')
         self.assertEqual(read_entry(self.role.path).values['oracle.colors.skin'], '#123456')
+
+    def test_all_registered_current_profiles_and_images_are_portable(self):
+        second = self.library.export(self.config, 'B')
+        catalog = json.loads(self.catalog.read_text(encoding='utf-8'))
+        catalog['characters'].append({'id': second.id, 'directory': second.path.parent.name})
+        self.catalog.write_text(json.dumps(catalog), encoding='utf-8')
+        image = self.root/'current.png'
+        Image.new('RGBA', (4, 4), '#abcdef').save(image)
+        expected = {}
+        for role, color in ((self.role, '#123456'), (second, '#654321')):
+            ensure_workspace(role.path)
+            entry = read_entry(role.path)
+            entry.overrides.update({
+                'oracle.body_appearance': 'custom', 'oracle.custom_colors.skin': color,
+                'oracle.float_speed': 1.234567, 'oracle.voice': 'none',
+                'oracle.custom_appearance.forehead.enabled': True,
+                'oracle.custom_appearance.forehead.image_path': str(image),
+            })
+            save_entry(entry)
+            expected[role.id] = content_key(load_profile(role.path))[1]
+        before = {p: p.read_bytes() for p in self.library.directory.rglob('*') if p.is_file()}
+        self.build()
+        self.assertEqual(before, {p: p.read_bytes() for p in self.library.directory.rglob('*') if p.is_file()})
+        self.library.directory.rename(self.root/'sender-profiles-moved')
+        image.unlink()
+        unpacked = self.root/'receiver'
+        with ZipFile(self.output.with_suffix('.zip')) as package:
+            package.extractall(unpacked)
+        for item in catalog['characters']:
+            role = unpacked/'presets/profiles'/item['directory']
+            exported = load_profile(role/'original/profile.json')
+            self.assertEqual(content_key(exported)[1], expected[item['id']])
+            self.assertFalse((role/'profile.json').exists())
+            initialized = ensure_workspace(role/'profile.json')
+            self.assertEqual(content_key(initialized)[1], expected[item['id']])
+            self.assertEqual(content_key(initialized)[2], expected[item['id']])
+
+    def test_original_only_source_is_exported_without_initializing_it(self):
+        self.build()
+        source = self.output/'presets/profiles'
+        before = {p: p.read_bytes() for p in source.rglob('*') if p.is_file()}
+        repacked = self.root/'repacked'
+        build_release(self.exe, repacked, profiles=source, catalog=self.catalog)
+        self.assertEqual(before, {p: p.read_bytes() for p in source.rglob('*') if p.is_file()})
+        expected = load_profile(self.path()/'original/profile.json')
+        actual = load_profile(self.path(repacked)/'original/profile.json')
+        self.assertEqual(content_key(actual)[1], content_key(expected)[1])
+
+    def test_broken_current_profile_does_not_fall_back_to_original_or_replace_release(self):
+        ensure_workspace(self.role.path)
+        self.build()
+        before = {p: p.read_bytes() for p in self.output.rglob('*') if p.is_file()}
+        archive = self.output.with_suffix('.zip').read_bytes()
+        self.role.path.write_text('{invalid', encoding='utf-8')
+        with self.assertRaises(ValueError):
+            self.build()
+        self.assertEqual(before, {p: p.read_bytes() for p in self.output.rglob('*') if p.is_file()})
+        self.assertEqual(archive, self.output.with_suffix('.zip').read_bytes())
 
     def test_fresh_install_initializes_from_originals(self):
         self.build()
@@ -104,8 +179,12 @@ class ReleasePackageTests(unittest.TestCase):
         entry.overrides['oracle.colors.skin'] = '#123456'
         with store.preset_state(initialized.state.serialize(key, entry)):
             store.save(apply_values(initialized.config, entry.values))
-        for index, color in enumerate(('#abcdef', '#654321')):
-            self.build(overrides=[self.override(color, 'update-'+str(index))])
+        for color in ('#abcdef', '#654321'):
+            ensure_workspace(self.role.path)
+            author = read_entry(self.role.path)
+            author.overrides['oracle.colors.skin'] = color
+            save_entry(author)
+            self.build()
             shutil.copytree(self.output, install, dirs_exist_ok=True)
             initialized = prepare_character(store.load(), store, library=library, defaults=self.config)
             current = initialized.state.entries[initialized.state.active]

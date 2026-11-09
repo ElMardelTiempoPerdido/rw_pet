@@ -22,7 +22,8 @@ class PuppetHitMap:
         density = pixel_density(scene.config.pixel_mode, raster_scale, scene.config.coarse_pixels_4x)
         key = (app, app.revision, scene.eyes.revision, alpha, renderer.colors, renderer.atlas, density,
                outfit_definition(scene.config.active_outfit, scene.config.outfit_settings),
-               scene.config.body_appearance, scene.config.active_custom_appearance)
+               scene.config.body_appearance, scene.config.active_custom_appearance,
+               scene.config.prince_neck_width if scene.config.body_appearance == 'prince' else None)
         if key != self.key:
             bounds = self.bounds(scene, alpha)
             image, rect = local_canvas(bounds, density)

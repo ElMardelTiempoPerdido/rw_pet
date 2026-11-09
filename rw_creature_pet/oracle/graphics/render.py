@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPat
 
 from ...shared.geometry import Vec2
 from ..config import OracleColors
+from ..cord_colors import FINE_CORD_COLORS
 from ..ear_config import ear_radius
 from ..scene import unit
 from .appearance import perpendicular, rotate
@@ -369,10 +370,9 @@ class OracleRenderer(OutfitRenderer):
                 self.sprite(painter, 'CentipedeSegment', center, 5.76, 1.8, bright, angle)
                 distance += self.CORD_SEGMENT_SPACING
             distance -= length
-        cord_colors = (metal, mixed('#ff0000', metal, .55), mixed('#0000ff', metal, .55))
         for index, cord in enumerate(appearance.small_cords):
             self.polyline(painter, [p.sample(alpha) for p in cord],
-                          cord_colors[appearance.cords.colors[index]], 1.)
+                          getattr(c, FINE_CORD_COLORS[index][0]), 1.)
         self.sprite(painter, 'Circle20', main[-1], 4., 4., dark)
         self.sprite(painter, 'Circle20', main[-1], 2.5, 2.5, bright)
 
@@ -991,8 +991,13 @@ class OracleRenderer(OutfitRenderer):
             width = self.OPEN_EYE_WIDTH-foreshortening
             kind = eye_expression or (settings.kind if settings is not None else 'normal')
             if kind != 'normal':
+                height = self.OPEN_EYE_HEIGHT
+                if kind in ('fixed_open', 'fixed_closed'):
+                    # 拖动专用眼形固定逻辑尺寸，闭眼横线仍以常规眼睛中心为锚点
+                    width = 2.-foreshortening
+                    height = 2. if kind == 'fixed_open' else 1.
                 draw_eye_shape(painter, kind, sign,
-                               QRectF(eye.x-width/2, eye.y-self.OPEN_EYE_HEIGHT/2, width, self.OPEN_EYE_HEIGHT))
+                               QRectF(eye.x-width/2, eye.y-height/2, width, height))
                 continue
             # 临时睁眼与摸摸闭眼都是开度上限，不能相乘导致同一闭眼进度被重复衰减
             opened = min(settings.openness(openness) if settings is not None else openness, 1-eye_closure)
@@ -1081,6 +1086,7 @@ class OracleRenderer(OutfitRenderer):
         outfit_scale = outfit_raster_key(outfit_definition(scene.config.active_outfit, scene.config.outfit_settings), density)
         key = (app, app.revision, alpha, self.colors, self.atlas, cords, outfit_scale, scene.config.body_appearance,
                scene.config.active_custom_appearance, clothing_key(scene.config.active_custom_appearance),
+               scene.config.prince_neck_width if scene.config.body_appearance == 'prince' else None,
                support.visual_key if support is not None else None,
                density if app.prince_robe is not None else None)
         if key != self._frame_key:
@@ -1473,6 +1479,7 @@ class OracleRenderer(OutfitRenderer):
                 v = p.sample(alpha)
                 pose.extend((v.x-upper.x, v.y-upper.y))
             key = (app, self.colors, self.atlas, scene.config.body_appearance, scene.config.active_custom_appearance,
+                   scene.config.prince_neck_width if scene.config.body_appearance == 'prince' else None,
                    clothing_key(scene.config.active_custom_appearance))
             tolerance = 1e-9 if scene.prince_posture is not None else .001
             if (key != self._body_key or len(pose) != len(self._body_pose)

@@ -3,7 +3,7 @@
   "version": 2,
   "id": "6acc3887-c4cf-44f1-a826-38ce4b4123ed",
   "name": "moon",
-  "updated_at": "2026-11-09T08:06:21.296751+00:00",
+  "updated_at": "2026-11-09T13:00:51.983558+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -73,6 +73,16 @@
           "weight": 1
         },
         "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_closed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_open": {
           "enabled": false,
           "large_only": false,
           "weight": 1
@@ -229,9 +239,9 @@
       "voice": "moon"
     }
   },
-  "state": "history/state-2ad1d2376b684b149eb4b9c231bafb71.json",
+  "state": "history/state-ecb0be493578436eb66a1402ec533742.json",
   "appearance": {
     "id": "6766ac31-f390-4ebb-962f-a4a2b883f912",
-    "path": "appearance/2ad1d2376b684b149eb4b9c231bafb71/appearance.json"
+    "path": "appearance/ecb0be493578436eb66a1402ec533742/appearance.json"
   }
 }

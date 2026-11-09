@@ -911,6 +911,11 @@ class OracleSettingsTests(unittest.TestCase):
 
     def test_asset_preparation_failure_and_retry_use_background_worker(self):
         d = self.dialog(first_run=True)
+        for _ in range(150):
+            if not d.initializing:
+                break
+            QTest.qWait(10)
+        self.assertFalse(d.initializing)
         self.assertEqual(d.save_button.text(), tr('保存并启动'))
         self.assertTrue(d.apply_button.isHidden())
         with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', side_effect=RuntimeError('bad atlas')):

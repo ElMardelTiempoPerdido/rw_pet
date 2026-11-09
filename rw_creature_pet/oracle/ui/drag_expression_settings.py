@@ -2,8 +2,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox, QGridLayout, QLabel, QSizePolicy, QWidget
 
-from ..drag_expression_config import EXPRESSION_KINDS
-from ..eye_config import EYE_KINDS
+from ..drag_expression_config import EXPRESSION_KINDS, EXPRESSION_OPTIONS
 from .form_layout import ContentForm
 from .inputs import WheelSafeSpinBox
 from .settings_style import NOTE_STYLE
@@ -27,7 +26,7 @@ def build_drag_expression_settings(dialog, root, config):
     grid.setVerticalSpacing(8)
     for column, label in enumerate(('眼睛形态', '启用', '权重', '仅大幅拖动时出现')):
         grid.addWidget(QLabel(label), 0, column)
-    for row, (kind, label) in enumerate(EYE_KINDS[1:], 1):
+    for row, (kind, label) in enumerate(EXPRESSION_OPTIONS, 1):
         choice = getattr(config, kind)
         name = QLabel(label)
         name.setTextFormat(Qt.TextFormat.PlainText)

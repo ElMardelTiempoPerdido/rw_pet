@@ -5,7 +5,7 @@ from time import perf_counter
 
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QCursor, QFont, QKeySequence, QPainter, QPainterPath, QPen, QShortcut
-from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSpinBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QColorDialog, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMainWindow, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget
 
 from ...shared.atlas import Atlas, AtlasError, extract_atlas
 from ...config import AppConfig
@@ -405,7 +405,7 @@ class OracleDebugWindow(QMainWindow):
         self.config, self.config_path = config, config_path
         self.scene = OracleScene(config.oracle)
         self.scene.mouse_reaction.configure(self.scene, config.interaction)
-        self.scene.drag.set_enabled(config.interaction.drag_enabled)
+        self.scene.drag.configure(config.interaction)
         self.voice_player = make_voice_player(config, config_path, self,
                                                   initialize=load_atlas, source=voice_source)
         sync_oracle_voice(self.voice_player, self.scene)
@@ -688,7 +688,11 @@ class OracleDebugWindow(QMainWindow):
         # note.setWordWrap(True)
         # palette_layout.addWidget(note)
         palette_layout.addStretch()
-        body.addWidget(panel)
+        palette_scroll = QScrollArea()
+        palette_scroll.setWidgetResizable(True)
+        palette_scroll.setFixedWidth(260)
+        palette_scroll.setWidget(panel)
+        body.addWidget(palette_scroll)
         layout.addLayout(body, 1)
         self.status = QLabel()
         self.status.setWordWrap(True)

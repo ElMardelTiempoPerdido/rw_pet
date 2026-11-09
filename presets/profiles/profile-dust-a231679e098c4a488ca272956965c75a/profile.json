@@ -3,7 +3,7 @@
   "version": 2,
   "id": "296457e8-88c0-4b61-93ed-59ebb951ca92",
   "name": "dust",
-  "updated_at": "2026-11-09T08:49:26.708626+00:00",
+  "updated_at": "2026-11-09T14:26:06.074754+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -73,6 +73,16 @@
           "weight": 1
         },
         "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_closed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_open": {
           "enabled": false,
           "large_only": false,
           "weight": 1
@@ -229,9 +239,9 @@
       "voice": "none"
     }
   },
-  "state": "history/state-c6b0914cb4f347f58660329b50147455.json",
+  "state": "history/state-85c8257393b0482dbba5a5869e007bc6.json",
   "appearance": {
     "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
-    "path": "appearance/c6b0914cb4f347f58660329b50147455/appearance.json"
+    "path": "appearance/85c8257393b0482dbba5a5869e007bc6/appearance.json"
   }
 }

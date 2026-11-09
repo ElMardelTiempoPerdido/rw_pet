@@ -140,7 +140,9 @@ python tools/packaging/build_bell.py
 python tools/packaging/verify_bell.py
 ```
 
-输出为 `dist/BellPet.exe`，双击直接进入 Bell 桌面模式，首次运行显示设置窗口。EXE 无控制台，内含 Python、Qt、Numba 数值加速、资源提取依赖及根目录 `config.toml` 的当前默认值；构建时不会读取或打包个人 `settings.json`、游戏目录、图集/语音缓存。把这一份 EXE 复制给其他 Windows x64 用户即可，运行时仍需选择其本机 Rain World 安装目录。
+输出为 `dist/BellPet.exe`，并自动生成包含角色预设的 `dist/release.zip`。双击 EXE 直接进入桌面模式，首次运行显示设置窗口。EXE 无控制台，内含 Python、Qt、Numba 数值加速、资源提取依赖及根目录 `config.toml` 的当前默认值；构建时不会读取或打包个人 `settings.json`、游戏目录、图集/语音缓存。每次构建将发行清单角色当前已保存的外观、行为和贴图重新导出为包内 `original`，无需手动分享或指定 `--overrides`。向其他 Windows x64 用户发布完整 `release.zip`，EXE 与 presets 保持相邻；具体更新规则见 [发行打包](packaging.md)。首次设置会后台检测并预填本机 Rain World 安装目录，未找到时再手动选择
+
+目录检测位于 `shared/game_installation.py`，复用 `shared/game_mods.py` 的 Steam 库枚举；`oracle/ui/game_detection.py` 管理初始化遮罩、后台结果和 8 秒超时回退。检测仅确认本体目录，不改变可选资源的缺失降级规则，也不代替用户保存。相关检查：`python -m unittest tests.shared.test_game_installation tests.oracle.test_game_detection`
 
 构建脚本会先检查 `en.ts` 的原文匹配和参数占位符，并重新编译 `en.qm`；检查失败时停止打包，避免分发旧译文。包内同时包含英文译文和 Qt 通用对话框的中文译文。
 

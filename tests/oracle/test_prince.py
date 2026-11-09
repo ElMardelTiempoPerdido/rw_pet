@@ -17,6 +17,7 @@ from rw_creature_pet.oracle.characters import PRINCE_COLOR_NAMES
 from rw_creature_pet.oracle.config import CustomAppearance, OracleConfig
 from rw_creature_pet.oracle.face_config import FaceDecal
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
+from rw_creature_pet.oracle.interaction.input import PuppetHitMap
 from rw_creature_pet.oracle.scene import MotionPoint, OracleHead, OracleScene, dot
 from rw_creature_pet.oracle.graphics.appearance import rotate
 from rw_creature_pet.oracle.motion.prince import CHEST_DROP
@@ -41,7 +42,7 @@ class PrinceTests(unittest.TestCase):
         values.setdefault('voice', 'bell' if body == 'bell' else 'none')
         return OracleScene(OracleConfig(body_appearance=body, hide_cords=True, physics_backend='python', **values))
 
-    def paint(self, scene, renderer=None, scale=2.):
+    def paint(self, scene, renderer=None, scale=2., full=False):
         renderer = renderer or OracleRenderer(colors=scene.config.active_colors)
         image = QImage(400, 400, QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(0)
@@ -51,8 +52,11 @@ class PrinceTests(unittest.TestCase):
             painter.scale(scale, scale)
             p = scene.body.chunks[0].position
             painter.translate(-p.x, -p.y)
-            renderer.draw_geometry(painter, scene, cords=False, pearl=False, halo=False, arm=False,
-                                   cache_body=True, raster_scale=scale)
+            if full:
+                renderer.draw(painter, scene, cords=False, raster_scale=scale)
+            else:
+                renderer.draw_geometry(painter, scene, cords=False, pearl=False, halo=False, arm=False,
+                                       cache_body=True, raster_scale=scale)
         finally:
             painter.end()
         return bytes(image.constBits())
@@ -110,7 +114,8 @@ class PrinceTests(unittest.TestCase):
     def test_appearance_and_profile_roundtrip_preserve_inactive_palettes(self):
         prince = default_prince(AppConfig())
         prince = replace(prince, oracle=replace(prince.oracle,
-            prince_colors=replace(prince.oracle.prince_colors, skin='#123456'), float_speed=1.3))
+            prince_colors=replace(prince.oracle.prince_colors, skin='#123456'), float_speed=1.3,
+            prince_neck_width=5.5))
         target = replace(AppConfig(), oracle=replace(OracleConfig(),
             custom_appearance=CustomAppearance(head_length=1.4), outfit='maid'))
         with tempfile.TemporaryDirectory() as temp:
@@ -120,6 +125,7 @@ class PrinceTests(unittest.TestCase):
                 preset = library.export(prince, 'prince')
                 loaded = apply(target, preset, root/'images')
                 self.assertEqual(loaded.oracle.active_colors.skin, '#123456')
+                self.assertEqual(loaded.oracle.prince_neck_width, 5.5)
                 self.assertEqual(loaded.oracle.colors, target.oracle.colors)
                 self.assertEqual(loaded.oracle.custom_colors, target.oracle.custom_colors)
                 self.assertEqual(loaded.oracle.custom_appearance, target.oracle.custom_appearance)
@@ -130,6 +136,43 @@ class PrinceTests(unittest.TestCase):
             self.assertEqual(store.load(), loaded)
         self.assertFalse(any('custom_' in p or '.outfit' in p or p.startswith('oracle.colors.')
                              for p in appearance_paths('prince')))
+        self.assertIn('oracle.prince_neck_width', appearance_paths('prince'))
+        for body in ('bell', 'custom'):
+            self.assertNotIn('oracle.prince_neck_width', appearance_paths(body))
+
+    def test_neck_width_defaults_validation_and_legacy_appearance(self):
+        from rw_creature_pet.presets.appearance import validate_config
+        self.assertEqual(OracleConfig().prince_neck_width, 3.)
+        legacy = validate_config({'oracle': {'body_appearance': 'prince'}})
+        self.assertEqual(legacy.prince_neck_width, 3.)
+        for width in (1., 3., 5.5, 8.):
+            self.assertEqual(OracleConfig(prince_neck_width=width).prince_neck_width, width)
+        for width in (True, '3', 0., 8.1, float('nan'), float('inf')):
+            with self.subTest(width=width), self.assertRaises(ValueError):
+                OracleConfig(prince_neck_width=width)
+
+    def test_neck_width_updates_stationary_render_glow_and_hit_map(self):
+        scene = self.scene(prince_neck_width=1., glow_enabled=True)
+        renderer = OracleRenderer(colors=scene.config.active_colors)
+        hit_map = PuppetHitMap()
+        narrow = self.paint(scene, renderer, full=True)
+        narrow_hit = hit_map.get(renderer, scene).image
+        narrow_glow = renderer._body_glow.key
+        scene.config = replace(scene.config, prince_neck_width=8.)
+        wide = self.paint(scene, renderer, full=True)
+        wide_hit = hit_map.get(renderer, scene).image
+        self.assertNotEqual(wide, narrow)
+        self.assertNotEqual(renderer._body_glow.key, narrow_glow)
+        self.assertNotEqual(bytes(wide_hit.constBits()), bytes(narrow_hit.constBits()))
+        # 不推进物理，切回原值后仍应恢复完全相同的轮廓
+        scene.config = replace(scene.config, prince_neck_width=1.)
+        self.assertEqual(self.paint(scene, renderer, full=True), narrow)
+        for body in ('bell', 'custom'):
+            with self.subTest(body=body):
+                scene = self.scene(body, prince_neck_width=1.)
+                before = self.paint(scene)
+                scene.config = replace(scene.config, prince_neck_width=8.)
+                self.assertEqual(self.paint(scene), before)
 
     def test_inactive_custom_geometry_and_outfit_cannot_appear_on_prince(self):
         scene = self.scene()
@@ -230,6 +273,33 @@ class PrinceSettingsTests(unittest.TestCase):
         self.window.close()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
+
+    def test_neck_width_autosave_switch_restart_and_reset(self):
+        menu = self.window.character_menu
+        menu.choose(self.prince)
+        dialog = self.window.ensure_settings_dialog()
+        control = dialog.controls['oracle.prince_neck_width']
+        self.assertTrue(dialog.prince_parameters.isAncestorOf(control))
+        self.assertFalse(dialog.prince_parameters.isHidden())
+        self.assertEqual((control.value(), control.minimum(), control.maximum(), control.singleStep()),
+                         (3., 1., 8., .5))
+        motion = self.window.motion
+        control.setValue(5.5)
+        self.assertTrue(dialog.preset_workflow.flush())
+        self.assertIs(self.window.motion, motion)
+        self.assertEqual(motion.scene.config.prince_neck_width, 5.5)
+        other = self.library.export(default_prince(AppConfig(game_dir=self.root)), 'Another prince')
+        menu.choose(other)
+        self.assertEqual(control.value(), 3.)
+        self.assertEqual(self.window.motion.scene.config.prince_neck_width, 3.)
+        menu.choose(self.bell)
+        self.assertTrue(dialog.prince_parameters.isHidden())
+        menu.choose(self.prince)
+        self.assertEqual(control.value(), 5.5)
+        restarted = prepare_character(self.store.load(), self.store)
+        self.assertEqual(restarted.config.oracle.prince_neck_width, 5.5)
+        dialog.restore_defaults(dialog.tabs.indexOf(dialog.pages['appearance']))
+        self.assertEqual(control.value(), 3.)
 
     def test_menu_switch_palette_autosave_and_restart(self):
         original = self.prince.path.read_bytes(), self.prince.appearance.path.read_bytes()

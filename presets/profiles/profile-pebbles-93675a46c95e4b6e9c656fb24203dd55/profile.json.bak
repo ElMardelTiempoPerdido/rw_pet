@@ -3,7 +3,7 @@
   "version": 2,
   "id": "67cbd80d-d9db-4f4f-8f23-7985cc6a74b0",
   "name": "pebbles",
-  "updated_at": "2026-11-09T07:50:30.659076+00:00",
+  "updated_at": "2026-11-09T14:40:09.341323+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -73,6 +73,16 @@
           "weight": 1
         },
         "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_closed": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "fixed_open": {
           "enabled": false,
           "large_only": false,
           "weight": 1
@@ -210,15 +220,9 @@
       "projection_opacity": 0.5,
       "reading": {
         "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
@@ -235,9 +239,9 @@
       "voice": "pebbles"
     }
   },
-  "state": "history/state-ca795e067d674568b2cec7a621139a21.json",
+  "state": "history/state-73de55eff5ff4d318befe78fa32fb1ab.json",
   "appearance": {
     "id": "36743694-3954-44ca-b3a3-f35f0268ccf1",
-    "path": "appearance/ca795e067d674568b2cec7a621139a21/appearance.json"
+    "path": "appearance/73de55eff5ff4d318befe78fa32fb1ab/appearance.json"
   }
 }

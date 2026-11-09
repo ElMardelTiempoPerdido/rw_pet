@@ -87,7 +87,7 @@ class CapeMotion:
                        + down*(top+length-length*(.07*max(lift)+.04*min(lift))))
         return tuple(targets)
 
-    def step(self, upper, direction, hands):
+    def step(self, upper, direction, hands, *, continuous_move=False):
         targets = self.reference_points(upper, direction, hands)
         speeds = tuple(a-b for a, b in zip(targets, self.targets))
         accelerations = tuple(a-b for a, b in zip(speeds, self.target_velocities))
@@ -96,7 +96,12 @@ class CapeMotion:
         # 重置位置或工作区突变整体搬移，不能留下巨大惯性；也清除上一帧插值
         if max(v.length() for v in speeds) > max(80., self.shape[0]*2):
             self.target_velocities = (Vec2(),)*3
+            previous = self.previous
             self.settle()
+            if continuous_move:
+                # 快速拖动只清除过大惯性，上一帧形变仍参与绘制插值
+                self.previous = previous
+                self.settled = False
             return
         forcing = max(v.length() for v in accelerations)
         if self.settled and forcing < .001:

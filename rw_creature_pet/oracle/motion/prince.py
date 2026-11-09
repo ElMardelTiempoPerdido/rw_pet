@@ -146,7 +146,10 @@ class PrincePosture:
         head.position = head.previous_position = self.points[-1].position
         head.velocity = head.drive_velocity = Vec2()
 
-    def step(self, head, upper, direction, look, *, grab=None, gravity=1., weightlessness=0.):
+    def step(self, head, upper, direction, look, *, grab=None, gravity=1., weightlessness=0.,
+             drag_responsiveness=.5, project_grab=None):
+        transport = (max(0., drag_responsiveness-.5)*2 if grab is not None else 0.)
+        carry = (upper-self.upper)*transport
         self.previous_upper, self.upper = self.upper, upper
         self.previous_direction, self.direction = self.direction, direction
         self.previous_facing, self.previous_head_facing = self.facing, self.head_facing
@@ -155,8 +158,10 @@ class PrincePosture:
         self.head_facing = follow(self.head_facing, self.facing, HEAD_FOLLOW)
         self.low_look = follow(self.low_look, max(0., -dot(look, direction)), LOW_LOOK_FOLLOW)
         goals = self.goals(upper, direction)
-        self.spine.step(goals, grab=grab, gravity=gravity, weightlessness=weightlessness)
-        self.target = goals[-1]
+        self.spine.step(goals, grab=grab, gravity=gravity, weightlessness=weightlessness,
+                        drag_responsiveness=drag_responsiveness, carry=carry, project_grab=project_grab)
+        self.upper += self.spine.shift
+        self.target = self.spine.targets[-1]
         point = self.points[-1]
         head.position, head.previous_position, head.velocity = point.position, point.previous_position, point.velocity
         head.drive_velocity = Vec2()

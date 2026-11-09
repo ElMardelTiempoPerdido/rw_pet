@@ -47,6 +47,10 @@ class DragExpressionTests(unittest.TestCase):
         self.assertEqual(OracleConfig.from_mapping({}).drag_expressions, DragExpressionConfig())
         self.assertEqual(AppConfig.load(Path('config.toml')).oracle.drag_expressions, DragExpressionConfig())
         self.assertFalse(DragExpressionConfig().available)
+        legacy = DragExpressionConfig.from_mapping({'round': {'enabled': True, 'weight': 7}})
+        self.assertEqual(legacy.round, ExpressionChoice(True, 7))
+        self.assertEqual(legacy.fixed_open, ExpressionChoice())
+        self.assertEqual(legacy.fixed_closed, ExpressionChoice())
         for bad in (True, None, -1, 1.01, float('nan'), float('inf'), '0.5'):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 DragExpressionConfig(probability=bad)
@@ -55,7 +59,9 @@ class DragExpressionTests(unittest.TestCase):
             with self.subTest(field=field, bad=bad), self.assertRaises(ValueError):
                 ExpressionChoice(**{field: bad})
         expression = DragExpressionConfig(probability=.73, round=ExpressionChoice(True, 7, True),
-                                          slant_in=ExpressionChoice(True, 2))
+                                          slant_in=ExpressionChoice(True, 2),
+                                          fixed_open=ExpressionChoice(True, 4),
+                                          fixed_closed=ExpressionChoice(True, 9, True))
         config = AppConfig(oracle=OracleConfig(drag_expressions=expression))
         for kind in EXPRESSION_KINDS:
             for field in ('enabled', 'weight', 'large_only'):
@@ -69,6 +75,22 @@ class DragExpressionTests(unittest.TestCase):
             imported = receiver.import_file(archive)
             restored = apply_profile(AppConfig(), imported, imported.path.parent)
             self.assertEqual(restored.oracle.drag_expressions, expression)
+
+    def test_fixed_eye_choices_trigger_and_clear_after_release(self):
+        for kind in ('fixed_open', 'fixed_closed'):
+            with self.subTest(kind=kind):
+                s = make_scene(DragExpressionConfig(probability=1., **{kind: ExpressionChoice(True)}))
+                trigger(s)
+                self.assertEqual(s.eyes.expression, kind)
+                s.drag_expressions.remaining = 5.
+                with patch.object(s.drag_expressions.timing_random, 'uniform', return_value=.5):
+                    s.drag.release()
+                advance(s, 19)
+                self.assertEqual(s.eyes.expression, kind)
+                advance(s, 1)
+                self.assertIsNone(s.eyes.expression)
+                advance(s, 200)
+                self.assertIsNone(s.eyes.expression)
 
     def test_only_hit_starts_delayed_attempt_and_zero_probability_never_triggers(self):
         s = make_scene()

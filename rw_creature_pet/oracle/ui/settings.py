@@ -59,7 +59,7 @@ PERCENTAGES = {'audio.volume', 'oracle.projection_opacity', 'oracle.glow_opacity
                'oracle.cross_edge_probability', 'oracle.antigravity_probability',
                'oracle.pearl_playback_probability', 'oracle.drag_projection_probability',
                'oracle.reading.start_probability',
-               'interaction.hover_probability', 'interaction.hover_open_probability',
+               'interaction.hover_probability', 'interaction.hover_open_probability', 'interaction.drag_responsiveness',
                'overseer.appearance_probability', 'overseer.relocation_probability',
                'overseer.observation_probability'}
 PERCENTAGES.update(('oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve'))
@@ -86,6 +86,8 @@ BELL_COLOR_ORDER = (
     'robe_top', 'robe_bottom', None,
     'inner_robe','collar_trim', 'beads',
     'arm', 'arm_highlight', 'joints',
+    'cord_short_1', 'cord_short_2', None,
+    'cord_long_1', 'cord_long_2', None,
     'pearl', 'pearl_primary', 'pearl_secondary',
     'pearl_glyph', None, None,
 )
@@ -95,6 +97,8 @@ CUSTOM_COLOR_ORDER = (
     'robe_top', 'robe_bottom', None,
     'inner_robe','collar_trim', None,
     'arm', 'arm_highlight', 'joints',
+    'cord_short_1', 'cord_short_2', None,
+    'cord_long_1', 'cord_long_2', None,
     'pearl', 'pearl_primary', 'pearl_secondary',
     'pearl_glyph', None, None,
 )
@@ -411,6 +415,7 @@ class OracleSettingsDialog(QDialog):
         self._reset_values = {}
         self._appearance_source = None
         self._shutdown = False
+        self.game_detection = None
         self._close_after_resource_check = False
         self._drag_offset = None
         self._workarea = None
@@ -493,7 +498,13 @@ class OracleSettingsDialog(QDialog):
 
         general.addRow(PixelRuleThin())
 
-        self.check(general, '启用鼠标拖动', 'interaction.drag_enabled', config.interaction.drag_enabled)
+        left, right = self.two_columns(general)
+        self.check(left, '启用鼠标拖动', 'interaction.drag_enabled', config.interaction.drag_enabled)
+        self.spin(right, '拖动跟手程度', 'interaction.drag_responsiveness',
+                  config.interaction.drag_responsiveness*100, 0, 100, suffix=' %')
+        self.controls['interaction.drag_responsiveness'].setToolTip(
+            '越高越跟手；50% 保持原手感，100% 直接跟随可达目标，不改变松手归位速度')
+        self.controls['interaction.drag_enabled'].toggled.connect(self.sync_dependencies)
         general.addRow(PixelRuleThin())
 
         self.check(general, '隐藏电缆', 'oracle.hide_cords', config.oracle.hide_cords)
@@ -565,6 +576,10 @@ class OracleSettingsDialog(QDialog):
         self.section_heading(prince, '配色')
         self.color_palette(prince, 'oracle.prince_colors', config.oracle.prince_colors, PRINCE_COLOR_NAMES,
                            bubble_color=config.oracle.pearl_bubble_color)
+        prince.addRow(PixelRuleThin())
+        self.section_heading(prince, '基础体型')
+        self.spin(prince, '颈部宽度', 'oracle.prince_neck_width', config.oracle.prince_neck_width,
+                  1, 8, decimals=1, step=.5, suffix=' px')
         self.custom_parameters = QWidget()
         custom = _ParameterForm(self.custom_parameters)
         custom.setContentsMargins(0, 0, 0, 0)
@@ -950,11 +965,20 @@ class OracleSettingsDialog(QDialog):
         from .resource_settings import ResourceSettings
         self.resource_settings = ResourceSettings(self)
         self.sync_dependencies()
+        if first_run:
+            from .game_detection import GameDirectoryDetection
+            self.game_detection = GameDirectoryDetection(self)
+
+    @property
+    def initializing(self):
+        return self.game_detection is not None and self.game_detection.active
 
     def showEvent(self, event):
         super().showEvent(event)
         self.controls['oracle.voice'].refresh()
-        if self._migration_notice:
+        if self.initializing:
+            QTimer.singleShot(0, self.game_detection, self.game_detection.start)
+        if self._migration_notice and not self.initializing:
             self._migration_notice = False
             QTimer.singleShot(0, self, self.confirm_legacy_parameters)
 
@@ -1487,6 +1511,7 @@ class OracleSettingsDialog(QDialog):
         if hasattr(self, 'resource_settings'):
             self.resource_settings.restore()
         c = self.controls
+        c['interaction.drag_responsiveness'].setEnabled(c['interaction.drag_enabled'].isChecked())
         self.sync_image_assets()
         sync_outfit_dependencies(self)
         sync_cape_settings(self)
@@ -1580,7 +1605,9 @@ class OracleSettingsDialog(QDialog):
         return config
 
     def busy(self, value):
+        value = value or self.initializing
         self.form.setEnabled(not value)
+        self.personal_controls.setEnabled(not value)
         self.buttons.setEnabled(not value)
         self.apply_button.setEnabled(not value)
         self.reset_all_button.setEnabled(not value)
@@ -1589,6 +1616,8 @@ class OracleSettingsDialog(QDialog):
             self.face_preview.sync_editing()
 
     def save(self, *, close=True):
+        if self.initializing:
+            return
         if self.worker is not None or self.resource_settings.worker is not None:
             self.set_status('正在检查资源，请稍候再保存')
             return
@@ -1652,7 +1681,7 @@ class OracleSettingsDialog(QDialog):
             self.set_status('已保存并应用')
 
     def reject(self):
-        if self.worker is None and self.resource_settings.worker is None and self.preset_workflow.before_close():
+        if not self.initializing and self.worker is None and self.resource_settings.worker is None and self.preset_workflow.before_close():
             if self.resource_settings.has_pending_runtime:
                 self._close_after_resource_check = True
                 self.resource_settings.schedule()
@@ -1660,13 +1689,15 @@ class OracleSettingsDialog(QDialog):
             super().reject()
 
     def closeEvent(self, event):
-        if self.worker is not None or self.resource_settings.worker is not None:
+        if self.initializing or self.worker is not None or self.resource_settings.worker is not None:
             event.ignore()
         else:
             super().closeEvent(event)
 
     def shutdown(self):
         self._shutdown = True
+        if self.game_detection is not None:
+            self.game_detection.shutdown()
         self.resource_settings.shutdown()
         if self.worker is not None:
             self.worker.finished.disconnect(self.assets_ready)

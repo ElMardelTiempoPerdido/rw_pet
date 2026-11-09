@@ -65,7 +65,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 ## 外观和保存
 
 - `oracle.prince_colors` 独立保存皮肤、衣袍、机械支架、珍珠和投影配色
-- 设置的外观细节页和调试窗口只提供当前可用的颜色项，不展示自定义体型、贴图或附加外观选项
+- 设置的外观细节页提供当前可用的颜色项，以及“基础体型”中的颈部宽度（`oracle.prince_neck_width`，默认 3 逻辑像素，范围 1～8）；调试窗口仍仅提供配色，不展示自定义迭代器的体型、贴图或附加外观选项
 - 外观/角色导入导出、自动保存、默认值恢复和托盘切换沿用现有流程；Prince 的外观数据不包含 Bell 或自定义迭代器的配色和几何参数
 - `presets/startup.py` 的 `default_prince()` 定义初始角色配置；发行角色的初始值由 `presets/profiles/profile-prince-*/profile.json` 及其引用的外观文件提供
 
@@ -75,6 +75,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 - `oracle/graphics/prince.py`：Prince 固定头部和身体绘制入口，不读取 `CustomAppearance`，花冠尺寸和曲面参数在此调整
 - `oracle/motion/prince.py`：Prince 专用注视体态、身体轴目标和绘制帧
 - `oracle/motion/prince_spine.py`：九点身体物理、距离/防反折约束、曲率分散和曲线采样
+- `oracle/motion/prince_gait.py`：前方路线预测、接替支撑条件和换点收益比较
 - `oracle/interaction/drag.py`：按实际身体区域抓取，Prince 使用触手可达范围，其余迭代器保留机械臂约束
 - `oracle/prince_assets.py`：两层衣料的共同画布、连接宽度和接缝颜色
 - `oracle/motion/prince_robe.py`、`oracle/graphics/prince_robe.py`：窄肩衣袍轮廓、独立下摆物理和 PNG 网格绘制
@@ -93,6 +94,7 @@ python -m unittest tests.oracle.test_prince_robe
 python -m unittest tests.oracle.test_prince_drag
 python -m unittest tests.oracle.test_prince_body_curve tests.oracle.test_prince_drag_limit
 python -m unittest tests.oracle.test_prince_motion_forces
+python -m unittest tests.oracle.test_prince_gait tests.oracle.test_prince_autonomous_support
 python tools/oracle/review_prince.py
 python tools/oracle/review_prince_posture.py
 python tools/oracle/review_prince_robe.py
@@ -114,7 +116,9 @@ python tools/oracle/review_prince_body.py --mode drift
 
 常规移动时，抓住的末端保持在工作区边缘的原位置，身体前移后逐条收起末端、伸向前方并重新抓住；最多一条执行换点，但允许另有触手保持悬空，总共最多两条松开、至少一条支撑。短触手过紧或够不到舒适抓点时，保留惯性、重力和根部出发方向，自由下垂漂浮，不运行普通朝墙探寻或偶发探查。停稳后允许悬空触手休眠，不要求全部抓回才能结束移动
 
-自主选点与导航范围按最长触手的自然长度计算，最多使用 90% 的根部至抓点跨度，并额外预留少量身体弯曲余量；移动中也检查实际抓点，不能通过路径中间点将长触手拉直。只有最长触手够得着的深处，终点限制在它当前抓点的舒适范围内。最长触手换点时由另一条稳定触手支撑，身体短暂停下，抓稳后继续移动。回抓以 82% 自然长度为可达阈值，避免临界位置反复抓放；返回边缘后依次重新抓附
+自主选点与导航范围按最长触手的自然长度计算，最多使用 90% 的根部至抓点跨度，并额外预留少量身体弯曲余量；移动中也检查实际抓点，不能通过路径中间点将长触手拉直。只有最长触手够得着的深处，终点限制在它当前抓点的舒适范围内。最长触手换点时，由已抓稳且当前仍有余量的其他触手接替，身体可在接替者的实际支撑范围内继续移动；前方确实超出范围时才停下等待。正常换点会预查接替者能否支撑换点期间的预计位移；跨角等空间紧张处允许先稳住身体、完成换点，避免彼此等待。回抓以 82% 自然长度为可达阈值，避免临界位置反复抓放；返回边缘后依次重新抓附
+
+普通移动与漫游共用 `motion/prince_gait.py` 的抓点预测：从尚未走完的曲线读取前方约 40～80 逻辑像素的路线，受当前终点限制，临时等待时不会因为速度归零而丢失提前量。新抓点必须在当前可达范围内，并结合各触手原有的方向偏好，比较它能为前方移动增加多少支撑距离。已提前落在前方的抓点不会为了追逐当前偏好而立即后退；换点同时检查实际步幅和增加的可前进余量，抑制几像素的小步重复换点。只有临近支撑边界时才允许较小但确实有效的调整。拖拽、松手恢复和静止姿态整理保留既有规则
 
 三条触手的默认根部均位于胸段中轴沿身体向下 4 个逻辑像素处，不朝停靠边偏移，正面直立时在四条边上均保持居中；弯曲时跟随背部。中段具有阻尼和惯性，停下后收敛休眠，不持续添加随机抖动。跨角时可逐条转移至允许活动的相邻边，限制为单边或连续多边的配置同样生效
 
@@ -231,11 +235,12 @@ python tools/oracle/review_prince_tentacle_motion.py --scenario drag
 python tools/oracle/review_prince_tentacle_motion.py --scenario stretch
 python tools/oracle/review_prince_tentacle_motion.py --scenario autonomy
 python tools/oracle/review_prince_tentacle_motion.py --scenario horizontal
+python tools/oracle/review_prince_tentacle_motion.py --scenario drift --scale 1
 python tools/oracle/review_prince_tentacle_motion.py --side top
 python tools/oracle/review_prince_tentacle_motion.py --side bottom --scenario drag
 ```
 
-输出至 `artifacts/prince/tentacles-walk.gif`、`tentacles-corner.gif`、`tentacles-drag.gif`、`tentacles-stretch.gif`，并各保存一张换点中的 PNG。`stretch` 展示拖向远处、达到牵拉上限、两条松开和松手恢复。`--side` 支持 `top/right/bottom/left`，选择对应起始边并调整移动/拖拽方向，非右边的默认文件名追加边名。可用 `--config`、`--scale`、`--output` 选择另存的配置、显示倍率和 GIF 路径；离边距离、自然长度和方向参数均从该配置读取，镜头显示完整工作区。静态轮廓窗口仅预览 `points` 的素材布局，不展示这些运动参数的效果
+输出至 `artifacts/prince/tentacles-walk.gif`、`tentacles-corner.gif`、`tentacles-drag.gif`、`tentacles-stretch.gif` 等，并各保存一张换点中的 PNG。`stretch` 展示拖向远处、达到牵拉上限、两条松开和松手恢复，`drift` 展示实际反重力路线中的接替支撑与提前换点。`--side` 支持 `top/right/bottom/left`，选择对应起始边并调整移动/拖拽方向，非右边的默认文件名追加边名。可用 `--config`、`--scale`、`--output` 选择另存的配置、显示倍率和 GIF 路径；离边距离、自然长度和方向参数均从该配置读取，镜头显示完整工作区。静态轮廓窗口仅预览 `points` 的素材布局，不展示这些运动参数的效果
 
 `autonomy` 使用较宽活动带，展示向内移动、短触手被动漂浮和返回边缘；`horizontal` 展示近水平极限拖拽及恢复，分别输出 `tentacles-autonomy.gif` 和 `tentacles-horizontal.gif`
 
@@ -245,7 +250,9 @@ python tools/oracle/review_prince_tentacle_motion.py --side bottom --scenario dr
 
 - `GripRail.EDGE_INSET`：触手抓附轨道距真实工作区边缘的内缩距离，当前为 `16` 逻辑像素，增大可为末端装饰留出更多空间
 - `REPLANT_DISTANCE`：身体沿边移动后，理想抓点与原抓点相差多少逻辑像素才启动换点
-- `LEAD_DISTANCE`：新抓点沿移动方向的最大提前量
+- `LEAD_DISTANCE`：拖拽、恢复或无前方路线时，基于实际速度的最大提前量
+- `motion/prince_gait.py` 的 `LOOKAHEAD_TICKS`、`MIN_LOOKAHEAD`、`MAX_LOOKAHEAD`：路线预测的时间尺度及距离范围，当前为 56 帧、40～80 逻辑像素，不修改漫游目标距离或速度
+- `MIN_STEP`、`MIN_GAIN`：换点的最小步幅与新增可前进余量；步幅按触手长度适当缩小，临近支撑边界时使用 `URGENT_GAIN` 保留有效的小步调整
 - `REST_TICKS`：一条触手落点后，到下一条开始换点的最短间隔
 - `BACK_OUTSET` / `BACK_DOWN`：根部距胸部向边缘、沿身体向下的偏移，当前分别为 `0` / `4`；三条 `points[0]` 均为 `[0, 0]`，因此共用背部中轴上的出发点。与静态预览的 `back_offset` 分开，后者默认也为 `[0, 4]`
 - `MAX_DRAG_STRETCH`：拖拽时相对配置自然长度的最大倍率，当前为 `1.20`

@@ -618,6 +618,11 @@ class OracleAppearance:
         damping = self.SWAY_REST_DAMPING+(self.SWAY_MOVE_DAMPING-self.SWAY_REST_DAMPING)*moving
         self.sway_velocity = self.sway_velocity*damping - self.sway*.085 + lateral*.035
         self.sway = max(-.065, min(.065, self.sway + self.sway_velocity))
+        if scene.prince_posture is not None and scene.drag.active and scene.drag.responsiveness > .5:
+            # Prince 自身已有柔性身体轴，额外画面侧摆不能把直接抓取点移出鼠标
+            retain = 2*(1-scene.drag.responsiveness)
+            self.sway *= retain
+            self.sway_velocity *= retain
         if (speed < .03 and abs(lateral) < .001 and abs(self.sway) < self.SWAY_SETTLE_ANGLE
                 and abs(self.sway_velocity) < self.SWAY_SETTLE_SPEED):
             # 结束不可见的余震，避免落点恰在像素取整边界时，头部整张图持续跳一格。
@@ -635,7 +640,8 @@ class OracleAppearance:
             hand.step(self.upper, upper.velocity, force+extra, shoulder=shoulder, weight=weight)
             hand.constrain_swing(self.upper, self.direction, index, upper.velocity, weight)
         if self.cape_motion is not None:
-            self.cape_motion.step(self.upper, self.direction, tuple(h.position for h in self.hands))
+            self.cape_motion.step(self.upper, self.direction, tuple(h.position for h in self.hands),
+                                  continuous_move=scene.drag.active and scene.drag.responsiveness > .5)
         self.step_cloth()
         if self.prince_robe is not None:
             self.prince_robe.step(self)

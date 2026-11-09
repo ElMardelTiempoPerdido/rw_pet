@@ -17,7 +17,7 @@ FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py'
          'oracle/ui/behavior_settings.py', 'oracle/ui/behavior_styles.py',
          'oracle/ui/number_range.py',
          'oracle/ui/behavior_proportions.py',
-         'oracle/ui/resource_settings.py',
+         'oracle/ui/resource_settings.py', 'oracle/ui/game_detection.py',
          'oracle/ui/daily_activity_settings.py', 'oracle/behavior_config.py',
          'oracle/ui/drift_settings.py', 'oracle/drift_config.py',
          'oracle/ui/mouse_settings.py', 'oracle/mouse_avoidance_config.py',

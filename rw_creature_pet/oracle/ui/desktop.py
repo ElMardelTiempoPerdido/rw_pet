@@ -441,7 +441,7 @@ class OracleDesktopWindow(QWidget):
                 if previous is None:
                     self.motion.scene.set_autonomous_movement(self.config.desktop.autonomous)
                 pass
-            self.motion.scene.drag.set_enabled(self.drag_action.isChecked())
+            self.motion.scene.drag.configure(replace(self.config.interaction, drag_enabled=self.drag_action.isChecked()))
             self.motion.scene.mouse_reaction.configure(self.motion.scene, self.config.interaction)
             sync_oracle_voice(self.voice_player, self.motion.scene, paused=self.clock.paused)
             self._signature = viewport
@@ -639,7 +639,7 @@ class OracleDesktopWindow(QWidget):
         visual = {name: getattr(config.oracle, name)
                   for name in ('glow_enabled', 'glow_color', 'glow_radius', 'glow_opacity', 'hide_cords', 'outfit',
                                'body_appearance', 'custom_appearance', 'colors', 'custom_colors', 'coarse_pixels_4x',
-                               'outfit_settings', 'prince_colors')}
+                               'outfit_settings', 'prince_colors', 'prince_neck_width')}
         # 外观开关不重置身体、行为或已选珍珠；线缆独立更新。
         previous_with_visual = replace(current.oracle, **visual)
         if viewport is not None and (screen_changed or config.oracle != previous_with_visual
@@ -681,7 +681,7 @@ class OracleDesktopWindow(QWidget):
             self.motion.scene.projection.available = bool(self.renderer.projection_images)
             if motion is not None or config.desktop.autonomous != current.desktop.autonomous:
                 self.motion.scene.set_autonomous_movement(config.desktop.autonomous)
-            self.motion.scene.drag.set_enabled(config.interaction.drag_enabled)
+            self.motion.scene.drag.configure(config.interaction)
             self.motion.scene.mouse_reaction.configure(self.motion.scene, config.interaction)
         self.drag_hit = PuppetHitMap()
         self.last_time = perf_counter()

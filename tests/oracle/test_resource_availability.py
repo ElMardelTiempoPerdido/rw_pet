@@ -372,6 +372,12 @@ class ResourceSettingsTests(unittest.TestCase):
     def test_first_run_check_does_not_cross_save_and_start_boundary(self):
         d = OracleSettingsDialog(self.config, self.store, first_run=True)
         self.dialogs.append(d)
+        d.show()
+        for _ in range(150):
+            if not d.initializing:
+                break
+            QTest.qWait(10)
+        self.assertFalse(d.initializing)
         d.controls['oracle.float_speed'].setValue(1.1)
         with patch('rw_creature_pet.oracle.ui.settings.prepare_oracle_assets', return_value=self.assets()):
             d.resource_settings.schedule(force=True)

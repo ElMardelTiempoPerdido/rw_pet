@@ -12,6 +12,7 @@ _COLOR_FIELDS = (
     'skin', 'eyes', 'head_shell', 'head_highlight', 'robe_top', 'robe_bottom',
     'inner_robe', 'collar_trim', 'beads', 'arm', 'arm_highlight', 'joints',
     'third_eye', 'pearl', 'pearl_primary', 'pearl_secondary', 'pearl_glyph',
+    'cord_short_1', 'cord_short_2', 'cord_long_1', 'cord_long_2',
 )
 _DECAL_FIELDS = ('enabled', 'image_path', 'image_name', 'offset_x', 'offset_y')
 _EAR_FIELDS = (*_DECAL_FIELDS, 'kind', 'width', 'height', 'rotation', 'tone')
@@ -29,7 +30,7 @@ FIELD_SCOPES = build_registry((
     ('desktop', _LOCAL, ('scale', 'autonomous', 'screen')),
     ('audio', _LOCAL, ('enabled', 'volume')),
     ('ui', _LOCAL, ('language',)),
-    ('interaction', _LOCAL, ('drag_enabled',)),
+    ('interaction', _LOCAL, ('drag_enabled', 'drag_responsiveness')),
     # 鼠标注意与避让属于性格；是否允许拖动属于使用习惯
     ('interaction', _PROFILE, (
         'hover_radius', 'hover_dwell_seconds', 'hover_probability',
@@ -115,8 +116,10 @@ FIELD_SCOPES = build_registry((
     ('oracle.drag_expressions.round', _PROFILE, ('enabled', 'weight', 'large_only')),
     ('oracle.drag_expressions.chevron_up', _PROFILE, ('enabled', 'weight', 'large_only')),
     ('oracle.drag_expressions.chevron_down', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.fixed_open', _PROFILE, ('enabled', 'weight', 'large_only')),
+    ('oracle.drag_expressions.fixed_closed', _PROFILE, ('enabled', 'weight', 'large_only')),
     # 播放光晕颜色暂保留当前存储路径，未来迁移配色时须同步更新清单
-    ('oracle', _APPEARANCE, ('body_appearance', 'outfit', 'pearl_bubble_color')),
+    ('oracle', _APPEARANCE, ('body_appearance', 'outfit', 'pearl_bubble_color', 'prince_neck_width')),
     ('oracle.outfit_settings.maid.head', _APPEARANCE, _OUTFIT_PART_FIELDS),
     ('oracle.outfit_settings.maid.lace', _APPEARANCE, _OUTFIT_PART_FIELDS),
     ('oracle.outfit_settings.maid.apron', _APPEARANCE, _OUTFIT_PART_FIELDS),

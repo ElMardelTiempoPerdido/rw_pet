@@ -11,6 +11,7 @@ screen = ''                    # 空值自动选择主屏；在设置→移动�
 
 [interaction]
 drag_enabled = true             # 启用鼠标拖动
+drag_responsiveness = 0.5       # 拖动跟手程度：0～1，0.5 保持原手感，1 直接跟随可达目标
 hover_radius = 160.0            # 鼠标邻近停留半径，逻辑像素
 hover_dwell_seconds = 1.5        # 在范围内连续停留多久后抽签
 hover_avoidance_enabled = true # 注视一阵后可能缓慢侧身或短距离躲避
@@ -34,6 +35,7 @@ floor_y = 180.0
 # 迭代器调试用
 [oracle]
 body_appearance = 'bell'        # bell 手势之铃 / custom 自定义迭代器 / prince 固定特殊角色
+prince_neck_width = 3.0         # Prince 颈部宽度，1～8 逻辑像素
 outfit = 'normal'               # normal 常规 / maid 女仆套装
 hide_cords = false              # 隐藏粗细线缆并停止其物理计算；保留机械臂
 glow_enabled = false            # 不透明部件的外发光
@@ -337,6 +339,10 @@ beads = '#9cddd8'               # 念珠主体
 arm = '#9fa2a8'                 # 机械臂与底座主体
 arm_highlight = '#dfd6d2'       # 机械臂与底座高光
 joints = '#113246'              # 关节与细支架颜色；不影响底座主体和高光
+cord_short_1 = '#050f88'         # 细线缆-短1，原短9，约 61 逻辑像素
+cord_short_2 = '#780f15'         # 细线缆-短2，原长4，约 98 逻辑像素
+cord_long_1 = '#091c27'          # 细线缆-长1，原长2，约 158 逻辑像素
+cord_long_2 = '#780f15'          # 细线缆-长2，原长1，约 183 逻辑像素
 third_eye = '#17629c'           # 额头标记
 pearl = '#d8cdc5'               # 珍珠白色
 pearl_primary = '#024866'       # 珍珠主色
@@ -357,6 +363,10 @@ beads = '#9cddd8'               # 保留数据，当前自定义模板不绘制�
 arm = '#9fa2a8'
 arm_highlight = '#dfd6d2'
 joints = '#113246'
+cord_short_1 = '#050f88'
+cord_short_2 = '#780f15'
+cord_long_1 = '#091c27'
+cord_long_2 = '#780f15'
 third_eye = '#0d5885'           # 保留数据，后续由自定义标记使用
 pearl = '#d8cdc5'
 pearl_primary = '#024866'
@@ -406,6 +416,16 @@ weight = 1
 large_only = false
 
 [oracle.drag_expressions.chevron_down]
+enabled = false
+weight = 1
+large_only = false
+
+[oracle.drag_expressions.fixed_open]
+enabled = false
+weight = 1
+large_only = false
+
+[oracle.drag_expressions.fixed_closed]
 enabled = false
 weight = 1
 large_only = false

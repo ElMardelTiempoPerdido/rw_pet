@@ -23,13 +23,13 @@ from rw_creature_pet.shared.geometry import Vec2
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument('--scenario', choices=('walk', 'corner', 'drag', 'stretch', 'autonomy', 'horizontal', 'hold'), default='walk')
+    parser.add_argument('--scenario', choices=('walk', 'corner', 'drag', 'stretch', 'autonomy', 'horizontal', 'hold', 'drift'), default='walk')
     parser.add_argument('--side', choices=('top', 'right', 'bottom', 'left'), default='right')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--scale', type=float, choices=(1, 1.5, 2, 3, 4), default=2)
     args = parser.parse_args()
     app = QApplication.instance() or QApplication([])
-    wide = args.scenario in ('autonomy', 'horizontal', 'hold')
+    wide = args.scenario in ('autonomy', 'horizontal', 'hold', 'drift')
     size = (1200, 900) if args.scenario == 'hold' else (960, 640) if wide else (640, 480)
     scene = OracleScene(OracleConfig(body_appearance='prince', physics_backend='auto',
         world_width=size[0], world_height=size[1],
@@ -51,7 +51,11 @@ def main():
     output = args.output or ROOT/f'artifacts/prince/tentacles-{args.scenario}{suffix}.gif'
     peak = None
     for tick in range(1500 if args.scenario == 'hold' else 900):
-        if args.scenario == 'autonomy':
+        if args.scenario == 'drift':
+            if tick == 40:
+                scene.behavior.start_drift(scene)
+                scene.behavior.drift_next_move = 0
+        elif args.scenario == 'autonomy':
             if tick == 40:
                 scene.set_target(start+inward*300)
             elif tick == 500:
@@ -77,7 +81,7 @@ def main():
                 scene.drag.move(pointer+offset*((tick-40)/140))
             if tick == (1100 if args.scenario == 'hold' else 300):
                 scene.drag.release()
-        if not scene.drag.active:
+        if not scene.drag.active and args.scenario != 'drift':
             scene.look_target = scene.body.chunks[0].position+Vec2(-60, 0)
         scene.step()
         if tick % 4:

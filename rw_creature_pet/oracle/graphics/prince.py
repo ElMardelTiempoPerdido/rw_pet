@@ -99,7 +99,7 @@ def draw_body(renderer, painter, scene, alpha, upper, lower, direction, head, lo
     point = lambda p: QPointF(p.x, p.y)
     neck = QPainterPath(point(root))
     neck.cubicTo(point(c1), point(c2), point(end))
-    painter.setPen(QPen(QColor(renderer.colors.skin), 3., Qt.PenStyle.SolidLine,
+    painter.setPen(QPen(QColor(renderer.colors.skin), scene.config.prince_neck_width, Qt.PenStyle.SolidLine,
                         Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
     painter.setBrush(Qt.BrushStyle.NoBrush)
     painter.drawPath(neck)

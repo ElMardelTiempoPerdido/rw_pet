@@ -53,11 +53,15 @@ class SoftStrip:
         self.quiet_ticks = 0
         self.last_inputs = None
 
-    def step(self, root, direction, gravity):
+    def step(self, root, direction, gravity, *, continuous_move=False):
         config = self.config
         delta = root-self.root
+        interpolation_previous = None
         # 重置位置/分辨率变化等不连续移动整体搬移附件，避免拖出横跨屏幕的长带
         if delta.length() > max(80., self.length*2):
+            # 高跟手拖动仍需从上一帧插值，附件不能先于佩戴者跳到终点
+            if continuous_move:
+                interpolation_previous = [p.position for p in self.points]
             for p in self.points:
                 p.position += delta
                 p.previous_position = p.position
@@ -98,9 +102,12 @@ class SoftStrip:
                            tangent.x*sin(angle)+tangent.y*cos(angle))
             self.points[i].position = previous+tangent*self.rest[i-1]
         speed = 0.
-        for p in self.points:
+        for i, p in enumerate(self.points):
             p.velocity = p.position-p.previous_position
-            speed = max(speed, p.velocity.length())
+            # 整体搬运不积累成下一步惯性，仅保留它的绘制位移
+            if interpolation_previous is not None:
+                p.previous_position = interpolation_previous[i]
+            speed = max(speed, (p.position-p.previous_position).length())
         self.quiet_ticks = self.quiet_ticks+1 if stable and speed < .002 else 0
         if self.quiet_ticks >= 30:
             self.sleeping = True
@@ -153,7 +160,8 @@ class SoftParts:
         for part in self.parts:
             if part is not None:
                 root, direction = attachment_frame(part.config, scene.appearance)
-                if part.step(root, direction, scene.pose.gravity_scale):
+                if part.step(root, direction, scene.pose.gravity_scale,
+                             continuous_move=scene.drag.active and scene.drag.responsiveness > .5):
                     self.revision += 1
 
     def reset(self, scene):

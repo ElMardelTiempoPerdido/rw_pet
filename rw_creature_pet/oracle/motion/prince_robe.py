@@ -63,7 +63,7 @@ class RobeLayer:
         self.settled = False
         self.gravity = None
 
-    def step(self, goals, gravity, *, weightlessness=0.):
+    def step(self, goals, gravity, *, weightlessness=0., continuous_move=False):
         speeds = [a-b for a, b in zip(goals, self.targets)]
         speed = max(v.length() for v in speeds)
         weightlessness = max(0., min(1., weightlessness))
@@ -81,8 +81,9 @@ class RobeLayer:
             self.offsets = [Vec2() for _ in goals]
             self.speeds = self.target_speeds = [Vec2() for _ in goals]
             for p, goal in zip(self.points, goals):
-                p.position = p.previous_position = goal
-                p.velocity = Vec2()
+                p.previous_position = p.position if continuous_move else goal
+                p.position = goal
+                p.velocity = p.position-p.previous_position
             self.quiet_ticks = 0
             return
         offsets, velocities = [], []
@@ -152,5 +153,7 @@ class PrinceRobe:
 
     def step(self, app):
         goals, gravity = self.goals(app)
+        spine = app.prince_posture.spine
         for layer in self.layers:
-            layer.step(goals, gravity, weightlessness=app.prince_posture.spine.weightlessness)
+            layer.step(goals, gravity, weightlessness=spine.weightlessness,
+                       continuous_move=spine.last_grab is not None and spine.drag_responsiveness > .5)

@@ -60,6 +60,8 @@ class PrinceSpine:
         self.last_grab = None
         self.gravity = None
         self.weightlessness = 0.
+        self.shift = Vec2()
+        self.drag_responsiveness = .5
 
     def reset(self, goals):
         for p, target in zip(self.points, goals):
@@ -70,8 +72,14 @@ class PrinceSpine:
         self.settled = True
         self.quiet_ticks = 0
         self.last_grab = None
+        self.shift = Vec2()
 
-    def step(self, goals, *, grab=None, gravity=1., weightlessness=0.):
+    def step(self, goals, *, grab=None, gravity=1., weightlessness=0.,
+             drag_responsiveness=.5, carry=Vec2(), project_grab=None):
+        self.shift = Vec2()
+        previous_targets = self.targets
+        response_changed = grab is not None and self.drag_responsiveness != drag_responsiveness
+        self.drag_responsiveness = drag_responsiveness
         changes = max((a-b).length() for a, b in zip(goals, self.targets))
         gravity_changed = gravity != self.gravity
         # 抓取期间不混入漫游的柔软参数，即使场景的失重程度仍在缓慢退出
@@ -81,12 +89,27 @@ class PrinceSpine:
                        (grab[1]-self.last_grab[1]).length() if grab is not None
                        and self.last_grab is not None and grab[0] == self.last_grab[0] else float('inf'))
         grab_changed = grab_motion > 1e-8
-        if (goals[WAIST]-self.targets[WAIST]).length() > 60.:
+        if (self.settled and project_grab is not None and not grab_changed
+                and not gravity_changed and not softness_changed and not response_changed):
+            translation = goals[WAIST]-self.targets[WAIST]
+            if all((a-b-translation).length() < 1e-8 for a, b in zip(goals, self.targets)):
+                # 导航与抓点校正可能相互抵消；保留已收敛的受力形状，不反复唤醒重力积分
+                for p in self.points:
+                    p.previous_position = p.position
+                    p.position += translation
+                    p.velocity = Vec2()
+                self.project_frame(goals, project_grab)
+                self.maximum_speed = max((p.position-p.previous_position).length() for p in self.points)
+                if self.maximum_speed > HOLD_SETTLE_SPEED:
+                    self.settled = False
+                    self.quiet_ticks = 0
+                return
+        if project_grab is None and (goals[WAIST]-self.targets[WAIST]).length() > 60.:
             self.reset(goals)
             self.gravity, self.weightlessness = gravity, weightlessness
             return
         if (self.settled and changes < 1e-8 and not grab_changed
-                and not gravity_changed and not softness_changed):
+                and not gravity_changed and not softness_changed and not response_changed):
             if changes > 0. and grab is None:
                 self.reset(goals)
             return
@@ -98,6 +121,7 @@ class PrinceSpine:
                    DAMPING+(DRIFT_DAMPING-DAMPING)*weightlessness)
         for i, (p, goal) in enumerate(zip(self.points, goals)):
             p.previous_position = p.position
+            p.position += carry
             if i == WAIST:
                 p.position = goal
                 continue
@@ -108,7 +132,8 @@ class PrinceSpine:
                 force = ((goal-p.position)*DRAG_SPRING
                          +Vec2(0., DRAG_GRAVITY*gravity*DRAG_GRAVITY_WEIGHTS[i]))
                 if i == grab[0]:
-                    force += limited((grab[1]-p.position)*.30, 2.4)
+                    rate = min(1., .25+1.5*drag_responsiveness)
+                    force += limited((grab[1]-p.position)*(.30*rate), 2.4*rate*rate)
             p.position += p.velocity*damping+force
 
         # 固定各段长度，角度恢复只提供柔性支撑，不把整条身体重建为一根直杆
@@ -137,9 +162,13 @@ class PrinceSpine:
                 wa, wb = float(i != WAIST), float(i+1 != WAIST)
                 a.position += correction*(wa/(wa+wb))
                 b.position -= correction*(wb/(wa+wb))
+        if project_grab is not None:
+            self.project_frame(goals, project_grab)
+            changes = max((a-b).length() for a, b in zip(self.targets, previous_targets))
         for p in self.points:
-            p.velocity = p.position-p.previous_position
-        self.maximum_speed = max(p.velocity.length() for p in self.points)
+            # 整体搬运不叠加为下一步甩动；插值和休眠仍依据真实位置变化
+            p.velocity = p.position-p.previous_position-carry-self.shift
+        self.maximum_speed = max((p.position-p.previous_position).length() for p in self.points)
         quiet = (changes < .0001 and grab_motion < .0001
                  and not gravity_changed and not softness_changed)
         if grab is None:
@@ -157,6 +186,12 @@ class PrinceSpine:
                     p.previous_position, p.velocity = p.position, Vec2()
                 self.maximum_speed = 0.
                 self.settled = True
+
+    def project_frame(self, goals, project_grab):
+        self.shift = project_grab()
+        self.targets = tuple(g+self.shift for g in goals)
+        for p in self.points:
+            p.position += self.shift
 
     def restore_bends(self, preferred):
         for i, (angle, stiffness) in enumerate(zip(preferred, DRAG_BEND_STIFFNESS)):

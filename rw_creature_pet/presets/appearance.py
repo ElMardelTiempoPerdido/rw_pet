@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ..oracle.config import OracleConfig
 from ..oracle.characters import CHARACTERS, PRINCE_COLOR_NAMES
+from ..oracle.cord_colors import complete_cord_colors, migrate_cord_tree
 from ..shared.messages import Message
 from .fields import paths_for
 from .registry import FieldScope
@@ -19,11 +20,11 @@ def appearance_paths(body):
     if body not in CHARACTERS:
         raise ValueError('主体外观必须为 bell / custom / prince')
     if body == 'prince':
-        allowed = {'oracle.body_appearance', 'oracle.pearl_bubble_color',
+        allowed = {'oracle.body_appearance', 'oracle.pearl_bubble_color', 'oracle.prince_neck_width',
                    *('oracle.prince_colors.'+name for name in PRINCE_COLOR_NAMES)}
         return tuple(path for path in paths_for(FieldScope.APPEARANCE) if path in allowed)
-    excluded = (('oracle.custom_colors.', 'oracle.custom_appearance.', 'oracle.prince_colors.')
-                if body == 'bell' else ('oracle.colors.', 'oracle.prince_colors.'))
+    excluded = (('oracle.custom_colors.', 'oracle.custom_appearance.', 'oracle.prince_colors.', 'oracle.prince_neck_width')
+                if body == 'bell' else ('oracle.colors.', 'oracle.prince_colors.', 'oracle.prince_neck_width'))
     return tuple(path for path in paths_for(FieldScope.APPEARANCE) if not path.startswith(excluded))
 
 
@@ -37,6 +38,10 @@ def appearance_mapping(oracle, *, full=False):
 def validate_config(data, *, full=False):
     if not isinstance(data, dict) or not isinstance(data.get('oracle'), dict):
         raise ValueError('外观配置必须包含 oracle 对象')
+    data = migrate_cord_tree(data)
+    data = {**data, 'oracle': {key: complete_cord_colors(value)
+                             if key in ('colors', 'custom_colors') and isinstance(value, dict) else value
+                             for key, value in data['oracle'].items()}}
     body = data['oracle'].get('body_appearance')
     allowed = paths_for(FieldScope.APPEARANCE) if full else appearance_paths(body)
     # 缺失字段使用格式对应的代码默认值，不能继承上一个角色或用户修改过的 TOML

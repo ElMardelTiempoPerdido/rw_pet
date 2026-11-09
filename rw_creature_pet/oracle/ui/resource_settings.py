@@ -183,7 +183,8 @@ class ResourceSettings(QObject):
 
     def refresh(self):
         self._queued = False
-        if self._closed or self.worker is not None or self.dialog.worker is not None:
+        if (self._closed or self.worker is not None or self.dialog.worker is not None
+                or self.dialog.initializing):
             return
         d = self.dialog
         config, self._runtime_request = self._runtime_request, None

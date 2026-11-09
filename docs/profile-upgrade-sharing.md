@@ -89,4 +89,4 @@ python tools/packaging/verify_bell.py --exe dist/release/BellPet.exe --release d
 
 本轮验收使用离屏 Qt，不等同于真实桌面上的逐项人工点击。实际语音和图集初始化使用了本机已安装的游戏资源；没有模拟所有用户的 DLC、权限和杀毒软件环境。以上验证不会修改正在使用的真实 settings 或角色目录
 
-发行清单、发布作者新调整的 `--overrides` 用法及构建命令见 [发行打包](packaging.md)
+打包时自动将发行清单角色当前已保存的配置导出为新版 `original`，无需作者逐个手动分享。发行清单、构建命令及可选的 `--overrides` 替换来源见 [发行打包](packaging.md)

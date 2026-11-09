@@ -1,4 +1,4 @@
-"""生成 Windows EXE，并整理只包含 original 的预设发行目录和 ZIP"""
+"""生成 Windows EXE，并将清单角色当前已保存配置重新导出为发行目录和 ZIP"""
 from pathlib import Path
 import argparse
 import os
@@ -39,9 +39,9 @@ def main():
     parser.add_argument('--upx-dir', type=Path, help='可选：UPX 所在目录；由 PyInstaller 压缩包内二进制')
     parser.add_argument('--name', default='BellPet', help='输出文件名，不含 .exe')
     parser.add_argument('--release-dir', type=Path, default=ROOT/'dist/release', help='发行目录，同时生成同名 ZIP')
-    parser.add_argument('--profiles', type=Path, default=ROOT/'presets/profiles')
+    parser.add_argument('--profiles', type=Path, default=ROOT/'presets/profiles', help='从此角色库重新导出清单角色的当前已保存配置')
     parser.add_argument('--catalog', type=Path, default=ROOT/'presets/release.json')
-    parser.add_argument('--overrides', type=Path, action='append', default=[], help='以新导出的分享包更新发行默认值')
+    parser.add_argument('--overrides', type=Path, action='append', default=[], help='可选：以指定分享包的当前配置替代对应本地角色')
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_-]+', args.name):
         parser.error('--name 只允许英文字母、数字、下划线和连字符')

@@ -4,6 +4,7 @@ from math import atan2, degrees, sin, cos, pi
 from ...interaction.drag import DragController, DragHandle, follow_velocity, limited
 from ...shared.geometry import Bounds, Vec2
 from ..motion.navigation import CurveRoute
+from .prince_drag import constrain_grip
 
 
 def unit(v, fallback=Vec2(0, -1)):
@@ -11,9 +12,10 @@ def unit(v, fallback=Vec2(0, -1)):
 
 
 class OracleDrag:
-    def __init__(self, scene, enabled=False):
+    def __init__(self, scene, enabled=False, responsiveness=.5):
         self.scene = scene
         self.enabled = enabled
+        self.responsiveness = responsiveness
         self.controller = DragController()
         self.prince_target = None
         self.prince_reference_direction = None
@@ -33,6 +35,11 @@ class OracleDrag:
     @property
     def controlling(self):
         return self.active or self.recovering
+
+    @property
+    def head_transport(self):
+        return (max(0., self.responsiveness-.5)*2
+                if self.active and self.scene.prince_posture is None else 0.)
 
     @property
     def reach(self):
@@ -77,6 +84,10 @@ class OracleDrag:
         self.enabled = bool(enabled)
         if not enabled:
             self.release(cancel=True)
+
+    def configure(self, config):
+        self.responsiveness = config.drag_responsiveness
+        self.set_enabled(config.drag_enabled)
 
     def release(self, *, cancel=False):
         if cancel:
@@ -130,6 +141,9 @@ class OracleDrag:
             return self.controller.handle.key[1], self.prince_target
         return None
 
+    def project_prince_grip(self):
+        return constrain_grip(self)
+
     def step_body(self):
         s = self.scene
         upper, lower = s.body.chunks
@@ -158,9 +172,19 @@ class OracleDrag:
         if prince is not None:
             self.prince_target = self.controller.target+safe_upper-desired_upper
         target = safe_upper+(s.body.chunks[selected].position-upper.position)
+        direct_shift = Vec2()
         if self.active:
+            responsiveness = self.responsiveness
+            grabbed = s.body.chunks[selected]
+            velocity = follow_velocity(grabbed.position, grabbed.velocity, target,
+                                       responsiveness=responsiveness)
+            if responsiveness > .5:
+                # 加快的平移整体带走身体，不把它误当成单端冲击产生额外翻转
+                physical = follow_velocity(grabbed.position, grabbed.velocity, target)
+                direct_shift = velocity-physical
+                velocity = physical
             for i, c in enumerate(s.body.chunks):
-                c.velocity = (follow_velocity(c.position, c.velocity, target) if i == selected else
+                c.velocity = (velocity if i == selected else
                               c.velocity*.90+Vec2(0, .065 if i == 1 else -.065))
                 c.position = c.position+c.velocity
             if prince is not None:
@@ -180,6 +204,8 @@ class OracleDrag:
             s.pose.target = s.pose.angle
             # Prince 拖动只由抓取力带动身体，不叠加朝鼠标主动弯腰的注视姿态
             s.look_target = None if prince is not None else self.controller.pointer
+            for c in s.body.chunks:
+                c.position += direct_shift
         else:
             s.pose.step(s)
             direction = s.desired_direction
@@ -195,6 +221,11 @@ class OracleDrag:
         for c in s.body.chunks:
             c.position = c.position+shift
             c.velocity = c.position-c.previous_position
+        if self.active and self.responsiveness > .5:
+            # 直接搬运不作为下一步惯性再积累
+            # 位置/插值仍使用真实位移，四肢等接收的速度冲击保持原有数量级
+            for c in s.body.chunks:
+                c.velocity = limited(c.velocity-direct_shift, 7.)
 
     def after_step(self):
         if not self.recovering:

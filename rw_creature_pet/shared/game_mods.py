@@ -31,17 +31,21 @@ def _system_steam_roots():
 def _unique(paths):
     seen = set()
     for path in paths:
-        path = Path(path).expanduser().resolve()
+        try:
+            path = Path(path).expanduser().resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
         key = os.path.normcase(str(path))
         if key not in seen:
             seen.add(key)
             yield path
 
 
-def steam_libraries(game_dir, *, steam_roots=None):
+def steam_libraries(game_dir=None, *, steam_roots=None):
     """优先所选游戏所属库，再读取 Steam 的 libraryfolders.vdf"""
-    game = Path(game_dir).expanduser().resolve()
-    roots = [parent.parent for parent in game.parents if parent.name.casefold() == 'steamapps']
+    games = _unique((game_dir,)) if game_dir is not None else ()
+    roots = [parent.parent for game in games for parent in game.parents
+             if parent.name.casefold() == 'steamapps']
     roots.extend(_system_steam_roots() if steam_roots is None else steam_roots)
     roots = list(_unique(roots))
     libraries = list(roots)

@@ -9,9 +9,11 @@ import tempfile
 
 from .config import AppConfig
 from .oracle.config import migrate_shoulder_width
+from .oracle.cord_colors import complete_cord_colors
 from .oracle.reading_migration import migrate_reading_tree
 from .oracle.eye_config import EYE_FIELDS
 from .shared.messages import Message
+from .shared.game_installation import is_game_directory
 
 
 def default_settings_path():
@@ -54,7 +56,7 @@ def load_defaults(source=None):
 
 
 def validate_game_directory(directory):
-    if not (directory/'RainWorld_Data/resources.assets').is_file():
+    if not is_game_directory(directory):
         raise ValueError('请选择 Rain World 安装目录：其中应包含 RainWorld_Data 文件夹及 resources.assets。')
 
 
@@ -126,6 +128,15 @@ class SettingsStore:
             user_config['oracle'] = {**oracle, 'voice': legacy_voice(body)}
         oracle = user_config.get('oracle')
         palette_migrated = isinstance(oracle, dict) and 'custom_colors' not in oracle
+        cords_migrated = False
+        if isinstance(oracle, dict):
+            oracle = dict(oracle)
+            for key in ('colors', 'custom_colors', 'prince_colors'):
+                if isinstance(oracle.get(key), dict):
+                    colors = complete_cord_colors(oracle[key], defaults['oracle'][key]['joints'])
+                    cords_migrated |= colors != oracle[key]
+                    oracle[key] = colors
+            user_config['oracle'] = oracle
         if palette_migrated:
             # 必须在补默认值之前复制旧配色，避免升级时丢失用户已调好的颜色
             colors, _ = _fill_missing(oracle.get('colors', {}), defaults['oracle']['colors'])
@@ -159,7 +170,7 @@ class SettingsStore:
             user_config['overseer'] = {**watcher, 'slots': [
                 {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
         merged, changed = _fill_missing(user_config, defaults)
-        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged or voice_migrated or reading_migrated
+        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged or voice_migrated or reading_migrated or cords_migrated
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
         if workspace:

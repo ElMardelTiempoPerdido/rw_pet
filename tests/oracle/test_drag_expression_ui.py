@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QEvent
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
@@ -16,7 +16,7 @@ from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.config import CustomAppearance, OracleConfig
 from rw_creature_pet.oracle.drag_expression_config import DragExpressionConfig, ExpressionChoice, EXPRESSION_KINDS
-from rw_creature_pet.oracle.eye_config import EyeAppearance
+from rw_creature_pet.oracle.eye_config import EYE_KINDS, EyeAppearance
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.interaction.input import PuppetHitMap
 from rw_creature_pet.oracle.scene import OracleScene
@@ -102,6 +102,11 @@ class DragExpressionSettingsTests(unittest.TestCase):
         c[PREFIX+'slant_out.enabled'].setChecked(False)
         self.assertEqual(c[PREFIX+'slant_out.weight'].value(), 17)
         c[PREFIX+'round.enabled'].setChecked(True)
+        for kind, label, weight in (('fixed_open', '· ·', 5), ('fixed_closed', '- -', 8)):
+            self.assertIn(label, [w.text() for w in d.drag_expression_panel.findChildren(QLabel)])
+            c[PREFIX+kind+'.enabled'].setChecked(True)
+            c[PREFIX+kind+'.weight'].setValue(weight)
+            c[PREFIX+kind+'.large_only'].setChecked(True)
         expected = d.candidate().oracle.drag_expressions
         self.assertTrue(d.preset_workflow.flush())
         self.assertEqual(self.store.load().oracle.drag_expressions, expected)
@@ -136,14 +141,15 @@ class DragExpressionRenderTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
-    def render(self, renderer, shape, kind, scale, gx):
+    def render(self, renderer, shape, kind, scale, gx, *, openness=0., closure=1.):
         image = QImage(round(64*scale), round(64*scale), QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(0)
         painter = QPainter(image)
         try:
             painter.scale(scale, scale)
             renderer.draw_head(painter, Vec2(32, 32), Vec2(32, 46), Vec2(0, -1), Vec2(gx, 0),
-                shape=shape, eye_closure=1., eye_expression=kind, pixelated=True, raster_scale=scale)
+                openness, shape=shape, eye_closure=closure, eye_expression=kind,
+                pixelated=True, raster_scale=scale)
         finally:
             painter.end()
         return image
@@ -157,12 +163,46 @@ class DragExpressionRenderTests(unittest.TestCase):
             for scale in (1., 1.5, 2., 3., 4.):
                 for gx in (-.7, 0., .7):
                     original = self.render(renderer, base, None, scale, gx)
-                    for kind in EXPRESSION_KINDS:
+                    for kind, _ in EYE_KINDS[1:]:
                         expected = replace(base, eye_1=replace(base.eye_1, kind=kind),
                                            eye_2=replace(base.eye_2, kind=kind))
                         self.assertEqual(self.render(renderer, base, kind, scale, gx),
                                          self.render(OracleRenderer(), expected, None, scale, gx))
                     self.assertEqual(self.render(renderer, base, None, scale, gx), original)
+
+    def test_fixed_open_closed_sizes_ignore_base_shape_height_and_animation(self):
+        plain = CustomAppearance(eye_1=EyeAppearance('#ff0000', default_open=True),
+                                 eye_2=EyeAppearance('#0000ff', default_open=True))
+        for base_kind in ('normal', 'round'):
+            base = replace(plain, eye_1=replace(plain.eye_1, kind=base_kind, height_mode='lower'),
+                           eye_2=replace(plain.eye_2, kind='slant_in', default_open=False))
+            renderer = OracleRenderer()
+            renderer.OPEN_EYE_HEIGHT = 5.
+            for kind, height in (('fixed_open', 2), ('fixed_closed', 1)):
+                for scale in (1., 1.5, 2., 3., 4.):
+                    for gx in (-.7, 0., .7):
+                        with self.subTest(base=base_kind, kind=kind, scale=scale, gx=gx):
+                            original = self.render(renderer, base, None, scale, gx)
+                            expected = self.render(OracleRenderer(), plain, None, scale, gx,
+                                                   closure=float(kind == 'fixed_closed'))
+                            for openness, closure in ((0., 1.), (.5, .5), (1., 0.)):
+                                actual = self.render(renderer, base, kind, scale, gx,
+                                                     openness=openness, closure=closure)
+                                self.assertEqual(actual, expected)
+                            if gx == 0. and scale.is_integer():
+                                for color in ('#ff0000', '#0000ff'):
+                                    pixels = {(x, y) for y in range(actual.height())
+                                              for x in range(actual.width())
+                                              if actual.pixel(x, y) == QColor(color).rgba()}
+                                    self.assertEqual(len(pixels), 2*height*scale*scale)
+                                    self.assertEqual(max(x for x, _ in pixels)-min(x for x, _ in pixels)+1, 2*scale)
+                                    self.assertEqual(max(y for _, y in pixels)-min(y for _, y in pixels)+1, height*scale)
+                            hidden = replace(base, eye_2=replace(base.eye_2, visible=False))
+                            expected_hidden = replace(plain, eye_2=replace(plain.eye_2, visible=False))
+                            self.assertEqual(self.render(renderer, hidden, kind, scale, gx),
+                                self.render(OracleRenderer(), expected_hidden, None, scale, gx,
+                                            closure=float(kind == 'fixed_closed')))
+                            self.assertEqual(self.render(renderer, base, None, scale, gx), original)
 
     def test_sleeping_head_and_hit_cache_update_once_on_expression_change(self):
         for appearance in ('bell', 'custom'):

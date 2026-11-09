@@ -1,4 +1,4 @@
-"""生成 EXE 与 original 预设组成的发行目录及 ZIP，不写入开发者的角色目录"""
+"""将清单角色当前保存的配置导出为发行 original，与 EXE 组成目录及 ZIP"""
 import argparse
 from contextlib import ExitStack
 import json
@@ -16,8 +16,7 @@ from rw_creature_pet.presets.common import package_path, write_document
 from rw_creature_pet.presets.appearance import image_paths
 from rw_creature_pet.presets.common import get_value
 from rw_creature_pet.presets.profile import MANIFEST, load_profile
-from rw_creature_pet.presets.profile_library import ProfileLibrary
-from rw_creature_pet.presets.sharing import open_profile, original_of, write_snapshot, write_zip
+from rw_creature_pet.presets.sharing import open_profile, write_snapshot, write_zip
 
 
 def load_catalog(path):
@@ -114,7 +113,9 @@ def build_release(executable, output, *, profiles=None, catalog=None, overrides=
                     preset = load_profile(source/item['directory']/MANIFEST)
                 if preset.id != item['id']:
                     raise ValueError(f'角色目录中的 ID 已改变：{item["directory"]}')
-                write_snapshot(original_of(preset), staging/'presets/profiles'/item['directory']/'original')
+                # 每次从当前已保存配置重新导出，复用分享时的完整字段和贴图复制逻辑
+                # 仅写入发行 original，不改动本地恢复源，也不覆盖接收者的当前设置
+                write_snapshot(preset, staging/'presets/profiles'/item['directory']/'original')
             write_document(staging/'release.json', {'type': 'rw-creature-pet.release', 'version': 1,
                 'executable': executable.name, 'characters': characters})
             validate_release(staging)
@@ -142,9 +143,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--exe', type=Path, default=ROOT/'dist/BellPet.exe')
     parser.add_argument('--output', type=Path, default=ROOT/'dist/release')
-    parser.add_argument('--profiles', type=Path, default=ROOT/'presets/profiles')
+    parser.add_argument('--profiles', type=Path, default=ROOT/'presets/profiles', help='从此角色库重新导出清单角色的当前已保存配置')
     parser.add_argument('--catalog', type=Path, default=ROOT/'presets/release.json')
-    parser.add_argument('--overrides', type=Path, action='append', default=[], help='新导出的 ZIP 或存放分享 ZIP 的目录')
+    parser.add_argument('--overrides', type=Path, action='append', default=[], help='可选：以指定分享包的当前配置替代对应本地角色，可传 ZIP 或 ZIP 目录')
     args = parser.parse_args()
     result = build_release(args.exe, args.output, profiles=args.profiles, catalog=args.catalog,
                            overrides=args.overrides)

@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 
 from ..oracle.config import CustomAppearance, OracleColors
+from ..oracle.cord_colors import migrate_cord_tree
 from ..shared.messages import Message
 from .common import get_value
 from .fields import paths_for
@@ -23,9 +24,10 @@ def stage_character_upgrade(data):
         return data, False
     from .editing import ALL_PATHS
     raw_values = {}
+    raw_config = migrate_cord_tree(data.get('config', {}))
     for path in ALL_PATHS:
         try:
-            raw_values[path] = get_value(data.get('config', {}), path)
+            raw_values[path] = get_value(raw_config, path)
         except (KeyError, AttributeError):
             pass
     legacy_pending = state.get('character_setup', {}).get('pending')
