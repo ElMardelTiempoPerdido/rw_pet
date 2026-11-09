@@ -10,7 +10,9 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 
 基础头高为通用的 14 个逻辑像素加上 `characters.py` 中 Prince 的 `neck_extension`。在此基础上，静止弓身将胸肩和头部轻微压低；侧看时胸肩向注视方向前移，上躯干弯曲，衣袍上部跟随胸肩变形。正面不强制偏向屏幕左侧或右侧
 
-身体使用下摆、腰、胸、颈、头五个物理点，腰部跟随通用导航支点，其余点独立响应惯性，通过距离约束逐段传力。相邻段有防反折限制，但整条身体不强制保持直立；绘制使用穿过这些点的平滑曲线，衣袍和双层 PNG 下摆沿曲线变形。截面始终采用单位法线，保持原有肩宽和素材自然宽度
+身体使用九个物理点：下摆末端、下摆中下段、下摆中上段、腰、躯干下段、躯干上段、胸、颈、头。腰部跟随通用导航支点，其余点独立响应惯性，通过距离约束逐段传力。中下段平滑相邻节点相对目标姿态的额外曲率，让弯曲分散到多个关节，头颈保留原有响应。相邻段有防反折限制，但整条身体不强制保持直立；绘制使用穿过这些点的平滑曲线，上半衣袍和双层 PNG 共用同一中心线。截面始终采用单位法线，保持原有肩宽和素材自然宽度
+
+普通移动使用较轻的中下段滞后，停止后较快回稳；反重力漫游降低中下段回正力度，并将速度保留系数从 `.80` 提高到 `.90`，让腰以下更明显地跟随加速、转弯和停止回摆，胸颈仍保留较强支撑。两套参数随场景的 `weightlessness` 在约 3 秒内连续混合，进入、退出漫游不重建身体，也不添加持续的人工摆动。姿态完全稳定后两种状态均可休眠；力度变化本身也会唤醒物理。拖拽接管立即使用独立的既有抓取参数，不受尚未退出完毕的失重柔软系数影响
 
 注视时胸、颈和头依次跟随。平视或仰视只保留轻微的躯干弯曲，主要由颈部和头部转向；视线沿身体轴指向更低处时，再从腰部逐渐增加俯身。躯干和颈部采用独立的转角幅度，向下分量连续平滑过渡，避免目标经过等高位置时突然切换姿态。正下方的注视通过正面投影压低胸肩和头部表达，避免突然向左或向右折过去。头部由独立物理点产生滞后，不再限制为相对目标最多 2.5 逻辑像素的偏移
 
@@ -20,7 +22,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 
 拖拽时按点击区域选择最近的身体轴节点，在此处施加抓取力。Prince 拖拽期间不主动注视鼠标，原先的注视方向平滑回到中性，避免身体持续朝抓取点主动弯折。导航支点由仍抓附的触手限制可达距离，并保留工作区边界约束；视觉身体会由抓取点逐段带动，未抓取的部分保留惯性和下垂感。松手后平滑恢复到正常体态和活动带，身体、下摆和触手停稳后允许休眠
 
-导航根据抓取点在目标体态中的位置推导支点，不追逐实际柔性节点的细小惯性偏移。按下时记录导航参考方向，本次抓取的位置换算和导航骨架始终使用该方向，避免下摆的长力臂将转角反馈给支点，造成按住不动时持续绕抓取点摆动。实际五段身体仍独立受力、弯曲；松手或取消时清除参考方向，下次抓取重新记录当前方向，不在按下瞬间强制切换为直立
+导航根据抓取点在目标体态中的位置推导支点，不追逐实际柔性节点的细小惯性偏移。按下时记录导航参考方向，本次抓取的位置换算和导航骨架始终使用该方向，避免下摆的长力臂将转角反馈给支点，造成按住不动时持续绕抓取点摆动。实际多段身体仍独立受力、弯曲；松手或取消时清除参考方向，下次抓取重新记录当前方向，不在按下瞬间强制切换为直立
 
 抓取状态下，相邻身体段增加柔性的角度恢复，腰部较软，胸颈保持连贯；上半身减少额外重力压缩，下摆仍保留明显下垂，避免静止时颈部形成反向折弯
 
@@ -35,22 +37,26 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 - `NECK_LOOK_BEND`、`LOW_NECK_BEND`、`NECK_BEND`：颈部独立的转向幅度、向下注视时叠加的幅度和额外弯曲，单位为弧度
 - `BODY_BOW_POWER`、`NECK_BOW_POWER`：身体延后、颈部提前的低头响应曲线指数，分别作用于上述两条曲线
 - `CHEST_FOLLOW`、`HEAD_FOLLOW`、`LOW_LOOK_FOLLOW`：胸肩、头部和低头的跟随速度
-- `motion/prince_spine.py` 的 `SPRING`、`DAMPING`：各段恢复力度和速度保留系数
+- `motion/prince_spine.py` 的 `SPRING`、`DAMPING`：普通状态下各段恢复力度和速度保留系数
+- `DRIFT_SPRING`、`DRIFT_DAMPING`：完全失重时的对应值，`SPRING` 按九个节点从下摆到头排列；恢复力度越小越柔软，速度保留越大回摆持续越久，腰节点保持导航固定点
 - `DRAG_SPRING`、`DRAG_DAMPING`、`DRAG_GRAVITY`：拖动时的姿态恢复、惯性和重力
-- `DRAG_GRAVITY_WEIGHTS`：下摆、腰、胸、颈、头各节点的重力权重
-- `DRAG_BEND_STIFFNESS`：抓取时腰、胸、颈的相对角度恢复力度，不限制整体朝向
+- `DRAG_GRAVITY_WEIGHTS`：九个节点的重力权重
+- `DRAG_BEND_STIFFNESS`：抓取时七个相邻关节的角度恢复力度，不限制整体朝向
 - `HOLD_SETTLE_SPEED`、`HOLD_SETTLE_TICKS`：静止抓取的速度门槛和连续稳定帧数
-- `BEND_LIMITS`：腰、胸、颈处的相邻段弯折限度，单位为度，仅用于避免局部反折
+- `BEND_LIMITS`：七个相邻关节的弯折限度，单位为度，躯干限制局部尖折，较细的颈部保留更大的转动范围
+- `BEND_SMOOTHING`：中下段相邻额外曲率的平滑力度，保留目标姿态本身的弓身
 
 ## 双层下摆
 
-上半衣袍沿用布料网格，但使用 Prince 的窄肩轮廓，向下逐渐扩展到素材的连接宽度，底部收平。`motion/prince_robe.py` 中的 `CHEST_WIDTH`、`CHEST_HEIGHT` 控制胸部，`SHOULDER_HALF`、`UPPER_LENGTH`、`UPPER_SLACK` 控制上半衣袍的肩宽、长度和活动余量
+上半衣袍沿用布料网格，但使用 Prince 的窄肩轮廓，向下逐渐扩展到素材的连接宽度，底部收平。`motion/prince_robe.py` 中的 `CHEST_WIDTH`、`CHEST_HEIGHT` 控制胸部，`SHOULDER_HALF`、`UPPER_LENGTH` 控制上半衣袍的肩宽和长度。上衣直接贴合九点身体轴，不额外叠加通用衣袍布点的独立回摆，避免同一躯干被两套物理反复折弯
 
 下半部分按后层 `skin/prince/prince_lower_robe_2.png`、前层 `prince_lower_robe_1.png` 的顺序绘制，保留两张 PNG 的原色、透明像素和共同画布，一个素材像素对应一个逻辑像素。上半衣袍的末段逐渐过渡到前层素材顶部的颜色；连接点取自上半衣袍最后一行，素材顶部略微重叠，避免露出接缝。旧腿部和下腰轮廓不再绘制，镂空处仅显示后层或背景
 
 每层下摆使用独立的 5 列 × 9 行网格，在固定 40 Hz 更新。顶部 `PIN_LENGTH` 范围共同固定在接缝，下方逐渐放开；后层的惯性更大、回摆稍慢，移动和转身时形成视差，静止后收敛并参与休眠。目标发生大幅跳变时重置惯性，避免重置位置时产生长拖尾
 
-连接处使用上半衣袍中央的共同下垂方向，不沿每列的外张斜率继续向两侧延伸；之后沿五点身体轴逐行弯曲，叠加两层各自的惯性。顶部贴合实际接缝，在 `PIN_LENGTH` 处恢复 PNG 原宽，避免静止时下半素材被逐渐撑宽。肩宽调整只改变上半衣袍，不改变下半素材的自然宽度
+`BACK_MOTION` / `FRONT_MOTION` 保留普通状态和拖动时的双层受力；`BACK_DRIFT_MOTION` / `FRONT_DRIFT_MOTION` 为失重值，与身体轴使用相同的渐变权重。每组依次为回正力度、速度保留、加速度惯性、最大偏移。失重时降低回正、保留更多惯性，并适度放宽尾端偏移上限；顶部共同接缝和自然素材宽度不变。前层响应较快、后层回摆较慢，避免两张 PNG 始终叠成一块
+
+连接处与上衣共用身体曲线的位置和切线，PNG 不再依据上衣最后两行单独重新定向。各行都按素材原宽沿曲线排布，实色上口中点对齐身体中轴，透明边距也保持原尺寸。顶部 `PIN_LENGTH` 范围随共同曲线弯曲，下方再叠加两层各自的惯性。首次显示、角色切换及帧间插值使用同一接缝，肩宽调整只改变上半衣袍，不改变下半素材的自然宽度
 
 下摆使用已有的分片 PNG 变形、像素化与外发光流程，纳入绘制清除范围和身体命中范围；透明镂空保持鼠标穿透。下摆回摆独立于上身几何缓存，尾端运动时无需重新生成上半衣袍网格
 
@@ -68,7 +74,7 @@ Prince 的头部转角使用类似 Friend 的两段响应：近段轻微转动�
 - `oracle/characters.py`：角色能力和配色字段，`has_eyes`、`has_hands`、`outfits` 分别控制眼睛、双臂与附加外观；语音由角色行为中的 `oracle.voice` 独立选择
 - `oracle/graphics/prince.py`：Prince 固定头部和身体绘制入口，不读取 `CustomAppearance`，花冠尺寸和曲面参数在此调整
 - `oracle/motion/prince.py`：Prince 专用注视体态、身体轴目标和绘制帧
-- `oracle/motion/prince_spine.py`：五点身体物理、距离/防反折约束和曲线采样
+- `oracle/motion/prince_spine.py`：九点身体物理、距离/防反折约束、曲率分散和曲线采样
 - `oracle/interaction/drag.py`：按实际身体区域抓取，Prince 使用触手可达范围，其余迭代器保留机械臂约束
 - `oracle/prince_assets.py`：两层衣料的共同画布、连接宽度和接缝颜色
 - `oracle/motion/prince_robe.py`、`oracle/graphics/prince_robe.py`：窄肩衣袍轮廓、独立下摆物理和 PNG 网格绘制
@@ -85,6 +91,8 @@ python -m unittest tests.oracle.test_prince
 python -m unittest tests.oracle.test_prince_posture
 python -m unittest tests.oracle.test_prince_robe
 python -m unittest tests.oracle.test_prince_drag
+python -m unittest tests.oracle.test_prince_body_curve tests.oracle.test_prince_drag_limit
+python -m unittest tests.oracle.test_prince_motion_forces
 python tools/oracle/review_prince.py
 python tools/oracle/review_prince_posture.py
 python tools/oracle/review_prince_robe.py
@@ -92,9 +100,13 @@ python tools/oracle/review_prince_spine.py
 python tools/oracle/review_prince_spine.py --lower-drag
 python tools/oracle/review_prince_spine.py --gaze-height
 python tools/oracle/review_prince_spine.py --bow-projection
+python tools/oracle/review_prince_body.py --mode ordinary
+python tools/oracle/review_prince_body.py --mode drift
 ```
 
 预览脚本仅将图片输出到 `artifacts/prince`，不读取或修改当前用户角色。`review_prince_spine.py` 输出静态注视姿态、身体轴示意和真实拖拽/恢复流程的 GIF；加上 `--lower-drag` 输出腰部和下摆抓取、长按、再次移动及恢复的并排预览，镜头固定，紫色十字标记鼠标位置；`--gaze-height` 对照静止、仰视、平视和俯视的身体与颈部弯曲；`--bow-projection` 对照相同低头程度在不同横向方向的投影，并生成经过正下方的连续注视 GIF。这些是离屏验证，不替代桌面上的实际拖动观感检查
+
+`review_prince_body.py` 在真实场景中运行普通选点移动或反重力漫游，镜头跟随身体，输出 `body-curve-ordinary.gif` / `body-curve-drift.gif` 及静态抽帧图。两种模式使用对应的实际受力参数，用于检查九节点身体轴、曲率分散、接缝，以及普通与失重状态的回摆差异；可用 `--output artifacts/prince/body-forces` 另存一份预览
 
 ## 三条触手的轮廓与常规移动
 

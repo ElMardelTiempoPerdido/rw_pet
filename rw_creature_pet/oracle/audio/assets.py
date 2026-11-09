@@ -6,14 +6,18 @@ import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import RLock
 import wave
 
 from .voice import BELL_VOICE_CLIPS, bell_voice_paths
-from .processing import PROCESSING_VERSION, prepare_clips
+from .processing import BELL_VOICE_GAIN, PROCESSING_VERSION, prepare_clips
+from .bell_cache import cache_directory, cache_ready as _cache_ready, upgrade_v2_cache, v2_identity
 from .errors import VoiceAssetError
 
 
 LEGACY_DIRECTORY = 'artifacts/oracle-voice-reference/bell-clips'
+_prepared_bell = {}
+_preparation_lock = RLock()
 
 
 def _valid_interview(source):
@@ -63,39 +67,25 @@ def _extract_interview(source, kind):
     return data
 
 
-def _cache_ready(root, identity):
-    try:
-        manifest = json.loads((root/'manifest.json').read_text(encoding='utf-8'))
-        if not isinstance(manifest, dict) or manifest.get('cache_identity') != identity:
-            return False
-        entries = {entry['clip_id']: entry for entry in manifest['clips']}
-        for clip in BELL_VOICE_CLIPS:
-            data = (root/clip.filename).read_bytes()
-            if sha256(data).hexdigest() != entries[clip.clip_id]['sha256']:
-                return False
-            with wave.open(io.BytesIO(data), 'rb') as audio:
-                rate = audio.getframerate()
-                frames = round(clip.end*rate)-round(clip.start*rate)
-                if (audio.getnchannels() != 2 or audio.getsampwidth() != 2
-                        or audio.getnframes() != frames or len(audio.readframes(frames)) != frames*4):
-                    return False
-        return True
-    except (OSError, ValueError, KeyError, TypeError, EOFError, wave.Error):
-        return False
+def _cache_root():
+    return Path(os.environ.get('LOCALAPPDATA', Path.home()/'.cache'))/'rw_creature_pet/voices'
 
 
-def ensure_bell_voice(game_dir, *, cache_root=None):
+def _source_identity(game_dir):
+    source, kind = _find_source(game_dir)
+    stat = source.stat()
+    identity = dict(source=str(source.resolve()), size=stat.st_size, mtime_ns=stat.st_mtime_ns,
+                    kind=kind, processing_version=PROCESSING_VERSION, linear_gain=BELL_VOICE_GAIN,
+                    clips=[[c.clip_id, c.start, c.end] for c in BELL_VOICE_CLIPS])
+    return source, kind, identity
+
+
+def ensure_bell_voice(game_dir, *, cache_root=None, legacy_root=None):
     """返回完整缓存目录。版本/源文件变化、半写入或损坏缓存都会重新生成。"""
     try:
-        source, kind = _find_source(game_dir)
-        stat = source.stat()
-        identity = dict(source=str(source.resolve()), size=stat.st_size, mtime_ns=stat.st_mtime_ns,
-                        kind=kind, processing_version=PROCESSING_VERSION,
-                        clips=[[c.clip_id, c.start, c.end] for c in BELL_VOICE_CLIPS])
-        key = sha256(json.dumps(identity, sort_keys=True).encode('utf-8')).hexdigest()[:16]
-        cache_root = (Path(cache_root) if cache_root is not None else
-                      Path(os.environ.get('LOCALAPPDATA', Path.home()/'.cache'))/'rw_creature_pet/voices')
-        root = cache_root/f'bell-{key}'
+        source, kind, identity = _source_identity(game_dir)
+        cache_root = Path(cache_root) if cache_root is not None else _cache_root()
+        root = cache_directory(cache_root, identity)
         if _cache_ready(root, identity):
             return root
         # 多个窗口/进程同时冷启动时，只有一个生成者；提交 manifest 前不公布完整缓存。
@@ -110,18 +100,21 @@ def ensure_bell_voice(game_dir, *, cache_root=None):
                 return root
             with TemporaryDirectory(prefix='bell-prepare-', dir=cache_root) as temporary:
                 temp = Path(temporary)
-                try:
-                    full = _extract_interview(source, kind)
-                finally:
-                    # UnityPy 的对象图存在循环引用，冷启动后立即释放较大的音效包。
-                    gc.collect()
-                wav = temp/'RWTW_ATalkShow.wav'
-                wav.write_bytes(full)
-                del full
                 output = temp/'clips'
-                manifest = prepare_clips(wav, output)
+                manifest = upgrade_v2_cache(cache_root, identity, output, legacy_root=legacy_root)
+                if manifest is None:
+                    try:
+                        full = _extract_interview(source, kind)
+                    finally:
+                        # UnityPy 的对象图存在循环引用，冷启动后立即释放较大的音效包
+                        gc.collect()
+                    wav = temp/'RWTW_ATalkShow.wav'
+                    wav.write_bytes(full)
+                    del full
+                    manifest = prepare_clips(wav, output)
                 manifest.update(cache_identity=identity, source=str(source.resolve()),
-                                source_asset='RWTW_ATalkShow')
+                                source_asset='RWTW_ATalkShow', processing_version=PROCESSING_VERSION,
+                                linear_gain=BELL_VOICE_GAIN)
                 for clip in manifest['clips']:
                     clip['sha256'] = sha256((output/clip['file']).read_bytes()).hexdigest()
                 (output/'manifest.json').write_text(
@@ -142,6 +135,72 @@ def ensure_bell_voice(game_dir, *, cache_root=None):
         raise VoiceAssetError(f'准备 Bell 语音失败：{exc}') from exc
 
 
+def _preparation_key(game_dir, legacy_root=None):
+    return (str(Path(game_dir).resolve()), str(_cache_root().resolve()), PROCESSING_VERSION,
+            BELL_VOICE_GAIN, str(legacy_root.resolve()) if legacy_root is not None else None)
+
+
+def forget_prepared_bell_voice(game_dir):
+    """显式重新检查时清除同一游戏的结果；角色切换不清除"""
+    game = str(Path(game_dir).resolve())
+    with _preparation_lock:
+        for key in tuple(_prepared_bell):
+            if key[0] == game:
+                del _prepared_bell[key]
+
+
+def _prepare_auto_bell_voice(game_dir, *, existing_only=False, legacy_root=None):
+    key = _preparation_key(game_dir, legacy_root)
+    with _preparation_lock:
+        if key in _prepared_bell:
+            result = _prepared_bell[key]
+            if result is not None:
+                return dict(result[0]), result[1]
+            if existing_only:
+                return None
+        if existing_only:
+            # 仅推导匹配的 v3/v2 目录，不扫描所有历史缓存，也不为未选语音解包
+            try:
+                _, _, identity = _source_identity(game_dir)
+                previous = v2_identity(identity)
+                candidates = [cache_directory(_cache_root(), identity)]
+                if previous is not None:
+                    candidates.append(cache_directory(_cache_root(), previous))
+                exists = any(path.is_dir() for path in candidates)
+            except (VoiceAssetError, OSError):
+                exists = False
+            if not exists:
+                _prepared_bell[key] = None
+                return None
+        try:
+            root = (ensure_bell_voice(game_dir) if legacy_root is None else
+                    ensure_bell_voice(game_dir, legacy_root=legacy_root))
+            result = {clip.clip_id: root/clip.filename for clip in BELL_VOICE_CLIPS}, ''
+        except VoiceAssetError as exc:
+            result = {}, str(exc)
+        _prepared_bell[key] = result
+        return dict(result[0]), result[1]
+
+
+def prepare_existing_bell_voice(config):
+    """资源初始化时升级已有受管缓存；没有缓存则等首次选择 Bell 再准备"""
+    if config.oracle.voice_directory != 'auto':
+        return None
+    return _prepare_auto_bell_voice(config.game_dir, existing_only=True)
+
+
+def _is_managed_v2(directory, game_dir):
+    try:
+        manifest = json.loads((directory/'manifest.json').read_text(encoding='utf-8'))
+        if not isinstance(manifest, dict) or manifest.get('cache_identity', {}).get('processing_version') != 2:
+            return False
+        _, _, identity = _source_identity(game_dir)
+        previous = v2_identity(identity)
+        return previous is not None and _cache_ready(directory, previous)
+    except (VoiceAssetError, OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def make_voice_player(config, config_path=None, parent=None, *, initialize=True, source=None):
     """桌面/调试共用入口；初始化失败只禁用语音，不妨碍桌宠其他功能。"""
     from ...interaction.audio import VoicePlayer
@@ -155,6 +214,11 @@ def prepare_voice(config, config_path=None, *, initialize=True):
     """按角色选择准备语音；Bell 覆盖目录不改变其他语音的来源"""
     if config.oracle.voice == 'none':
         return {}, ''
+    from .custom import custom_voice_name, custom_voice, scan_custom_voices
+    if custom_voice_name(config.oracle.voice) is not None:
+        scan_custom_voices()
+        pack = custom_voice(config.oracle.voice)
+        return pack.paths, pack.error
     if config.oracle.voice == 'bell':
         return prepare_bell_voice(config, config_path, initialize=initialize)
     if not initialize:
@@ -175,16 +239,23 @@ def prepare_bell_voice(config, config_path=None, *, initialize=True):
         directory = config.oracle.voice_directory
         if directory != 'auto':
             paths = bell_voice_paths(config.oracle, config_path)
+            root = next(iter(paths.values())).parent
+            if initialize:
+                with _preparation_lock:
+                    prepared = _prepared_bell.get(_preparation_key(config.game_dir, root))
+                    if prepared is not None:
+                        return dict(prepared[0]), prepared[1]
             missing = [str(path) for path in paths.values() if not path.is_file()]
             if not missing:
+                if initialize and _is_managed_v2(root, config.game_dir):
+                    return _prepare_auto_bell_voice(config.game_dir, legacy_root=root)
                 return paths, ''
             if directory.replace('\\', '/') != LEGACY_DIRECTORY:
                 raise VoiceAssetError('自定义语音目录缺少文件：'+', '.join(missing))
             # 兼容旧 TOML：迁移设备后旧 artifacts 不存在时自动从游戏准备。
         if not initialize:
             raise VoiceAssetError('几何预览未初始化语音；请通过正常启动入口准备游戏资源')
-        root = ensure_bell_voice(config.game_dir)
-        paths = {clip.clip_id: root/clip.filename for clip in BELL_VOICE_CLIPS}
+        return _prepare_auto_bell_voice(config.game_dir)
     except VoiceAssetError as exc:
         error = str(exc)
     return paths, error

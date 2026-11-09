@@ -122,7 +122,7 @@ class SpaceTests(unittest.TestCase):
                     scene = OracleScene(OracleConfig(world_width=640, world_height=385, arm_scale=.75,
                         edge_fraction=.499, base_side=side, hide_cords=True))
                     scene.drift()
-                    scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+                    scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
                     for _ in range(130):
                         scene.step()
                     destination = (edge+sign) % 4

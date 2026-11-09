@@ -60,6 +60,7 @@ def validate_release(directory):
             if reference:
                 allowed.add(original.appearance.image(reference))
     allowed.update(root/'presets/behavior_styles'/name for name in ('builtin.toml', 'README.md'))
+    allowed.add(root/'presets/voices/README.md')
     for path in root.rglob('*'):
         if path.is_file() and path not in allowed:
             raise ValueError(f'发行包包含用户当前设置或多余文件：{path.relative_to(root)}')
@@ -102,6 +103,9 @@ def build_release(executable, output, *, profiles=None, catalog=None, overrides=
             styles.mkdir(parents=True)
             for filename in ('builtin.toml', 'README.md'):
                 shutil.copy2(ROOT/'presets/behavior_styles'/filename, styles/filename)
+            voices = staging/'presets/voices'
+            voices.mkdir(parents=True)
+            shutil.copy2(ROOT/'presets/voices/README.md', voices/'README.md')
             for item in characters:
                 if item['id'] in replacements:
                     preset = replacements[item['id']]

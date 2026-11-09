@@ -200,16 +200,14 @@ class OracleSettingsTests(unittest.TestCase):
         w.open_settings()
         d = w.settings_dialog
         values = {
-            'oracle.base_speed': 3.25, 'oracle.pearl_follow_width': 600.5, 'oracle.pearl_follow_height': 320.5,
+            'oracle.base_speed': 3.25,
             'oracle.daily_activity.idle_min_seconds': 1.2,
             'oracle.daily_activity.idle_max_seconds': 2.3,
             'oracle.daily_activity.cross_edge_cooldown_seconds': 0,
             'oracle.daily_activity.cross_edge_check_seconds': 2,
-            'oracle.daily_activity.move_lean_degrees': 11.5,
             'oracle.reading.start_probability': 48.9,
             'oracle.drift.cooldown_seconds': 45.5,
             'oracle.drift.short_pause_weight': 0,
-            'oracle.drift.entry_min_seconds': 1.25,
             'oracle.drift.speed_min_factor': .55,
             'oracle.drift.long_bout_probability': 62.5,
             'oracle.mouse_avoidance.delay_min_seconds': .25,
@@ -229,18 +227,18 @@ class OracleSettingsTests(unittest.TestCase):
         d.apply_button.click()
         self.assertEqual(self.store.load(), candidate)
         self.assertEqual(w.motion.scene.config.base_speed, 3.25)
-        self.assertEqual(w.motion.scene.config.pearl_follow_width, 600.5)
-        self.assertEqual(w.motion.scene.config.pearl_follow_height, 320.5)
+        self.assertEqual(w.motion.scene.config.pearl_follow_width, 360.)
+        self.assertEqual(w.motion.scene.config.pearl_follow_height, 280.)
         self.assertEqual(w.motion.scene.drag_reactions.config, candidate.oracle.drag_reactions)
         self.assertAlmostEqual(candidate.oracle.drag_reactions.voice_probability, .666)
         self.assertFalse(w.motion.scene.drag_reactions.config.enabled)
         self.assertEqual(w.motion.scene.behavior.IDLE_TICKS, (48, 92))
         self.assertEqual(w.motion.scene.behavior.CROSS_EDGE_COOLDOWN, 0)
         self.assertEqual(w.motion.scene.behavior.DRIFT_CROSS_CHECK_TICKS, 80)
-        self.assertEqual(w.motion.scene.config.daily_activity.move_lean_degrees, 11.5)
+        self.assertEqual(w.motion.scene.config.daily_activity.move_lean_degrees, 20.)
         self.assertAlmostEqual(w.motion.scene.config.reading.start_probability, .489)
         self.assertEqual(w.motion.scene.behavior.DRIFT_COOLDOWN, 1820)
-        self.assertEqual(w.motion.scene.behavior.DRIFT_ENTRY_TICKS[0], 50)
+        self.assertEqual(w.motion.scene.behavior.DRIFT_ENTRY_TICKS[0], 100)
         self.assertEqual(w.motion.scene.mouse_reaction.avoidance.DELAY[0], .25)
         self.assertAlmostEqual(w.motion.scene.mouse_reaction.avoidance.PROBABILITY, .123)
         self.assertEqual(w.motion.scene.mouse_reaction.avoidance.LEAN_SAMPLE_POWER, 3.5)
@@ -262,7 +260,7 @@ class OracleSettingsTests(unittest.TestCase):
         d.controls['interaction.hover_avoidance_enabled'].setChecked(True)
         self.assertTrue(d.controls[key].isEnabled())
         for name, bad_value, good_value in (
-                ('oracle.drift.entry_min_seconds', 8, 2.5),
+                ('oracle.drift.short_pause_min_seconds', 8, .35),
                 ('oracle.mouse_avoidance.enter_distance', 80, 55)):
             d.controls[name].setValue(bad_value)
             d.apply_button.click()
@@ -785,27 +783,25 @@ class OracleSettingsTests(unittest.TestCase):
                 check_geometry()
             self.assertEqual(editor.height(), initial_height)
 
-    def test_matrix_avoidance_radius_round_trips_and_tracks_matrix_availability(self):
+    def test_matrix_playback_tracks_availability_without_hidden_radius_control(self):
         d = self.dialog(assets=self.assets)
-        radius = d.controls['oracle.pearl_matrix_avoid_radius']
-        self.assertEqual(radius.value(), 80)
-        self.assertFalse(radius.isEnabled())
-        d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
-        self.assertTrue(radius.isEnabled())
-        d.controls['oracle.pearl_matrix_count'].setValue(0)
-        self.assertFalse(radius.isEnabled())
-        d.controls['oracle.pearl_matrix_count'].setValue(7)
-        radius.setValue(95)
+        self.assertNotIn('oracle.pearl_matrix_avoid_radius', d.controls)
         playback = d.controls['oracle.pearl_playback_probability']
+        self.assertFalse(playback.isEnabled())
+        d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
+        self.assertTrue(playback.isEnabled())
+        d.controls['oracle.pearl_matrix_count'].setValue(0)
+        self.assertFalse(playback.isEnabled())
+        d.controls['oracle.pearl_matrix_count'].setValue(7)
         self.assertTrue(playback.isEnabled())
         playback.setValue(60)
         d.save()
         saved = self.store.load()
-        self.assertEqual(saved.oracle.pearl_matrix_avoid_radius, 95)
+        self.assertEqual(saved.oracle.pearl_matrix_avoid_radius, 80)
         self.assertEqual(saved.oracle.pearl_playback_probability, .6)
         self.config = saved
         reopened = self.dialog(assets=self.assets)
-        self.assertEqual(reopened.controls['oracle.pearl_matrix_avoid_radius'].value(), 95)
+        self.assertNotIn('oracle.pearl_matrix_avoid_radius', reopened.controls)
         self.assertEqual(reopened.controls['oracle.pearl_playback_probability'].value(), 60)
 
     def test_start_edge_auto_checks_allowed_edge_and_round_trips(self):
@@ -1186,13 +1182,13 @@ class OracleSettingsTests(unittest.TestCase):
         d = w.settings_dialog
         shape = CustomAppearance(12.1/(100/11+1), 4.5, 13., (30.-8.41275)/19.13725,
                                  sleeve_cuff_radius=0., neck_width=5.5, chest_width=15.5, chest_height=6.,
-                                 shoulder_width=12.5, robe_flare=1.4, robe_hem_curve=.6)
+                                 shoulder_width=12.5, robe_flare=1.4, robe_hem_curve=.6, leg_length=19.)
         d.controls['oracle.body_appearance'].setValue('custom')
         for name, value in (('head_length', 12.1), ('sleeve_root_width', 4.5),
                             ('sleeve_cuff_width', 13), ('robe_length', 30),
                             ('robe_flare', 140), ('robe_hem_curve', 60),
                             ('sleeve_cuff_radius', 0), ('neck_width', 5.5),
-                            ('chest_width', 15.5), ('chest_height', 6.), ('shoulder_width', 12.5)):
+                            ('chest_width', 15.5), ('chest_height', 6.), ('shoulder_width', 12.5), ('leg_length', 19.)):
             d.controls['oracle.custom_appearance.'+name].setValue(value)
         candidate_shape = d.candidate().oracle.custom_appearance
         for field in fields(CustomAppearance):
@@ -1222,6 +1218,7 @@ class OracleSettingsTests(unittest.TestCase):
         self.assertEqual(d.controls['oracle.custom_appearance.chest_width'].value(), 15.5)
         self.assertEqual(d.controls['oracle.custom_appearance.chest_height'].value(), 6.)
         self.assertEqual(d.controls['oracle.custom_appearance.shoulder_width'].value(), 12.5)
+        self.assertEqual(d.controls['oracle.custom_appearance.leg_length'].value(), 19.)
         d.controls['oracle.body_appearance'].setValue('bell')
         d.save()
         self.assertIs(w.motion.scene, scene)

@@ -7,6 +7,7 @@ from ...shared.geometry import Vec2
 from ..behavior_config import DailyActivityConfig, ReadingConfig
 from ..drift_config import DriftConfig
 from ..effects.projection_placement import ProjectionArmObstacles
+from .reading_motion import ReadingMotion
 
 
 class Activity(str, Enum):
@@ -26,7 +27,6 @@ class Activity(str, Enum):
 
 class OracleBehavior:
     RECALL_RETRIES = 2  # 到位时机械臂仍遮挡则有限次换位，避免反复左右重选。
-    MAX_LOCAL_APPROACH = 200.
 
     def __init__(self, seed=620, *, daily_activity=DailyActivityConfig(), drift=DriftConfig(),
                  reading=ReadingConfig(), tick_rate=40):
@@ -34,16 +34,13 @@ class OracleBehavior:
         def ticks(minimum, maximum):
             return round(minimum*tick_rate), round(maximum*tick_rate)
         self.reading_config = reading
-        self.READING_INTERVAL_TICKS = ticks(reading.interval_min_seconds, reading.interval_max_seconds)
-        self.DRIFT_OBSERVE_TICKS = ticks(reading.drift_interval_min_seconds, reading.drift_interval_max_seconds)
-        self.DRIFT_OBSERVE_DELAY_TICKS = ticks(reading.drift_delay_min_seconds, reading.drift_delay_max_seconds)
+        self.READING_INTERVAL_TICKS = tuple(max(1, value) for value in ticks(reading.attempt_min_seconds, reading.attempt_max_seconds))
         self.NOTICE_TICKS = ticks(reading.notice_min_seconds, reading.notice_max_seconds)
         self.OBSERVE_TICKS = ticks(reading.observe_min_seconds, reading.observe_max_seconds)
         self.PLAYBACK_TICKS = ticks(reading.playback_min_seconds, reading.playback_max_seconds)
         self.MATRIX_OBSERVATION_SHARE = reading.matrix_probability
         self.OBSERVE_DISTANCE = reading.observe_distance
         self.RECALL_DISTANCE = reading.recall_distance
-        self.reading_wait = 0
         self.IDLE_TICKS = ticks(daily_activity.idle_min_seconds, daily_activity.idle_max_seconds)
         self.LONG_IDLE_TICKS = ticks(daily_activity.long_idle_min_seconds, daily_activity.long_idle_max_seconds)
         self.MEDITATE_TICKS = ticks(daily_activity.meditate_min_seconds, daily_activity.meditate_max_seconds)
@@ -69,14 +66,17 @@ class OracleBehavior:
         self.fixed_random = Random(seed+5)  # 固定珠选择不改变矩阵槽位的随机序列。
         self.playback_random = Random(seed+6)  # 播放分支不扰动选路、普通阅读时长或选珠。
         self.reading_timing_random = Random(seed+7)
+        self.reading_return_pending = False
+        self.schedule_reading()
         self.observation_pearl = None
+        self.reading_motion = ReadingMotion()
         self.matrix_observation = False
         self.recall_obstacles = ProjectionArmObstacles()
         self.recall_retries = 0
         self.last_matrix_slot = None
         self.last_fixed_index = None
         self.enabled = False
-        self.movement_enabled = True  # 自主选路许可，与行为循环/原地互动分开。
+        self.movement_enabled = True  # 日常游走许可；阅读局部位移由独立范围约束
         self.state = Activity.IDLE
         self.state_ticks = 0
         self.duration = self.random.randint(*self.IDLE_TICKS)
@@ -90,7 +90,6 @@ class OracleBehavior:
         self.drift_ticks = self.drift_duration = 0
         self.drift_recovering = False
         self.drift_next_move = 0
-        self.drift_next_observation = 0
         self.drift_next_cross_check = 0
         self.drift_edge = 0
         self.drift_join_checked = False
@@ -127,6 +126,7 @@ class OracleBehavior:
             self.drift_cooldown = self.DRIFT_COOLDOWN
 
     def cancel(self, scene, *, stop_body=True):
+        self.reading_motion.clear(reset_anchor=True)
         if not self.active:
             return
         self.enabled = False
@@ -156,6 +156,7 @@ class OracleBehavior:
         if enabled == self.movement_enabled:
             return
         self.movement_enabled = enabled
+        self.reading_motion.anchor = None
         if enabled or scene.drag.controlling:
             return
         moving = self.state in (Activity.ROAM, Activity.CROSS_EDGE, Activity.DRIFT,
@@ -164,12 +165,13 @@ class OracleBehavior:
         if moving or self.drift_active:
             self.end_drift(scene)
             scene._move_to(scene.body.chunks[0].position)
-        if self.state == Activity.NOTICE:
-            self.mode = 'recall'
-        elif self.state in (Activity.APPROACH, Activity.ORBIT):
-            # 保留已经选中的珠子与阅读意愿，改为珠子过来，而非中断后重抽。
-            self.mode = 'recall'
-            self.start_recall(scene)
+        if self.looking:
+            # 保留选珠与方式，当前阅读改在新的停驻范围内继续
+            self.reading_motion.begin(scene)
+            if self.state in (Activity.APPROACH, Activity.ORBIT):
+                self.enter(Activity.NOTICE)
+            elif self.state == Activity.RETURN:
+                self.reading_motion.return_body(scene)
         elif moving:
             self.resume_or_idle(scene)
 
@@ -177,12 +179,40 @@ class OracleBehavior:
         """离队珠子的归队由矩阵继续推进，不依赖当前行为仍在观察。"""
         if self.observation_pearl is not None:
             self.observation_pearl.return_home()
-            self.schedule_reading()
+            self.reading_return_pending = True
         self.observation_pearl = None
         self.matrix_observation = False
+        self.reading_motion.clear()
 
     def schedule_reading(self):
         self.reading_wait = self.reading_timing_random.randint(*self.READING_INTERVAL_TICKS)
+
+    def advance_reading(self, scene):
+        if self.looking:
+            return  # 阅读与送回不消耗下次等待
+        if self.reading_return_pending:
+            if scene.observation_pearls_settled:
+                self.reading_return_pending = False
+                self.schedule_reading()
+            return
+        if self.active:
+            self.reading_wait = max(0, self.reading_wait-1)
+
+    def can_attempt_reading(self, scene):
+        matrix = scene.pearl_matrix
+        return (self.reading_config.start_probability > 0 and not self.reading_return_pending
+                and (bool(scene.fixed_pearls.roots) or (matrix is not None and matrix.extracted is None)))
+
+    def attempt_reading(self, scene, *, stationary=False):
+        """只在安全接续点调用；三个入口共用一次抽签和一个等待，不积攒补触发"""
+        if (self.reading_wait > 0 or not self.can_attempt_reading(scene)
+                or scene.mouse_reaction.petting.active or scene.drag.controlling):
+            return False
+        if self.reading_timing_random.random() < self.reading_config.start_probability:
+            if self.notice(scene, stationary=stationary):
+                return True
+        self.schedule_reading()
+        return False
 
     def notice(self, scene, mode=None, *, matrix=False, slot=None, stationary=False):
         if mode not in (None, 'approach', 'recall', 'orbit'):
@@ -219,7 +249,6 @@ class OracleBehavior:
             pearl.move_to(pearl.position)
             self.observation_pearl = pearl
             self.matrix_observation = True
-            mode = 'recall'
         else:
             if manual:
                 index = min(range(len(fixed)), key=lambda i: (fixed[i].position-scene.body.chunks[0].position).length())
@@ -230,10 +259,11 @@ class OracleBehavior:
             self.observation_pearl = fixed[index]
         self.finish_drift_crossing(scene)
         reading = self.reading_config
-        self.mode = ('recall' if stationary or (not manual and not self.movement_enabled) else
+        self.mode = ('recall' if stationary else
                      mode or self.detail_random.choices(('approach', 'recall', 'orbit'),
                          (reading.approach_weight, reading.recall_weight, reading.orbit_weight))[0])
         self.orbit_sign = self.detail_random.choice((-1, 1))
+        self.reading_motion.begin(scene, stationary=stationary)
         self.drift_pause_ticks = 0
         scene._move_to(scene.body.chunks[0].position)
         scene.look_target = scene.observed_pearl.position
@@ -266,16 +296,13 @@ class OracleBehavior:
             return Activity.DRIFT if self.movement_enabled and self.drift_cooldown == 0 else Activity.IDLE
         value = (value-drift)/max(1e-9, 1-drift)
         daily = scene.config.daily_activity
-        ordinary = 1-(scene.config.reading.start_probability if self.reading_wait == 0 else 0.)
         total = daily.idle_weight+daily.move_weight+daily.meditate_weight
-        # 沿用一次抽样和原有区间顺序，默认值仍对应 12% / 28% / 35% / 25%
-        if value < ordinary*daily.meditate_weight/total:
+        # 阅读使用独立的尝试时钟；此处只选择日常行动
+        if value < daily.meditate_weight/total:
             return Activity.MEDITATE
-        if value < ordinary*(daily.meditate_weight+daily.idle_weight)/total:
+        if value < (daily.meditate_weight+daily.idle_weight)/total:
             return Activity.IDLE
-        if value < ordinary:
-            return Activity.ROAM if self.movement_enabled else Activity.IDLE
-        return Activity.NOTICE
+        return Activity.ROAM if self.movement_enabled else Activity.IDLE
 
     def matrix_clear(self, scene, point, *, radius=None):
         """筛选目的地；交互可传入独立间距，常规自主移动使用配置值"""
@@ -390,7 +417,6 @@ class OracleBehavior:
         ticks = scene.config.antigravity_duration_seconds*scene.TICK_RATE
         variation = self.drift_config.duration_variation
         self.drift_duration = self.random.randint(round(ticks*(1-variation)), round(ticks*(1+variation)))
-        self.drift_next_observation = self.random.randint(*self.DRIFT_OBSERVE_DELAY_TICKS)
         self.enter(Activity.DRIFT)
 
     def start_drift_crossing(self, scene, target_edge=None):
@@ -490,8 +516,8 @@ class OracleBehavior:
         if remaining > max(32., navigator.speed**2/.09+navigator.speed*16):
             return
         self.drift_join_checked = True
-        reading_due = max(self.drift_next_observation, self.drift_ticks+self.reading_wait)
-        deadline = min(reading_due, self.drift_duration) if self.reading_config.drift_probability > 0 else self.drift_duration
+        reading_due = self.drift_ticks+self.reading_wait
+        deadline = min(reading_due, self.drift_duration) if self.can_attempt_reading(scene) else self.drift_duration
         if deadline-self.drift_ticks < remaining/max(.3, navigator.speed)+160:
             self.drift_next_move = deadline  # 到点后等待观察/结束，不再发起短途。
             return
@@ -527,12 +553,7 @@ class OracleBehavior:
         # 旋转期间质点仍有小幅运动，不能用完全静止作为下一段的前提。
         route_done = scene.navigator is None or scene.navigator.done
         near = (scene.body.chunks[0].position-scene.target).length() < 2.
-        if (self.reading_config.drift_probability > 0 and route_done and near
-                and self.drift_ticks >= self.drift_next_observation):
-            if self.reading_wait == 0 and self.reading_timing_random.random() < self.reading_config.drift_probability:
-                self.notice(scene)  # 观察活动可以改变，失重模式及总计时保持
-            else:
-                self.drift_next_observation = self.drift_ticks+self.random.randint(*self.DRIFT_OBSERVE_TICKS)
+        if route_done and near and self.attempt_reading(scene):
             return
         if route_done and near and self.drift_ticks >= self.drift_next_move:
             if self.drift_pause_ticks:
@@ -547,42 +568,15 @@ class OracleBehavior:
             self.drift_next_move = self.drift_ticks+(0 if point is not None else self.timing_random.randint(40, 160))
 
     def approach_point(self, scene):
-        pearl, body = scene.observed_pearl.position, scene.body.chunks[0].position
-        region = scene.navigator.region if scene.navigator else scene.body_region
-        local = (region.edge_boxes[self.drift_edge] if self.drift_active else
-                 region.edge_boxes[self.current_edge(scene)] if self.enabled or self.mode == 'orbit' else None)
-        candidates = []
-        for i in range(16):
-            angle = i*pi/8
-            p = scene.project_target(pearl+Vec2(cos(angle), sin(angle))*self.OBSERVE_DISTANCE)
-            # 自主观察不能绕过低概率跨边规则；珠子较远时改为召近。
-            if local and (not local.contains(p) or (p-body).length() > self.MAX_LOCAL_APPROACH):
-                continue
-            separation = (p-pearl).length()
-            if (max(32., self.OBSERVE_DISTANCE-18) <= separation <= self.OBSERVE_DISTANCE+15 and scene.arm_region.segment_safe(p, pearl)
-                    and self.matrix_clear(scene, p)):
-                # 倾向当前位置附近，给头部留出独立观察距离，不反复绕珠改道。
-                score = (p-body).length()+abs(separation-self.OBSERVE_DISTANCE)*3
-                candidates.append((score, p))
-        if self.mode == 'orbit' and scene.navigator:
-            # 在几个就近观察点中优先选能留出弧线空间的一个；只在入场时规划。
-            available = []
-            for score, point in sorted(candidates, key=lambda item: item[0])[:5]:
-                route = scene.navigator.planner.local_arc(point, pearl, local, self.orbit_sign)
-                if route is not None and self.matrix_clear(scene, route.curves[-1].d):
-                    available.append((score-min(70., route.length)*.6, point))
-            if available:
-                return min(available, key=lambda item: item[0])[1]
-        return min(candidates, key=lambda item: item[0])[1] if candidates else None
+        if not self.reading_motion.prepared:
+            self.reading_motion.prepare(scene)
+        return self.reading_motion.approach
 
     def start_orbit(self, scene):
         if not scene.navigator:
             return False  # 固定底座调试保留原地观察，不用直线冒充圆弧。
-        edge = self.drift_edge if self.drift_active else self.current_edge(scene)
-        box = scene.navigator.region.edge_boxes[edge]
-        route = scene.navigator.planner.local_arc(scene.body.chunks[0].position,
-                                                  scene.observed_pearl.position, box, self.orbit_sign)
-        if route is None or not self.matrix_clear(scene, route.curves[-1].d):
+        route = self.reading_motion.arc(scene, scene.body.chunks[0].position, scene.observed_pearl.position)
+        if route is None:
             return False
         scene._move_to(route.curves[-1].d, route=route, speed=self.travel_speed(scene, Activity.ORBIT))
         self.enter(Activity.ORBIT, self.movement_budget(scene))
@@ -590,14 +584,18 @@ class OracleBehavior:
 
     def resume_or_idle(self, scene):
         if self.observation_pearl is not None:
-            self.schedule_reading()
+            if scene.observation_pearls_settled:
+                self.reading_return_pending = False
+                self.schedule_reading()
+            else:
+                self.reading_return_pending = True
         self.observation_pearl = None
         self.matrix_observation = False
+        self.reading_motion.clear()
         scene.look_target = None
         if self.drift_active:
             self.drift_pause_ticks = 0
             self.drift_next_move = self.drift_ticks+self.timing_random.randint(*self.DRIFT_RESUME_TICKS)
-            self.drift_next_observation = self.drift_ticks+self.random.randint(*self.DRIFT_OBSERVE_TICKS)
             self.enter(Activity.DRIFT)
         else:
             self.enter(Activity.IDLE, self.random.randint(*self.IDLE_TICKS))
@@ -674,6 +672,7 @@ class OracleBehavior:
 
     def return_pearl(self, scene):
         scene.observed_pearl.return_home()
+        self.reading_motion.return_body(scene)
         self.enter(Activity.RETURN)
         scene.eyes.end_observation()
 
@@ -685,7 +684,7 @@ class OracleBehavior:
         return int(max(length, pearl_length)/min(.2, scene.config.float_speed*.5))+400
 
     def step(self, scene):
-        self.reading_wait = max(0, self.reading_wait-1)
+        self.advance_reading(scene)
         self.cross_cooldown = max(0, self.cross_cooldown-1)
         self.drift_cooldown = max(0, self.drift_cooldown-1)
         if self.drift_active:
@@ -708,9 +707,7 @@ class OracleBehavior:
                 return
             if avoidance.busy:
                 # 稳定侧倾可以休息或召珠阅读，不被迫永久冻结整个行为循环
-                if self.reading_wait == 0 and self.random.random() < self.reading_config.avoidance_probability:
-                    self.notice(scene, stationary=True)
-                else:
+                if not self.attempt_reading(scene, stationary=True):
                     self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
                 return
             # 矩阵迁移或手动拖动可能留下重合；下次常规决策时尝试同边让开。
@@ -719,10 +716,10 @@ class OracleBehavior:
                 if not self.start_roam(scene):
                     self.enter(Activity.IDLE, self.random.randint(*self.LONG_IDLE_TICKS))
                 return
+            if self.attempt_reading(scene):
+                return
             activity = self.choose_activity(scene)
-            if activity == Activity.NOTICE:
-                self.notice(scene)
-            elif activity == Activity.MEDITATE:
+            if activity == Activity.MEDITATE:
                 self.start_meditation(scene, stationary=not self.movement_enabled)
             elif activity == Activity.DRIFT:
                 self.start_drift(scene)
@@ -746,10 +743,13 @@ class OracleBehavior:
               and (self.mode == 'recall' or scene.observed_pearl.settled)):
             point = self.approach_point(scene) if self.mode in ('approach', 'orbit') else None
             if point is not None:
+                if not scene.observed_pearl.settled:
+                    return  # 只将选中珠移到阅读位置，再让人偶靠近，避免相互追逐
                 if self.drift_active:
                     self.drift_move_to(scene, point, observing=True)
                 else:
-                    scene._move_to(point, speed=self.travel_speed(scene, Activity.APPROACH))
+                    scene._move_to(point, route=self.reading_motion.route_to(scene, point),
+                                   speed=self.travel_speed(scene, Activity.APPROACH))
                 self.enter(Activity.APPROACH, self.movement_budget(scene))
             else:
                 self.mode = 'recall'
@@ -781,6 +781,7 @@ class OracleBehavior:
         elif self.state == Activity.OBSERVE and self.state_ticks >= self.duration:
             self.return_pearl(scene)
         elif (self.state == Activity.RETURN and scene.observation_returned and self.state_ticks >= 24
+              and self.reading_motion.returned(scene)
               and scene.arrived and (self.drift_active or scene.pose.settled)):
             self.completed_cycles += 1
             self.resume_or_idle(scene)

@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from math import atan2, cos, pi, sin, sqrt
 
 from ...shared.geometry import Vec2
-from ..config import ROBE_LENGTH_ANCHOR
+from ..config import ROBE_LENGTH_ANCHOR, LEG_LENGTH_DEFAULT
 from ..motion.cape import CapeMotion, motion_shape
-from ..motion.prince_robe import PrinceRobe, upper_cloth_point, UPPER_SLACK
+from ..motion.legs import LegMotion
+from ..motion.prince_robe import PrinceRobe, upper_cloth_point
 from .cords import OracleCords
+from .legs import LegShape
 from .upper_body import BELL_UPPER_BODY, upper_body_shape
 
 
@@ -220,9 +222,14 @@ class OracleAppearance:
         shape = upper_body_shape(scene.config.active_custom_appearance)
         for hand in self.hands:
             hand.shoulder_half = shape.shoulder_width/2
-        self.feet = [SoftPoint.at(p) for p in self.foot_goals()]
-        n = self.CLOTH_DIVS
         shape = scene.config.active_custom_appearance
+        self.legs = LegShape(shape.leg_length if shape else LEG_LENGTH_DEFAULT)
+        self.feet = [SoftPoint.at(p) for p in self.foot_goals()]
+        self.knees = [SoftPoint.at(self.legs.rest_knee(self.lower, self.direction, sign)) for sign in (-1, 1)]
+        self.leg_motion = [LegMotion(knee, foot, self.legs.root(self.lower, self.direction, sign),
+                                    knee.position, foot.position)
+                           for sign, knee, foot in zip((-1, 1), self.knees, self.feet)]
+        n = self.CLOTH_DIVS
         goals = self.configure_cloth(shape.robe_length if shape else 1., shape)
         # 从接近垂坠平衡的形态创建，避免重置时整片衣袍突然落下。
         # 这只是初始位置，运行时没有指向该姿态的恢复弹簧。
@@ -244,7 +251,7 @@ class OracleAppearance:
         for p in self.necklace:
             p.previous_position = p.position
             p.velocity = Vec2()
-        self.body_points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace]
+        self.body_points = [self.head, *self.hands, *self.knees, *self.feet, *self.cloth, *self.necklace]
         self.cords = None
         self.main_cord, self.small_cords = [], []
         self._points = self.body_points
@@ -312,7 +319,7 @@ class OracleAppearance:
         self.revision += 1
 
     def refresh_points(self):
-        self.body_points = [self.head, *self.hands, *self.feet, *self.cloth, *self.necklace]
+        self.body_points = [self.head, *self.hands, *self.knees, *self.feet, *self.cloth, *self.necklace]
         if self.prince_posture is not None:
             self.body_points.extend(self.prince_posture.points)
         if self.prince_robe is not None:
@@ -335,8 +342,14 @@ class OracleAppearance:
 
     def foot_goals(self):
         direction = self.waist_direction(self.direction)
-        side = perpendicular(direction)
-        return [self.lower + side*(sign*4.) - direction*8.5 for sign in (-1, 1)]
+        return [self.legs.goal(self.lower, direction, sign) for sign in (-1, 1)]
+
+    def step_feet(self):
+        direction = self.waist_direction(self.direction)
+        for sign, motion in zip((-1, 1), self.leg_motion):
+            motion.step(self.legs.root(self.lower, direction, sign),
+                        self.legs.rest_knee(self.lower, direction, sign),
+                        self.legs.goal(self.lower, direction, sign), self.gravity_scale)
 
     def waist_direction(self, direction, alpha=1.):
         angle = self.previous_waist_angle+(self.waist_angle-self.previous_waist_angle)*alpha
@@ -374,7 +387,7 @@ class OracleAppearance:
         prince = self.prince_posture is not None
         if prince:
             self._cloth_shape = ('prince',)
-        self.CLOTH_SLACK = UPPER_SLACK if prince else type(self).CLOTH_SLACK
+        self.CLOTH_SLACK = 0. if prince else type(self).CLOTH_SLACK
         n = self.CLOTH_DIVS
         self._cloth_local = []
         for y in range(n):
@@ -432,6 +445,18 @@ class OracleAppearance:
             self._quiet_ticks = 0
             self.revision += 1
         shape = scene.config.active_custom_appearance
+        leg_length = shape.leg_length if shape else LEG_LENGTH_DEFAULT
+        if leg_length != self.legs.length:
+            self.legs = legs = LegShape(leg_length)
+            direction = self.waist_direction(self.direction)
+            for sign, motion in zip((-1, 1), self.leg_motion):
+                # 改长短时重建两段长度，暂停时的显示和命中也立即同步
+                motion.reset(legs.root(self.lower, direction, sign),
+                             legs.rest_knee(self.lower, direction, sign),
+                             legs.goal(self.lower, direction, sign))
+            self.sleeping = False
+            self._quiet_ticks = 0
+            self.revision += 1
         body = upper_body_shape(shape)
         half = body.shoulder_width/2
         if any(hand.shoulder_half != half for hand in self.hands):
@@ -520,6 +545,13 @@ class OracleAppearance:
 
     def step_cloth(self):
         goals = self.cloth_goals()
+        if self.prince_posture is not None:
+            # 躯干惯性已由多段身体轴求解，不再叠加第二套布点回摆制造局部折痕
+            for p, goal in zip(self.cloth, goals):
+                p.previous_position, p.position = p.position, goal
+                p.velocity = p.position-p.previous_position
+                p.drive_velocity = Vec2()
+            return
         n = self.CLOTH_DIVS
         direction, side = self.direction, perpendicular(self.direction)
         x, y, vx, vy = self._cloth_buffers
@@ -608,10 +640,7 @@ class OracleAppearance:
         if self.prince_robe is not None:
             self.prince_robe.step(self)
         self.step_waist()
-        for p, goal in zip(self.feet, self.foot_goals()):
-            p.follow(goal, spring=.075, damping=.80, slack=5.)
-            p.position = self.lower + clamp_length(p.position-self.lower, 10)
-            p.velocity = p.position-p.previous_position
+        self.step_feet()
         self.step_necklace()
         if self.cords is not None:
             self.cords.step(scene, self.head.position, self.upper, self.direction, scene.look_direction)
@@ -639,7 +668,7 @@ class OracleAppearance:
 
     @property
     def maximum_speed(self):
-        # 腰部尚在缓动时不能提前休眠；17.5 为胸部到脚目标的轴向距离。
-        return max(abs(self.waist_velocity)*17.5, max(p.velocity.length() for p in self.points),
+        # 腰部和膝脚仍在缓动时不能提前休眠，长腿使用对应的摆动半径
+        return max(abs(self.waist_velocity)*(9+self.legs.reach), max(p.velocity.length() for p in self.points),
                    self.prince_posture.maximum_speed if self.prince_posture is not None else 0.,
                    self.cape_motion.maximum_speed if self.cape_motion is not None else 0.)

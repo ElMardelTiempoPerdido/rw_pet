@@ -1,12 +1,13 @@
 """桌面启动与设置共用的资源准备；QImage 可在线程中加载，不创建 QWidget。"""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..shared.atlas import Atlas, AtlasError, extract_atlas
 from .pearls.glyphs import load_pearl_glyphs
 from .graphics.render import OracleRenderer
-from .audio.assets import prepare_voice
+from .audio.assets import prepare_voice, prepare_existing_bell_voice, forget_prepared_bell_voice
 from .audio.voice import VOICE_CLIPS, VOICE_RESOURCES
+from .audio.custom import PREFIX, custom_voice_name, custom_voice, scan_custom_voices, CustomVoice
 from .audio.mod_assets import prepare_sig_voice
 from .pearls.playback_assets import prepare_pearl_playback
 from .effects.projection_assets import prepare_projection
@@ -25,8 +26,21 @@ class OracleAssets:
     voice_error: str
     resources: ResourceReport = field(default_factory=ResourceReport)
     source_key: tuple | None = None
+    custom_voices: dict = field(default_factory=dict)
+
+    def with_custom_voices(self, packs, selected='none'):
+        packs = dict(packs)
+        if (name := custom_voice_name(selected)) is not None:
+            packs.setdefault(selected, CustomVoice(name))
+        paths = {key: path for key, path in self.voice_paths.items() if not key.startswith(PREFIX)}
+        for key, pack in packs.items():
+            paths.update(pack.paths)
+        return replace(self, voice_paths=paths, custom_voices=packs)
 
     def reusable(self, config):
+        if custom_voice_name(config.oracle.voice) is not None:
+            return ((self.source_key is None or self.source_key == resource_key(config))
+                    and self.custom_voices.get(config.oracle.voice) == custom_voice(config.oracle.voice))
         # 未携带快照的几何预览仍兼容；真实资源必须匹配安装位置与语音来源
         if self.source_key is None:
             return True
@@ -62,12 +76,17 @@ def prepare_oracle_assets(config, *, check_all_voices=False):
     # 独立 WAV 检测开销很小，启动即提供 Sig 选项状态，无需先选中缺失的模组
     voice_results = {'sig': prepare_sig_voice(config.game_dir)}
     if check_all_voices:
+        forget_prepared_bell_voice(config.game_dir)
         from dataclasses import replace
         from .audio.chat_assets import prepare_chat_voices
         voice_results.update(prepare_chat_voices(config.game_dir))
         voice_config = replace(config, oracle=replace(config.oracle, voice='bell'))
     else:
         voice_config = config
+        if config.oracle.voice != 'bell':
+            existing_bell = prepare_existing_bell_voice(config)
+            if existing_bell is not None:
+                voice_results['bell'] = existing_bell
     if voice_config.oracle.voice != 'none' and voice_config.oracle.voice not in voice_results:
         try:
             prepared = prepare_voice(voice_config)
@@ -75,7 +94,8 @@ def prepare_oracle_assets(config, *, check_all_voices=False):
             prepared = {}, str(exc)
         voice_results[voice_config.oracle.voice] = prepared
     for voice, (voice_paths, voice_error) in voice_results.items():
-        report.record(VOICE_RESOURCES[voice], error=voice_error, available=bool(voice_paths))
+        if voice in VOICE_RESOURCES:
+            report.record(VOICE_RESOURCES[voice], error=voice_error, available=bool(voice_paths))
         if not voice_error:
             paths.update(voice_paths)
         if voice == config.oracle.voice:
@@ -94,4 +114,5 @@ def prepare_oracle_assets(config, *, check_all_voices=False):
             setattr(renderer, attribute, () if key == 'scan_images' else None)
             messages.append(str(optional_error))
         report.record(key, error=optional_error, available=bool(getattr(renderer, attribute)))
-    return OracleAssets(renderer, ' / '.join(messages), paths, error, report, resource_key(config))
+    result = OracleAssets(renderer, ' / '.join(messages), paths, error, report, resource_key(config))
+    return result.with_custom_voices(scan_custom_voices(), config.oracle.voice)

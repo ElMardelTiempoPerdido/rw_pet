@@ -16,7 +16,7 @@ class DriftTimingTests(unittest.TestCase):
         if not real:
             scene.appearance.step = lambda scene: None
         scene.drift()
-        scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+        scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
         for _ in range(130):
             scene.step()
         return scene
@@ -114,9 +114,10 @@ class DriftTimingTests(unittest.TestCase):
             if expire:
                 behavior.drift_duration = behavior.drift_ticks+10
             else:
-                behavior.drift_next_observation = behavior.drift_ticks+10
-            for _ in range(11):
-                scene.step()
+                behavior.reading_wait = 10
+            with patch.object(behavior.reading_timing_random, 'random', return_value=0.):
+                for _ in range(11):
+                    scene.step()
             if expire:
                 self.assertTrue(behavior.drift_recovering)
                 self.assertLess(scene.pose.weightlessness, 1.)

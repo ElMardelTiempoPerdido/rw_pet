@@ -80,7 +80,7 @@ class BehaviorRangeTests(unittest.TestCase):
         d = self.d
         page = d.pages['behavior']
         fields = page.findChildren(NumberRange)
-        self.assertEqual(len(fields), 39)
+        self.assertEqual(len(fields), 33)
         for group in d.behavior_styles.groups.values():
             self.assertTrue(group.content.autoFillBackground())
             self.assertEqual(group.content.palette().color(QPalette.ColorRole.Window), QColor('#d5d5d5'))

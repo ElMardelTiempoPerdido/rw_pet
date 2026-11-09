@@ -23,6 +23,18 @@ python run_pet.py --creature lizard
 python run_pet.py --creature oracle
 ```
 
+导出发布配图（在安装了项目依赖的 Python 3.11+ 环境中运行）：
+
+```powershell
+python tools/oracle/export_preset_previews.py
+```
+
+脚本读取 `presets/profiles` 中所有角色当前保存的配置，以 **1× 原始像素、正面平视、透明背景** 横向绘制在同一张 PNG 上；普通角色按衣袍底部最低处对齐，腿部和柔性部件允许向下伸出，Prince 保持按完整角色底部对齐。珍珠行自动下移至所有部件下方，三颗珍珠从左到右依次为 **彩珍珠辅色、彩珍珠主色、普通珍珠色**。保留角色默认眼形与开闭状态、服装和附件，隐藏机械臂、支架、线缆、光环与外发光，不绘制名称。
+
+输出目录为 `artifacts/preset-previews`，文件名形如 `presets_front_1x_20261109_150533_266764.png`，每次新建文件，不覆盖旧图。不修改角色、历史或本机设置；同 ID 的重复版本按角色库规则选择最新有效版本，损坏配置会报错。
+
+可用 `--profiles-dir`、`--output-dir`、`--game-dir` 指定角色库、输出目录和游戏目录；默认路径以工程目录为基准，游戏目录读取工程的 `config.toml`。脚本离屏运行，无需启动桌宠。
+
 ---
 
 修改设置面板中的文本后，需要重新编译以生效：

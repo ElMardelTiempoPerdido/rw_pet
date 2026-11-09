@@ -15,6 +15,8 @@ from ..oracle.behavior_config import DailyActivityConfig, ReadingConfig
 from ..oracle.drift_config import DriftConfig
 from ..oracle.drag_reaction_config import DragReactionConfig
 from ..oracle.mouse_avoidance_config import MouseAvoidanceConfig
+from ..oracle.internal_behavior import INTERNAL_BEHAVIOR_PATHS
+from ..oracle.reading_migration import migrate_reading_values
 from ..oracle.style_config import DIMENSIONS, StyleSelection
 from ..shared.paths import PACKAGE_ROOT
 from .common import get_value, replace_fields, set_value
@@ -42,6 +44,9 @@ DIMENSION_PATHS = {
     'pearl_interaction': (*(f'oracle.reading.{name}' for name in _PEARL_READING),
                           'oracle.pearl_matrix_avoid_radius', 'oracle.pearl_follow_width', 'oracle.pearl_follow_height'),
 }
+# 保留旧文件的读取兼容性，但风格不再负责内部实现参数
+DIMENSION_PATHS = {dimension: tuple(path for path in paths if path not in INTERNAL_BEHAVIOR_PATHS)
+                   for dimension, paths in DIMENSION_PATHS.items()}
 PATH_DIMENSIONS = {path: dimension for dimension, paths in DIMENSION_PATHS.items() for path in paths}
 SELECTION_PREFIX = 'oracle.behavior_styles.'
 SELECTION_PATHS = tuple(SELECTION_PREFIX+dimension+'.'+name for dimension in DIMENSIONS for name in ('id', 'version'))
@@ -93,7 +98,9 @@ def _validate(data):
     for name in ('name_zh', 'name_en', 'description_zh', 'description_en'):
         if not isinstance(data[name], str) or not data[name].strip() or len(data[name]) > 1000:
             raise ValueError('Invalid style text: '+name)
-    values = data['values']
+    values = migrate_reading_values(data['values'])
+    if isinstance(values, dict):
+        values = {path: value for path, value in values.items() if path not in INTERNAL_BEHAVIOR_PATHS}
     # 旧关注风格仅补齐新增摸摸字段，原有字段缺失或未知字段仍按错误处理
     legacy = {'interaction.hover_radius', 'interaction.hover_dwell_seconds',
               'interaction.hover_probability', 'interaction.hover_open_probability'}
@@ -165,7 +172,7 @@ class BehaviorStyleLibrary:
                         if not isinstance(row.get('values', {}), dict):
                             raise ValueError('Invalid style values')
                         merged = {**{f.name: getattr(base, f.name) for f in fields(base)}, **row,
-                                  'values': {**base.values, **row.get('values', {})}}
+                                  'values': {**base.values, **migrate_reading_values(row.get('values', {}))}}
                     entries[identifier] = _validate(merged)
                 except (TypeError, ValueError, OverflowError) as exc:
                     errors.append(f'{filename} / {row.get("id", "?") if isinstance(row, dict) else "?"}: {exc}')

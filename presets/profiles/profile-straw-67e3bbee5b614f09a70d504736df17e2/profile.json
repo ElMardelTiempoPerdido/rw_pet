@@ -3,7 +3,7 @@
   "version": 2,
   "id": "72e93f37-aaba-470e-85cf-4f5be68d8ce6",
   "name": "straw",
-  "updated_at": "2026-11-02T10:47:45.570991+00:00",
+  "updated_at": "2026-11-09T08:05:27.751430+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -68,7 +68,7 @@
       },
       "drag_expressions": {
         "chevron_down": {
-          "enabled": true,
+          "enabled": false,
           "large_only": false,
           "weight": 1
         },
@@ -131,8 +131,8 @@
         "projection_interval_max_seconds": 3.0,
         "projection_interval_min_seconds": 1.5,
         "projection_lift_delay_seconds": 0.5,
-        "projection_move_max_seconds": 2.4,
-        "projection_move_min_seconds": 1.2,
+        "projection_move_max_seconds": 1.6,
+        "projection_move_min_seconds": 0.65,
         "voice_delay_max_seconds": 3.0,
         "voice_delay_min_seconds": 1.0,
         "voice_interval_max_seconds": 12.0,
@@ -199,26 +199,20 @@
       "pearl_fixed_count": 1,
       "pearl_follow_height": 280.0,
       "pearl_follow_width": 360.0,
-      "pearl_inner_count": 1,
+      "pearl_inner_count": 0,
       "pearl_matrix_avoid_radius": 80.0,
-      "pearl_matrix_count": 5,
+      "pearl_matrix_count": 4,
       "pearl_matrix_enabled": true,
       "pearl_orbits_enabled": true,
-      "pearl_outer_count": 2,
+      "pearl_outer_count": 0,
       "pearl_playback_probability": 0.25,
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
         "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
@@ -235,9 +229,9 @@
       "voice": "none"
     }
   },
-  "state": "history/state-4e12aed6691f4138baaa21b8f1566af9.json",
+  "state": "history/state-d1ba5231285040dbaf5b02fbc087ef00.json",
   "appearance": {
     "id": "6312b790-3c6e-423c-a91b-7621a6d99f51",
-    "path": "appearance/4e12aed6691f4138baaa21b8f1566af9/appearance.json"
+    "path": "appearance/d1ba5231285040dbaf5b02fbc087ef00/appearance.json"
   }
 }

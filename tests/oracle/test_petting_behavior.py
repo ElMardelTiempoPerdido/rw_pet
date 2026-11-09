@@ -50,9 +50,9 @@ class PettingBehaviorTests(unittest.TestCase):
                 behavior = scene.behavior
                 self.stroke(scene, 13)
                 self.assertTrue(scene.mouse_reaction.petting.active)
-                behavior.duration = 0
+                behavior.duration = behavior.reading_wait = 0
                 before = self.random_states(behavior), behavior.state_ticks, scene.target
-                with patch.object(behavior, 'choose_activity', return_value=Activity.NOTICE) as choose, \
+                with patch.object(behavior, 'choose_activity') as choose, \
                         patch.object(behavior, 'start_roam') as roam, \
                         patch.object(behavior, 'matrix_clear', return_value=False):
                     self.stroke(scene, 80)
@@ -65,7 +65,7 @@ class PettingBehaviorTests(unittest.TestCase):
                 self.assertEqual(before, (self.random_states(behavior), behavior.state_ticks, scene.target))
                 self.assertTrue(behavior.enabled)
                 self.assertEqual(behavior.movement_enabled, movement)
-                with patch.object(behavior, 'choose_activity', return_value=Activity.NOTICE) as choose:
+                with patch.object(behavior.reading_timing_random, 'random', return_value=0.) as choose:
                     for _ in range(6):
                         scene.step()
                     self.assertFalse(scene.mouse_reaction.petting.active)
@@ -96,11 +96,11 @@ class PettingBehaviorTests(unittest.TestCase):
         scene = self.scene(cross_edge_probability=1.)
         scene.drift()
         behavior = scene.behavior
-        behavior.drift_next_move = behavior.drift_next_observation = 100000
+        behavior.drift_next_move = behavior.reading_wait = 100000
         behavior.drift_move_to(scene, scene.body.chunks[0].position+Vec2(90, 0))
         self.stroke(scene, 13)
         self.assertTrue(scene.mouse_reaction.petting.active)
-        behavior.drift_next_move = behavior.drift_next_observation = behavior.drift_next_cross_check = 0
+        behavior.drift_next_move = behavior.reading_wait = behavior.drift_next_cross_check = 0
         behavior.cross_cooldown = 0
         behavior.drift_bout_until = behavior.drift_duration
         target, route, tick = scene.target, scene.navigator.route, behavior.drift_ticks
@@ -135,7 +135,7 @@ class PettingBehaviorTests(unittest.TestCase):
         self.until(scene, lambda: behavior.state == Activity.DRIFT)
         self.assertEqual(behavior.drift_edge, 1)
         target = scene.target
-        behavior.drift_next_move = behavior.drift_next_observation = 0
+        behavior.drift_next_move = behavior.reading_wait = 0
         self.stroke(scene, 80)
         self.assertEqual(behavior.state, Activity.DRIFT)
         self.assertEqual(scene.target, target)
@@ -170,7 +170,7 @@ class PettingBehaviorTests(unittest.TestCase):
                         if matrix:
                             self.assertIsNone(scene.pearl_matrix.extracted)
                         behavior.duration = 0
-                        behavior.drift_next_move = behavior.drift_next_observation = 0
+                        behavior.drift_next_move = behavior.reading_wait = 0
                         self.stroke(scene, 80)
                         notice.assert_not_called()
                         self.assertEqual(behavior.completed_cycles, 1)

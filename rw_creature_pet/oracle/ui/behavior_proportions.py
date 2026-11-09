@@ -44,7 +44,7 @@ class BehaviorProportions(ProportionEditor):
             source.valueChanged.connect(self.refresh)
             self.sources.append(source)
         self.setToolTip(tooltip)
-        self.slider.setToolTip('拖动分界线调整相邻选项，合计始终为 100%')
+        # self.slider.setToolTip('拖动分界线调整相邻选项，合计始终为 100%')
         self.edited.connect(self.commit)
         for widget in (self.slider, *self.inputs, *(control.lineEdit() for control in self.inputs)):
             widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

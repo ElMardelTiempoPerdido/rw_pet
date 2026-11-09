@@ -165,7 +165,7 @@ class OracleDrag:
                 c.position = c.position+c.velocity
             if prince is not None:
                 # 导航骨架保持同一参考系，避免换算方向和支点方向分离后抓取点滑离鼠标
-                # Prince 的实际五段身体仍由独立的柔性物理跟随，不固定其节点姿态
+                # Prince 的实际多段身体仍由独立的柔性物理跟随，不固定其节点姿态
                 direction = self.prince_reference_direction
                 angle = atan2(direction.x, -direction.y)
             else:

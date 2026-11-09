@@ -6,6 +6,7 @@ import tomllib
 
 from .lizard.config import DebugConfig
 from .oracle.config import DISPLAY_SCALES, OracleConfig
+from .oracle.internal_behavior import internal_behavior_defaults
 from .overseer.config import OverseerConfig
 from .shared.paths import DEFAULT_GAME_DIR
 from .interaction.config import AudioConfig, InteractionConfig
@@ -37,6 +38,10 @@ class AppConfig:
     desktop: DesktopConfig = DesktopConfig()
     overseer: OverseerConfig = OverseerConfig()
     ui: UiConfig = field(default_factory=UiConfig)
+
+    def __post_init__(self):
+        # 载入旧设置、切换角色、导入和选择风格都经过此边界，隐藏项不能保留角色差异
+        object.__setattr__(self, 'oracle', internal_behavior_defaults(self.oracle))
 
     @classmethod
     def load(cls, path: Path | None = None) -> "AppConfig":

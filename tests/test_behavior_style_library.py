@@ -32,8 +32,8 @@ class BehaviorStyleLibraryTests(unittest.TestCase):
         self.assertFalse(self.library.errors)
         self.assertEqual(len(self.library.styles), 21)
         paths = [p for group in DIMENSION_PATHS.values() for p in group]
-        self.assertEqual(len(paths), 140)
-        self.assertEqual(len(set(paths)), 140)
+        self.assertEqual(len(paths), 121)
+        self.assertEqual(len(set(paths)), 121)
         self.assertTrue(set(paths+list(SELECTION_PATHS)) <= set(paths_for(FieldScope.PROFILE)))
         config = AppConfig()
         for combination in product(*(self.library.for_dimension(d) for d in DIMENSIONS)):

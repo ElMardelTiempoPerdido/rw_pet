@@ -1,6 +1,7 @@
 """Bell 语音的共用准备算法；初始化和离线工具使用同一份实现。"""
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 import shutil
 import wave
@@ -8,8 +9,18 @@ import wave
 from .voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
 
 # 修改处理算法或抵消参数时递增，避免沿用旧缓存。
-PROCESSING_VERSION = 2
+PROCESSING_VERSION = 3
+BELL_VOICE_GAIN = .2
 SPLIT_FADE_SECONDS = .005
+
+
+def apply_pcm_gain(frames, gain):
+    """对已量化的 16 位 PCM 统一衰减，保留 v2 切口处理的舍入结果"""
+    import numpy as np
+    if not math.isfinite(gain) or not 0 < gain <= 1:
+        raise ValueError('Bell voice gain must be in (0, 1]')
+    samples = np.frombuffer(frames, dtype='<i2').astype(np.float64)
+    return np.rint(samples*gain).astype('<i2').tobytes()
 
 
 def cut_clips(source, output):
@@ -116,6 +127,7 @@ def prepare_clips(source, output):
                 if fade_out:
                     samples[-n:] *= ramp[::-1]
             frames = np.rint(samples).astype('<i2').tobytes()
+        frames = apply_pcm_gain(frames, BELL_VOICE_GAIN)
         with wave.open(str(output/clip.filename), 'wb') as audio:
             audio.setparams(part_params)
             audio.writeframes(frames)
@@ -125,9 +137,10 @@ def prepare_clips(source, output):
             source_clip_id=clip.source_id,
             source_offset_seconds=round(clip.start-original.start, 6),
             edge_fade_seconds=dict(start=fade_in, end=fade_out)))
-    manifest.update(clips=entries,
+    manifest.update(clips=entries, processing_version=PROCESSING_VERSION,
+        linear_gain=BELL_VOICE_GAIN, gain_db=20*math.log10(BELL_VOICE_GAIN),
         note='先保留五段已试听的声道处理，再按确认停顿切成十段。raw/ 为原始裁剪，'
-             'source-clips/ 为处理后的五段；外层 WAV 用于播放，仅新增切口淡入淡出 5 ms。',
+             'source-clips/ 为处理后的五段；外层 WAV 在 5 ms 切口淡入淡出后统一应用 linear_gain。',
         host_right_to_left=host, bell_right_to_left=bell,
         host_reference_seconds=[9., 13.8], bell_reference_seconds=[6.2, 8.1])
     (output/'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

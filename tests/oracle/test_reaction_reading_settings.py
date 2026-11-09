@@ -11,6 +11,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 from rw_creature_pet.config import AppConfig
+from rw_creature_pet.oracle.internal_behavior import INTERNAL_BEHAVIOR_PATHS
 from rw_creature_pet.oracle.behavior_config import ReadingConfig
 from rw_creature_pet.oracle.config import DragReactionConfig
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog, PERCENTAGES
@@ -47,17 +48,20 @@ class ReactionReadingSettingsTests(unittest.TestCase):
         for group, cls in (('drag_reactions', DragReactionConfig), ('reading', ReadingConfig)):
             for field in fields(cls):
                 path = 'oracle.'+group+'.'+field.name
+                if path in INTERNAL_BEHAVIOR_PATHS:
+                    self.assertNotIn(path, d.controls)
+                    continue
                 self.assertIn(path, d.controls)
                 value = d.value(d.controls[path])
                 expected = getattr(getattr(d.original.oracle, group), field.name)
                 self.assertAlmostEqual(value, expected*100 if path in PERCENTAGES else expected)
         d.controls['oracle.drag_reactions.flutter_sync_probability'].setValue(77.7)
-        d.controls['oracle.drag_reactions.projection_frame_seconds'].setValue(.125)
+        d.controls['oracle.drag_reactions.projection_lift_delay_seconds'].setValue(.125)
         d.controls['oracle.reading.matrix_probability'].setValue(62.5)
         d.controls['oracle.reading.recall_distance'].setValue(64)
         candidate = d.candidate()
         self.assertAlmostEqual(candidate.oracle.drag_reactions.flutter_sync_probability, .777)
-        self.assertEqual(candidate.oracle.drag_reactions.projection_frame_seconds, .125)
+        self.assertEqual(candidate.oracle.drag_reactions.projection_lift_delay_seconds, .125)
         self.assertEqual(candidate.oracle.reading.matrix_probability, .625)
         self.assertEqual(candidate.oracle.reading.recall_distance, 64)
         library = ProfileLibrary(self.root/'export')
@@ -72,7 +76,7 @@ class ReactionReadingSettingsTests(unittest.TestCase):
         for resource in ('bell_voice', 'scan_images', 'pearl_playback_curve'):
             d.assets.resources.record(resource, error='missing')
         d.resource_settings.install(d.assets)
-        for key in ('drag_reactions.voice_delay_min_seconds', 'drag_reactions.projection_frame_seconds',
+        for key in ('drag_reactions.voice_delay_min_seconds', 'drag_reactions.projection_lift_delay_seconds',
                     'reading.playback_min_seconds'):
             self.assertFalse(d.controls['oracle.'+key].isEnabled())
         self.assertTrue(d.controls['oracle.reading.observe_min_seconds'].isEnabled())
@@ -86,11 +90,11 @@ class ReactionReadingSettingsTests(unittest.TestCase):
 
     def test_zero_probabilities_and_no_pearls_disable_only_relevant_settings(self):
         d = self.d
-        d.controls['oracle.reading.drift_probability'].setValue(0)
-        self.assertFalse(d.controls['oracle.reading.drift_interval_min_seconds'].isEnabled())
+        d.controls['oracle.reading.start_probability'].setValue(0)
+        self.assertFalse(d.controls['oracle.reading.attempt_min_seconds'].isEnabled())
         self.assertTrue(d.controls['oracle.reading.observe_min_seconds'].isEnabled())
         d.controls['interaction.hover_avoidance_enabled'].setChecked(False)
-        self.assertFalse(d.controls['oracle.reading.avoidance_probability'].isEnabled())
+        self.assertTrue(d.controls['oracle.reading.start_probability'].isEnabled())
         d.controls['oracle.drag_reactions.gesture_probability'].setValue(0)
         self.assertFalse(d.controls['oracle.drag_reactions.gesture_speed'].isEnabled())
         self.assertTrue(d.controls['oracle.drag_reactions.voice_delay_min_seconds'].isEnabled())
@@ -99,19 +103,22 @@ class ReactionReadingSettingsTests(unittest.TestCase):
         for path, control in d.controls.items():
             if path.startswith('oracle.reading.'):
                 self.assertFalse(control.isEnabled(), path)
+        d.controls['oracle.pearl_matrix_enabled'].setChecked(True)
+        for name in ('approach_weight', 'recall_weight', 'orbit_weight', 'observe_distance'):
+            self.assertTrue(d.controls['oracle.reading.'+name].isEnabled(), name)
 
     def test_invalid_single_default_reset_reports_conflict_and_preserves_draft(self):
         d = self.d
-        d.controls['oracle.reading.interval_max_seconds'].setValue(10)
-        d.controls['oracle.reading.interval_min_seconds'].setValue(5)
+        d.controls['oracle.reading.attempt_max_seconds'].setValue(70)
+        d.controls['oracle.reading.attempt_min_seconds'].setValue(50)
         before = d.candidate()
-        d.preset_workflow.reset_parameter('oracle.reading.interval_max_seconds')
+        d.preset_workflow.reset_parameter('oracle.reading.attempt_max_seconds')
         self.assertEqual(d.candidate(), before)
         self.assertIn('无法恢复此项默认值', d.status.text())
-        d.preset_workflow.reset_parameter('oracle.reading.interval_min_seconds')
-        d.preset_workflow.reset_parameter('oracle.reading.interval_max_seconds')
-        self.assertEqual(d.candidate().oracle.reading.interval_min_seconds, 0)
-        self.assertEqual(d.candidate().oracle.reading.interval_max_seconds, 0)
+        d.preset_workflow.reset_parameter('oracle.reading.attempt_min_seconds')
+        d.preset_workflow.reset_parameter('oracle.reading.attempt_max_seconds')
+        self.assertEqual(d.candidate().oracle.reading.attempt_min_seconds, 20)
+        self.assertEqual(d.candidate().oracle.reading.attempt_max_seconds, 40)
 
 
 if __name__ == '__main__':

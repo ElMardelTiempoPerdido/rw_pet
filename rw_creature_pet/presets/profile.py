@@ -8,6 +8,7 @@ from ..config import AppConfig
 from ..shared.messages import Message
 from ..ui_config import UiConfig
 from ..oracle.audio.voice import legacy_voice
+from ..oracle.reading_migration import migrate_reading_tree
 from .appearance import AppearancePreset, apply_appearance, load_appearance
 from .common import (get_value, mapping_for, package_path, read_document, replace_fields,
                      scoped_leaves, set_value, validate_metadata)
@@ -24,6 +25,7 @@ def profile_mapping(config):
 
 
 def validate_config(data, *, body_appearance='bell'):
+    data = migrate_reading_tree(data)
     # 缺省值由当前格式的配置定义提供，与本机模板、当前人物和系统语言无关
     defaults = AppConfig(ui=UiConfig('en'))
     values = profile_mapping(defaults)

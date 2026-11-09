@@ -7,6 +7,7 @@ from pathlib import Path
 from ..config import AppConfig
 from ..ui_config import UiConfig
 from ..oracle.audio.voice import legacy_voice
+from ..oracle.reading_migration import migrate_reading_values
 from .appearance import appearance_paths, apply_appearance
 from .common import get_value, replace_fields, set_value
 from .editing import ALL_PATHS, PresetLink, scope_paths
@@ -18,6 +19,7 @@ HISTORY_LIMIT = 10
 
 
 def apply_values(config, values):
+    values = migrate_reading_values(values)
     changes = {}
     for path, value in values.items():
         if path not in ALL_PATHS:
@@ -58,6 +60,7 @@ def normalized(values):
 
 def complete_snapshot(values, kind, base):
     """旧快照缺失的新字段使用代码默认值，不能沿用切换前的角色参数"""
+    values = migrate_reading_values(values)
     if kind == 'profile' and 'oracle.voice' not in values:
         values = {**values, 'oracle.voice': legacy_voice(values.get('oracle.body_appearance', base.oracle.body_appearance))}
     config = apply_values(base, values)
@@ -121,6 +124,10 @@ class PersonalEntry:
             raise ValueError('无效的个人调整类型')
         source = read_link(data.get('source'))
         defaults, overrides = data['defaults'], data.get('overrides', {})
+        # 先合并旧基线与旧覆盖再换算，避免新增默认值抢先覆盖用户的旧间隔
+        combined = migrate_reading_values({**defaults, **overrides})
+        defaults = migrate_reading_values(defaults)
+        overrides = {key: value for key, value in combined.items() if key not in defaults or value != defaults[key]}
         allowed = set(ALL_PATHS if kind == 'profile' else paths_for(FieldScope.APPEARANCE))
         if any(key not in allowed for key in (*defaults, *overrides)):
             raise ValueError('个人调整包含不属于外观或角色设置的字段')

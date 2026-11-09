@@ -3,7 +3,7 @@
   "version": 2,
   "id": "2466730e-c7e8-431b-a807-4f49f0b3b878",
   "name": "moondown",
-  "updated_at": "2026-11-03T09:33:10.142407+00:00",
+  "updated_at": "2026-11-09T08:06:12.468933+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -210,15 +210,9 @@
       "projection_opacity": 0.3,
       "reading": {
         "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
@@ -235,9 +229,9 @@
       "voice": "moon"
     }
   },
-  "state": "history/state-19b75a074d154433897eb193bd441988.json",
+  "state": "history/state-d6e5c8fc2ce543af89441a1514fc0e11.json",
   "appearance": {
     "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
-    "path": "appearance/19b75a074d154433897eb193bd441988/appearance.json"
+    "path": "appearance/d6e5c8fc2ce543af89441a1514fc0e11/appearance.json"
   }
 }

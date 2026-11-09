@@ -13,7 +13,7 @@ CLOTHING_LABELS = (
     ('clothing_decal_2', '服装贴图 2'),
     ('clothing_decal_3', '服装贴图 3'),
 )
-PART_LABELS = (('robe', '衣袍'), ('left_sleeve', '左袖子'), ('right_sleeve', '右袖子'))
+PART_LABELS = (('robe', '衣袍'), ('left_sleeve', '左袖子'), ('right_sleeve', '右袖子'), ('inner_robe', '内搭'))
 
 
 class ClothingDecalEditor(FaceDecalEditor):

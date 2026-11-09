@@ -3,7 +3,7 @@
   "version": 2,
   "id": "e110a7a8-4780-42dd-9a40-4798120d5146",
   "name": "sunny",
-  "updated_at": "2026-11-02T10:44:24.756604+00:00",
+  "updated_at": "2026-11-09T07:51:32.439430+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -95,7 +95,7 @@
         },
         "squeezed": {
           "enabled": true,
-          "large_only": true,
+          "large_only": false,
           "weight": 1
         }
       },
@@ -199,12 +199,12 @@
       "pearl_fixed_count": 1,
       "pearl_follow_height": 280.0,
       "pearl_follow_width": 360.0,
-      "pearl_inner_count": 1,
+      "pearl_inner_count": 0,
       "pearl_matrix_avoid_radius": 80.0,
-      "pearl_matrix_count": 5,
+      "pearl_matrix_count": 4,
       "pearl_matrix_enabled": true,
       "pearl_orbits_enabled": true,
-      "pearl_outer_count": 2,
+      "pearl_outer_count": 0,
       "pearl_playback_probability": 0.25,
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
@@ -235,9 +235,9 @@
       "voice": "none"
     }
   },
-  "state": "history/state-d511fa0451e2487488f8185eb59677fa.json",
+  "state": "history/state-7af7b4dfa4d240fca262c110e2c6ab6d.json",
   "appearance": {
     "id": "6c2b4490-bcba-4537-b6f2-83d4af7aec5f",
-    "path": "appearance/d511fa0451e2487488f8185eb59677fa/appearance.json"
+    "path": "appearance/7af7b4dfa4d240fca262c110e2c6ab6d/appearance.json"
   }
 }

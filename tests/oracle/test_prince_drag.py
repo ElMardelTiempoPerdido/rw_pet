@@ -8,6 +8,7 @@ import unittest
 from PySide6.QtWidgets import QApplication
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.motion.prince import PrincePosture
+from rw_creature_pet.oracle.motion.prince_spine import WAIST, CHEST, HEAD, BEND_LIMITS
 from rw_creature_pet.oracle.scene import OracleHead, OracleScene
 from rw_creature_pet.shared.geometry import Vec2
 
@@ -42,7 +43,7 @@ class PrinceDragTests(unittest.TestCase):
         largest_bend = 0.
         for _ in range(80):
             scene.step()
-            largest_bend = max(largest_bend, bends(scene.prince_posture.points)[0])
+            largest_bend = max(largest_bend, sum(bends(scene.prince_posture.points)[:CHEST-1]))
         self.assertGreater((scene.prince_posture.points[0].position-start).length(), 10.)
         # 验证运动中的弯曲，不要求鼠标停止后仍维持大幅摆动
         self.assertGreater(largest_bend, 10.)
@@ -50,7 +51,7 @@ class PrinceDragTests(unittest.TestCase):
 
     def test_lower_grabs_settle_after_small_movement_on_all_edges(self):
         for side in ('top', 'right', 'bottom', 'left'):
-            for index in (0, 1):
+            for index in (0, WAIST):
                 with self.subTest(side=side, index=index):
                     scene = self.scene(base_side=side)
                     for _ in range(400):
@@ -83,7 +84,7 @@ class PrinceDragTests(unittest.TestCase):
 
     def test_tilted_grab_stays_at_pointer_and_regrab_uses_new_reference(self):
         scene = self.scene()
-        for angle, index in ((.6, 1), (-.6, 0), (2.4, 0)):
+        for angle, index in ((.6, WAIST), (-.6, 0), (2.4, 0)):
             with self.subTest(angle=angle, index=index):
                 upper, lower = scene.body.chunks
                 direction = Vec2(sin(angle), -cos(angle))
@@ -129,8 +130,8 @@ class PrinceDragTests(unittest.TestCase):
             scene.step()
             spine = scene.prince_posture
             angles = bends(spine.points)
-            largest_bend = max(largest_bend, angles[0])
-            for angle, maximum in zip(angles, (105., 70., 75.)):
+            largest_bend = max(largest_bend, sum(angles[:CHEST-1]))
+            for angle, maximum in zip(angles, (limit+10 for limit in BEND_LIMITS)):
                 self.assertLess(angle, maximum)
             for a, b, g, h in zip(spine.points, spine.points[1:], spine.spine.targets,
                                    spine.spine.targets[1:]):
@@ -153,7 +154,7 @@ class PrinceDragTests(unittest.TestCase):
 
     def test_four_edges_respect_tentacle_reach_for_all_grab_regions(self):
         for side in ('top', 'right', 'bottom', 'left'):
-            for index in (0, 1, 4):
+            for index in (0, WAIST, HEAD):
                 with self.subTest(side=side, index=index):
                     scene = self.scene(base_side=side, arm_scale=.35)
                     start = scene.prince_posture.frame(
@@ -192,13 +193,13 @@ class PrinceDragTests(unittest.TestCase):
         self.assertIsInstance(scene.drag.controller.handle.key, int)
 
     def test_stationary_grab_does_not_buckle_from_a_tiny_left_or_right_offset(self):
-        for index in range(5):
+        for index in range(HEAD+1):
             for offset in (-.01, .01):
                 with self.subTest(index=index, offset=offset):
                     posture = PrincePosture(Vec2(), Vec2(0, -1), Vec2(), 19.)
                     head = OracleHead.at(posture.target)
                     target = posture.points[index].position
-                    posture.points[2].position += Vec2(offset, 0.)
+                    posture.points[CHEST].position += Vec2(offset, 0.)
                     for _ in range(400):
                         posture.step(head, Vec2(), Vec2(0, -1), Vec2(), grab=(index, target))
                     self.assertTrue(posture.settled)
@@ -241,7 +242,7 @@ class PrinceDragTests(unittest.TestCase):
     def test_held_sleep_wakes_for_gravity_and_release(self):
         posture = PrincePosture(Vec2(), Vec2(.6, -.8), Vec2(), 19.)
         head = OracleHead.at(posture.target)
-        grab = (1, posture.points[1].position)
+        grab = (WAIST, posture.points[WAIST].position)
         for _ in range(600):
             posture.step(head, Vec2(), Vec2(.6, -.8), Vec2(), grab=grab)
         self.assertTrue(posture.settled)

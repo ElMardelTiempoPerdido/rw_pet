@@ -11,6 +11,7 @@ from PIL import Image
 from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QApplication
+from rw_creature_pet.oracle.motion.prince_spine import WAIST, CHEST
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.graphics.raster import local_canvas, pixel_density
 from rw_creature_pet.oracle.ui.settings_style import settings_font
@@ -61,7 +62,7 @@ def draw(renderer, scene, title, *, skeleton=False, camera=None, pointer=False):
 def lower_drag_preview(output):
     scenes = [make_scene(), make_scene()]
     renderers, cameras, starts = [], [], []
-    for scene, index in zip(scenes, (1, 0)):
+    for scene, index in zip(scenes, (WAIST, 0)):
         scene.drag.set_enabled(True)
         for _ in range(400):
             scene.step()
@@ -185,7 +186,7 @@ def main():
         if tick == 40:
             scene.drag.press(start, lambda _: True)
             # 微小初始不对称也不能在静止抓取中发展为颈部反弯
-            scene.prince_posture.points[2].position += Vec2(.01, 0.)
+            scene.prince_posture.points[CHEST].position += Vec2(.01, 0.)
         if 140 <= tick < 340:
             t = (tick-140)/200
             scene.drag.move(start+Vec2(45*sin(t*2*pi), 25*(1-sin(t*2*pi+pi/2))))

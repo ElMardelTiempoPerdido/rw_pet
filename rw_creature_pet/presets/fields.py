@@ -69,9 +69,7 @@ FIELD_SCOPES = build_registry((
         'cross_edge_check_seconds', 'move_lean_degrees',
     )),
     ('oracle.reading', _PROFILE, (
-        'start_probability', 'interval_min_seconds', 'interval_max_seconds',
-        'drift_probability', 'drift_delay_min_seconds', 'drift_delay_max_seconds',
-        'drift_interval_min_seconds', 'drift_interval_max_seconds', 'avoidance_probability',
+        'start_probability', 'attempt_min_seconds', 'attempt_max_seconds',
         'notice_min_seconds', 'notice_max_seconds', 'observe_min_seconds', 'observe_max_seconds',
         'playback_min_seconds', 'playback_max_seconds', 'eye_open_probability', 'matrix_probability',
         'approach_weight', 'recall_weight', 'orbit_weight', 'observe_distance', 'recall_distance',
@@ -129,7 +127,7 @@ FIELD_SCOPES = build_registry((
     ('oracle.prince_colors', _APPEARANCE, _COLOR_FIELDS),
     ('oracle.custom_appearance', _APPEARANCE, (
         'head_length', 'sleeve_root_width', 'sleeve_cuff_width', 'robe_length',
-        'robe_flare', 'robe_hem_curve',
+        'robe_flare', 'robe_hem_curve', 'leg_length',
         'sleeve_cuff_radius', 'neck_width', 'chest_width', 'chest_height',
         'shoulder_width', 'inner_robe_enabled', 'inner_collar_enabled',
         'inner_collar_height', 'inner_collar_top_width', 'inner_collar_bottom_width',

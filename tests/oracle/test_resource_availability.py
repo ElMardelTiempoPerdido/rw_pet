@@ -26,13 +26,15 @@ from tests.oracle.character_fixture import isolate_characters
 
 
 class AssetAvailabilityTests(unittest.TestCase):
-    def prepare_with(self, config, *, voice_error='', glyph_error=None, curve_error='', scan_error=''):
+    def prepare_with(self, config, *, voice_error='', glyph_error=None, curve_error='', scan_error='', existing_bell=None):
         with ExitStack() as stack:
             atlas = Mock()
             stack.enter_context(patch('rw_creature_pet.oracle.assets.extract_atlas', return_value=Path('fixture')))
             stack.enter_context(patch('rw_creature_pet.oracle.assets.Atlas', return_value=atlas))
             stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_sig_voice',
                                      return_value=({}, 'fixture missing mod')))
+            stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_existing_bell_voice',
+                                     return_value=existing_bell))
             stack.enter_context(patch('rw_creature_pet.oracle.assets.load_pearl_glyphs',
                                      side_effect=glyph_error, return_value=object()))
             voice = stack.enter_context(patch('rw_creature_pet.oracle.assets.prepare_voice',
@@ -70,6 +72,21 @@ class AssetAvailabilityTests(unittest.TestCase):
         with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice') as extract:
             self.assertEqual(prepare_bell_voice(config), ({}, ''))
             extract.assert_not_called()
+
+    def test_existing_bell_is_prepared_at_startup_without_changing_selected_voice(self):
+        base = AppConfig()
+        config = replace(base, oracle=replace(base.oracle, voice='none'))
+        paths = {'bell_01': Path('new-cache/bell_01.wav')}
+        assets, calls = self.prepare_with(config, existing_bell=(paths, ''))
+        self.assertEqual(calls, 0)
+        self.assertEqual(assets.voice_paths, paths)
+        self.assertEqual(assets.resources.states['bell_voice'], A.AVAILABLE)
+        self.assertTrue(assets.reusable(base))
+        self.assertEqual(config.oracle.voice, 'none')
+        assets, calls = self.prepare_with(config, existing_bell=({}, 'upgrade failed'))
+        self.assertEqual(assets.voice_error, '')
+        self.assertEqual(assets.resources.states['bell_voice'], A.UNAVAILABLE)
+        self.assertTrue(assets.reusable(config))
 
     def test_missing_prince_voice_is_optional_and_preserves_selection(self):
         base = AppConfig()

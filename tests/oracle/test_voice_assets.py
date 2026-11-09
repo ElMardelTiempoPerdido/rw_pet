@@ -12,7 +12,7 @@ import wave
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.config import OracleConfig
 from rw_creature_pet.oracle.audio.voice import BELL_VOICE_CLIPS, BELL_VOICE_SOURCES
-from rw_creature_pet.oracle.audio.processing import prepare_clips
+from rw_creature_pet.oracle.audio.processing import BELL_VOICE_GAIN, prepare_clips
 from rw_creature_pet.oracle.audio.assets import (LEGACY_DIRECTORY, VoiceAssetError, _extract_interview,
                                                 _find_source, ensure_bell_voice, make_voice_player)
 from rw_creature_pet.interaction.voice import VoiceCue, VoiceCueChannel
@@ -154,7 +154,10 @@ class VoiceAssetsTests(unittest.TestCase):
             with patch('rw_creature_pet.oracle.audio.assets.ensure_bell_voice', return_value=custom) as ensure:
                 config = replace(config, oracle=OracleConfig(voice_directory=directory))
                 player = make_voice_player(config, config_path)
-                ensure.assert_called_once_with(self.game)
+                if directory == 'auto':
+                    ensure.assert_called_once_with(self.game)
+                else:
+                    ensure.assert_not_called()  # 同一进程复用已准备结果
                 self.assertFalse(player.asset_error)
 
     def test_missing_game_nonfatal_and_failure_reason_survives_drag_requests(self):
@@ -210,7 +213,8 @@ class VoiceAssetsTests(unittest.TestCase):
                 self.assertEqual(round(entry['source_offset_seconds']*1000), offset)
                 start = 5 if index else 0
                 end = len(actual)-5 if index < len(children)-1 else len(actual)
-                np.testing.assert_array_equal(actual[start:end], expected[start:end])
+                np.testing.assert_array_equal(actual[start:end],
+                    np.rint(expected[start:end].astype(np.float64)*BELL_VOICE_GAIN).astype('<i2'))
                 if start:
                     np.testing.assert_array_equal(actual[0], [0, 0])
                     self.assertTrue(np.all(np.abs(actual[:5]) <= np.abs(expected[:5])))

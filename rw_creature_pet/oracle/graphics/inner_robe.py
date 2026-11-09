@@ -23,9 +23,22 @@ def inner_robe_clip(upper, direction):
                          base+side*40-direction*80, base-side*40-direction*80))
 
 
-def inner_collar_path(upper, direction, head, shape):
+def torso_side_curves(upper, lower, direction, lower_direction, chest_half, hem_half, hem_depth):
+    """胸部至下摆的左右曲线，躯干轮廓与内搭贴图共用同一组控制点"""
+    side, hem_side = perpendicular(direction), perpendicular(lower_direction)
+    hem = lower-lower_direction*hem_depth
+    bend = (direction-lower_direction)*((hem-upper).length()/3)
+    result = []
+    for sign in (-1, 1):
+        shoulder, end = upper+side*(sign*chest_half), hem+hem_side*(sign*hem_half)
+        result.append((shoulder, shoulder.lerp(end, 1/3)-bend,
+                       shoulder.lerp(end, 2/3)-bend, end))
+    return tuple(result)
+
+
+def inner_collar_points(upper, direction, head, shape):
     if not shape.inner_robe_enabled or not shape.inner_collar_enabled or shape.inner_collar_height <= 0:
-        return QPainterPath()
+        return ()
     side = perpendicular(direction)
     base = upper+direction*COLLAR_BASE_RISE
     neck = unit(head-upper, direction)
@@ -33,7 +46,12 @@ def inner_collar_path(upper, direction, head, shape):
     top_side = perpendicular(neck)*(.5*shape.inner_collar_top_width)
     bottom_side = side*(.5*shape.inner_collar_bottom_width)
     # 下口跟随胸肩，上口跟随颈轴；绕向与躯干一致，蒙版重叠处不会相消
-    return polygon_path((base-bottom_side, top-top_side, top+top_side, base+bottom_side))
+    return base-bottom_side, top-top_side, top+top_side, base+bottom_side
+
+
+def inner_collar_path(upper, direction, head, shape):
+    points = inner_collar_points(upper, direction, head, shape)
+    return polygon_path(points) if points else QPainterPath()
 
 
 def inner_robe_path(torso, upper, direction, head, shape):

@@ -37,10 +37,11 @@ class OracleAutonomyTests(unittest.TestCase):
                 OracleConfig(cross_edge_probability=value)
         scene = self.scene(antigravity_probability=0.)
         counts = Counter(scene.behavior.choose_activity(scene) for _ in range(20000))
-        for activity, expected in ((Activity.CROSS_EDGE, .05), (Activity.IDLE, .266), (Activity.MEDITATE, .114),
-                                   (Activity.ROAM, .3325), (Activity.NOTICE, .2375)):
+        for activity, expected in ((Activity.CROSS_EDGE, .05), (Activity.IDLE, .95*28/75), (Activity.MEDITATE, .95*12/75),
+                                   (Activity.ROAM, .95*35/75)):
             self.assertAlmostEqual(counts[activity]/20000, expected, delta=.015)
         scene.set_autonomous(True)
+        scene.behavior.reading_wait = 100000  # 日常活动分布不再包含独立的读珠抽签
         with patch.object(scene.behavior, 'choose_activity', return_value=Activity.IDLE):
             for _ in range(1600):
                 scene.step()

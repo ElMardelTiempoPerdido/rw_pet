@@ -9,6 +9,7 @@ from ...i18n import tr
 from ...resources import Availability, load_catalog
 from ...resources.status import ResourceReport
 from ..assets import resource_key
+from ..audio.custom import custom_voice_name, CustomVoice
 
 
 class ResourceSettings(QObject):
@@ -29,6 +30,26 @@ class ResourceSettings(QObject):
         dialog.controls['oracle.voice'].currentIndexChanged.connect(self.schedule)
         dialog.game_dir.editingFinished.connect(self.schedule)
         dialog.resource_refresh.clicked.connect(lambda: self.schedule(force=True))
+        dialog.controls['oracle.voice'].catalogChanged.connect(self.custom_voices_changed)
+        self.custom_voices_changed(notify=False)
+
+    def custom_voices_changed(self, *, notify=True):
+        """本地录音独立于游戏资源，刷新后立即更新播放文件快照"""
+        d = self.dialog
+        selector = d.controls['oracle.voice']
+        selected = selector.currentData()
+        applied = d.preset_workflow.applied.oracle.voice
+        if d.assets is not None:
+            d.assets = d.assets.with_custom_voices(selector.packs, applied)
+        if self.checked_assets is not None:
+            self.checked_assets = self.checked_assets.with_custom_voices(selector.packs, selected)
+            self.report = self.checked_assets.resources
+        if notify:
+            if d.assets is not None and custom_voice_name(applied) is not None:
+                d.prepared_assets = d.assets
+                if d.resource_commit is not None:
+                    d.resource_commit(d.assets)
+            d.sync_dependencies()
 
     def restore(self):
         for undo in reversed(self._undo):
@@ -82,6 +103,13 @@ class ResourceSettings(QObject):
             state = self.catalog.setting_state(key, self.report.states)
             if key == 'voice_controls':
                 selected = d.controls['oracle.voice'].currentData()
+                if (name := custom_voice_name(selected)) is not None:
+                    pack = d.controls['oracle.voice'].packs.get(selected, CustomVoice(name))
+                    if pack.error:
+                        for path in binding.paths:
+                            if (control := d.controls.get(path)) is not None:
+                                self._disable(control, tr(pack.error))
+                    continue
                 binding = self.catalog.settings['voice_'+selected]
                 state = self.catalog.feature_state('voice_'+selected, self.report.states)
                 # 借用所选语音的错误说明，但禁用的仍是共用音量/触发参数
@@ -146,6 +174,8 @@ class ResourceSettings(QObject):
     def schedule(self, *args, force=False):
         if self._closed:
             return
+        if force:
+            self.dialog.controls['oracle.voice'].refresh()
         self._force |= force
         if not self._queued:
             self._queued = True
@@ -209,6 +239,7 @@ class ResourceSettings(QObject):
                 self._finish_close_request()
             return
         d.resource_refresh.setToolTip('')
+        worker.result = worker.result.with_custom_voices(d.controls['oracle.voice'].packs, worker.config.oracle.voice)
         worker.result.include_checked_voices(self.checked_assets)
         worker.result.include_checked_voices(d.assets)
         if matches_draft:

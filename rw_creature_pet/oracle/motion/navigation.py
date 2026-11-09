@@ -354,7 +354,7 @@ class EdgePlanner:
         return self.round_polyline(points, velocity)
 
     @staticmethod
-    def local_arc(start, center, box, preferred_sign=1):
+    def local_arc(start, center, box, preferred_sign=1, *, accept=None):
         """只选完整凸包位于同一走廊的局部绕珠弧；空间不足返回 None。"""
         radius = (start-center).length()
         if not 32 <= radius <= 72 or not box.contains(start):
@@ -377,8 +377,10 @@ class EdgePlanner:
                     curves.append(Bezier(a, b, c, d))
                     a = d
                 if all(box.contains(p) for curve in curves for p in (curve.a, curve.b, curve.c, curve.d)):
-                    candidates.append(CurveRoute(curves, start))
-                    break
+                    route = CurveRoute(curves, start)
+                    if accept is None or accept(route):
+                        candidates.append(route)
+                        break
         return max(candidates, key=lambda route: route.length) if candidates else None
 
     def round_polyline(self, points, velocity=Vec2(), *, box=None):

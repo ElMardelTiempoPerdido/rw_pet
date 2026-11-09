@@ -67,8 +67,9 @@ class ReleasePackageTests(unittest.TestCase):
             styles = ('presets/behavior_styles/builtin.toml', 'presets/behavior_styles/README.md')
             self.assertTrue(all(name in archive.namelist() for name in styles))
             self.assertNotIn('presets/behavior_styles/local.toml', archive.namelist())
+            self.assertIn('presets/voices/README.md', archive.namelist())
             self.assertTrue(all(name.startswith('presets/profiles/'+self.role.path.parent.name+'/original/')
-                for name in archive.namelist() if name not in ('BellPet.exe', 'release.json', *styles)))
+                for name in archive.namelist() if name not in ('BellPet.exe', 'release.json', 'presets/voices/README.md', *styles)))
 
     def test_local_current_changes_are_excluded_until_explicit_share_override(self):
         ensure_workspace(self.role.path)

@@ -105,7 +105,7 @@ class OracleRenderCacheTests(unittest.TestCase):
             self.assertEqual(draw.call_count, 1)
             offset = Vec2(2., 3.)
             for p in (*scene.body.chunks, scene.appearance.head, *scene.appearance.hands,
-                      *scene.appearance.feet, *scene.appearance.cloth):
+                      *scene.appearance.knees, *scene.appearance.feet, *scene.appearance.cloth):
                 p.position += offset
                 p.previous_position += offset
             scene.appearance.revision += 1

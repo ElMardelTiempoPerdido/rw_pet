@@ -1,19 +1,23 @@
 """Prince 下半衣袍的双层网格，固定接缝，独立惯性和重力回摆，固定 40 Hz"""
 from dataclasses import dataclass
-from math import floor, sin, pi
+from math import sin, pi
 
 from ...shared.geometry import Vec2
 from ..prince_assets import robe_layout
-from .prince import WAIST_DEPTH, dot, side_of
+from .prince import WAIST_DEPTH
 
 
 CHEST_WIDTH = 8.
 CHEST_HEIGHT = 8.
 SHOULDER_HALF = 3.7
-UPPER_LENGTH = 14.
-UPPER_SLACK = 3.
+UPPER_LENGTH = WAIST_DEPTH
 COLUMNS = 5
 PIN_LENGTH = 6.  # PNG 顶部共同贴合接缝，下方才逐渐分离
+# 每组依次为回正、速度保留、加速度惯性、最大偏移，后层比前层更松软
+BACK_MOTION = (.045, .78, 1.1, 10.)
+FRONT_MOTION = (.07, .70, .75, 7.)
+BACK_DRIFT_MOTION = (.022, .88, 1.20, 12.)
+FRONT_DRIFT_MOTION = (.038, .83, .85, 9.)
 
 
 def unit(v, fallback):
@@ -39,14 +43,6 @@ class RobePoint:
         return self.previous_position.lerp(self.position, alpha)
 
 
-def row_point(cloth, row, n, u):
-    # 透明边距也参与网格；在实色连接段外线性延长，保持原 PNG 的自然宽度
-    x = u*(n-1)
-    index = max(0, min(n-2, floor(x)))
-    a, b = cloth[row*n+index:row*n+index+2]
-    return a.position.lerp(b.position, x-index)
-
-
 class RobeLayer:
     def __init__(self, goals, coords, *, back):
         self.points = [RobePoint(p, p) for p in goals]
@@ -54,8 +50,10 @@ class RobeLayer:
         self.speeds = [Vec2() for _ in goals]
         self.targets = goals
         self.target_speeds = [Vec2() for _ in goals]
-        self.spring, self.damping, self.inertia, self.limit = ((.045, .78, 1.1, 10.) if back
-                                                             else (.07, .70, .75, 7.))
+        self.motion = BACK_MOTION if back else FRONT_MOTION
+        self.drift_motion = BACK_DRIFT_MOTION if back else FRONT_DRIFT_MOTION
+        self.spring, self.damping, self.inertia, self.limit = self.motion
+        self.weightlessness = 0.
         height = robe_layout().height
         self.weights = [max(0., (p.y-PIN_LENGTH)/(height-PIN_LENGTH))**1.6 for p in coords]
         self.neighbors = [tuple(j for j in (i-COLUMNS, i+COLUMNS,
@@ -65,12 +63,17 @@ class RobeLayer:
         self.settled = False
         self.gravity = None
 
-    def step(self, goals, gravity):
+    def step(self, goals, gravity, *, weightlessness=0.):
         speeds = [a-b for a, b in zip(goals, self.targets)]
         speed = max(v.length() for v in speeds)
-        if self.settled and speed < 1e-6 and gravity == self.gravity:
+        weightlessness = max(0., min(1., weightlessness))
+        softness_changed = weightlessness != self.weightlessness
+        if self.settled and speed < 1e-6 and gravity == self.gravity and not softness_changed:
             return
         self.settled = False
+        self.weightlessness = weightlessness
+        self.spring, self.damping, self.inertia, self.limit = (
+            a+(b-a)*weightlessness for a, b in zip(self.motion, self.drift_motion))
         accelerations = [a-b for a, b in zip(speeds, self.target_speeds)]
         self.targets, self.target_speeds, self.gravity = goals, speeds, gravity
         if speed > 60.:
@@ -105,7 +108,8 @@ class RobeLayer:
             offsets.append(offset)
             velocities.append(velocity)
         self.offsets, self.speeds = offsets, velocities
-        quiet = speed < .001 and max(p.velocity.length() for p in self.points) < .001
+        quiet = (not softness_changed and speed < .001
+                 and max(p.velocity.length() for p in self.points) < .001)
         self.quiet_ticks = self.quiet_ticks+1 if quiet else 0
         if self.quiet_ticks >= 20:
             self.settled = True
@@ -133,43 +137,20 @@ class PrinceRobe:
         return all(layer.settled for layer in self.layers)
 
     def goals(self, app):
-        n, art = app.CLOTH_DIVS, self.art
-        seams = []
-        for x in range(COLUMNS):
-            u = (art.width*x/(COLUMNS-1)-art.left)/(art.right-art.left)
-            seams.append(row_point(app.cloth, n-1, n, u))
-        center = seams[COLUMNS//2]
-        middle_u = (art.width/2-art.left)/(art.right-art.left)
-        above = row_point(app.cloth, n-2, n, middle_u)
-        down = unit(center-above, app.direction*-1.)
-        side = Vec2(down.y, -down.x)
-        native = tuple(center+side*(art.width*x/(COLUMNS-1)-art.width/2)
-                       for x in range(COLUMNS))
+        art = self.art
         frame = app.prince_posture.frame(app.upper, app.direction)
-        root, root_up = frame.axis(-WAIST_DEPTH)
-        root_side, root_down = side_of(root_up), root_up*-1.
-        def orient(v):
-            return side*dot(v, root_side)+down*dot(v, root_down)
-        rows = {}
-        for uv in self.coords[::COLUMNS]:
-            p, up = frame.axis(-WAIST_DEPTH-(uv.y-art.join_y))
-            rows[uv.y] = center+orient(p-root), unit(orient(side_of(up)), side)
-        # 沿身体轴逐行弯曲，但每行仍使用单位法线和原图宽度，避免转弯时撑宽
-        # 顶部贴合真实接缝；两层自己的细小惯性叠加在共同身体轴之上
-        goals = []
-        for i, uv in enumerate(self.coords):
-            column = i%COLUMNS
-            t = max(0., min(1., (uv.y-art.join_y)/max(PIN_LENGTH-art.join_y, 1e-9)))
-            join_weight = 1-t*t*(3-2*t)
-            row_center, row_side = rows[uv.y]
-            goals.append(row_center+row_side*(uv.x-art.width/2)
-                         +(seams[column]-native[column])*join_weight)
+        # 与上衣共用原点、中心线和单位法线，不再把下摆重新旋转到布料最后一行
+        # PNG 透明边距保持原尺寸，实色上口的中点对应躯干中轴
+        middle = (art.left+art.right)/2
+        goals = tuple(frame.cloth_point(uv.x-middle, -UPPER_LENGTH-(uv.y-art.join_y))
+                      for uv in self.coords)
+        down = frame.axis(-UPPER_LENGTH)[1]*-1.
         # 重力只激发侧向垂坠，不在静止直立时把 PNG 纵向拉长
         world = Vec2(0., .12*app.gravity_scale)
         gravity = world-down*(world.x*down.x+world.y*down.y)
-        return tuple(goals), gravity
+        return goals, gravity
 
     def step(self, app):
         goals, gravity = self.goals(app)
         for layer in self.layers:
-            layer.step(goals, gravity)
+            layer.step(goals, gravity, weightlessness=app.prince_posture.spine.weightlessness)

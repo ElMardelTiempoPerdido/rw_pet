@@ -45,7 +45,7 @@ class PuppetHitMap:
     @staticmethod
     def bounds(scene, alpha):
         app = scene.appearance
-        parts = (app.head, *app.hands, *app.feet, *app.cloth)
+        parts = (app.head, *app.hands, *app.knees, *app.feet, *app.cloth)
         if app.prince_robe is not None:
             parts += tuple(app.prince_robe.points)
         extra = outfit_padding(scene.config)

@@ -9,6 +9,7 @@ import tempfile
 
 from .config import AppConfig
 from .oracle.config import migrate_shoulder_width
+from .oracle.reading_migration import migrate_reading_tree
 from .oracle.eye_config import EYE_FIELDS
 from .shared.messages import Message
 
@@ -115,7 +116,8 @@ class SettingsStore:
         backup_legacy(self)
         data, character_staged = stage_character_upgrade(data)
         workspace = data.get('preset_state', {}).get('version') == 3
-        user_config = dict(data['config'])
+        user_config = migrate_reading_tree(dict(data['config']))
+        reading_migrated = user_config != data['config']
         from .oracle.audio.voice import legacy_voice
         oracle = user_config.get('oracle')
         voice_migrated = isinstance(oracle, dict) and 'voice' not in oracle
@@ -157,7 +159,7 @@ class SettingsStore:
             user_config['overseer'] = {**watcher, 'slots': [
                 {'id': 1, 'color': watcher['color'], 'appearance': 'standard'}]}
         merged, changed = _fill_missing(user_config, defaults)
-        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged or voice_migrated
+        changed |= migrated or palette_migrated or eyes_migrated or shoulders_migrated or character_staged or voice_migrated or reading_migrated
         # 默认路径已按 TOML 所在目录解析；用户自己的相对路径仍以用户文件为准。
         config = absolute_paths(AppConfig.from_mapping(merged), self.path)
         if workspace:

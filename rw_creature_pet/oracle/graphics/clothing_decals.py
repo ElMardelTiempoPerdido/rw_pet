@@ -4,8 +4,9 @@ from PySide6.QtGui import QPainter, QPainterPath, QPolygonF, QTransform
 
 from ...shared.geometry import Vec2
 from ..clothing_config import CLOTHING_DECAL_FIELDS
-from .appearance import HangingHand, normalized
+from .appearance import HangingHand, normalized, perpendicular
 from .face_assets import decal_image, decal_key
+from .inner_robe import COLLAR_BASE_RISE, inner_collar_points, torso_side_curves
 from .shoulders import follow_gown_root
 
 
@@ -104,6 +105,61 @@ def draw_clothing_decals(renderer, painter, scene, part, current):
     if not decals:
         return
     mesh = clothing_mesh(renderer, scene.appearance, shape, part, current)
+    draw_decals_on_mesh(painter, decals, mesh)
+
+
+def inner_surface(renderer, shape, upper, lower, direction, waist, head, collar):
+    if collar:
+        return inner_collar_points(upper, direction, head, shape)
+    side = perpendicular(direction)
+    base = upper+direction*COLLAR_BASE_RISE
+    half = shape.chest_width*.5
+    # 采样条带略宽于曲线，最终沿真实躯干裁剪，避免弯曲边缘露出未贴图细缝
+    padding = 1.5
+    base += direction*padding
+    vertices = [base-side*(half+padding), base+side*(half+padding)]
+    left, right = torso_side_curves(upper, lower, direction, waist, half,
+                                    renderer.TORSO_HEM_HALF, renderer.TORSO_HEM_DEPTH)
+    for i in range(9):
+        t = i/8
+        weights = ((1-t)**3, 3*(1-t)**2*t, 3*(1-t)*t*t, t**3)
+        a, b = (curve[0]*weights[0]+curve[1]*weights[1]+curve[2]*weights[2]+curve[3]*weights[3]
+                for curve in (left, right))
+        across = normalized(b-a)*padding
+        vertices.extend((a-across, b+across))
+    return tuple(vertices)
+
+
+def inner_clothing_mesh(renderer, shape, upper, lower, direction, waist, head, *, collar=False):
+    key = (shape, renderer.TORSO_HEM_HALF, renderer.TORSO_HEM_DEPTH)
+    cached = getattr(renderer, '_inner_clothing_reference', None)
+    if cached is None or cached[0] != key:
+        cached = renderer._inner_clothing_reference = (key, {})
+    if collar not in cached[1]:
+        # 正视自然直立时 1 个 PNG 像素对应 1 个逻辑像素，高领与躯干使用同一原点
+        rest = inner_surface(renderer, shape, Vec2(), Vec2(0, 9), Vec2(0, -1),
+                             Vec2(0, -1), Vec2(0, -14), collar)
+        height = shape.inner_collar_height if shape.inner_collar_enabled else 0.
+        origin = Vec2(0, -COLLAR_BASE_RISE-height)
+        coords = tuple(p-origin for p in rest)
+        triangles = ((0, 1, 2), (0, 2, 3)) if collar and rest else tuple(
+            ids for i in range(0, len(rest)-2, 2) for ids in ((i, i+1, i+2), (i+1, i+2, i+3)))
+        cached[1][collar] = coords, triangles
+    coords, triangles = cached[1][collar]
+    vertices = inner_surface(renderer, shape, upper, lower, direction, waist, head, collar)
+    return coords, vertices, triangles
+
+
+def draw_inner_clothing_decals(renderer, painter, scene, upper, lower, direction, waist, head, *, collar=False):
+    shape = scene.config.active_custom_appearance
+    decals = active_decals(shape, 'inner_robe')
+    if not decals or not shape.inner_robe_enabled:
+        return
+    mesh = inner_clothing_mesh(renderer, shape, upper, lower, direction, waist, head, collar=collar)
+    draw_decals_on_mesh(painter, decals, mesh)
+
+
+def draw_decals_on_mesh(painter, decals, mesh):
     for decal in decals:
         image = decal_image(decal)
         if image.isNull():

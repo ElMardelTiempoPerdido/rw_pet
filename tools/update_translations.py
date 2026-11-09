@@ -37,6 +37,7 @@ FILES = ('oracle/ui/settings.py', 'oracle/ui/toolbar.py', 'oracle/ui/desktop.py'
          'oracle/ui/eye_editor.py', 'oracle/eye_config.py',
          'oracle/ui/soft_part_editor.py', 'oracle/soft_part_config.py',
          'oracle/ui/clothing_editor.py', 'oracle/clothing_config.py',
+         'oracle/ui/voice_selector.py', 'oracle/audio/custom.py',
          'oracle/graphics/face_assets.py',
          'config.py', 'oracle/config.py', 'overseer/config.py', 'interaction/config.py',
          'settings_store.py', 'shared/atlas.py', 'ui_config.py', 'overseer/events.py')
@@ -105,7 +106,7 @@ def main():
     if missing or mismatched:
         print(f'Missing translations: {len(missing)}; mismatched placeholders: {len(mismatched)}')
         for source in missing+mismatched:
-            print(ascii(source))
+            print(source)
         return 1
     if args.compile:
         compiler = shutil.which('pyside6-lrelease') or str(Path(sys.executable).parent/'Scripts/pyside6-lrelease.exe')

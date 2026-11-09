@@ -3,7 +3,7 @@
   "version": 2,
   "id": "c667448b-ba22-4532-a392-5682ce8aa492",
   "name": "sig",
-  "updated_at": "2026-11-03T09:26:00.712210+00:00",
+  "updated_at": "2026-11-09T08:05:36.538229+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -199,26 +199,20 @@
       "pearl_fixed_count": 1,
       "pearl_follow_height": 280.0,
       "pearl_follow_width": 360.0,
-      "pearl_inner_count": 1,
+      "pearl_inner_count": 0,
       "pearl_matrix_avoid_radius": 80.0,
-      "pearl_matrix_count": 5,
+      "pearl_matrix_count": 4,
       "pearl_matrix_enabled": true,
-      "pearl_orbits_enabled": false,
-      "pearl_outer_count": 2,
+      "pearl_orbits_enabled": true,
+      "pearl_outer_count": 0,
       "pearl_playback_probability": 0.25,
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
         "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
@@ -235,9 +229,9 @@
       "voice": "sig"
     }
   },
-  "state": "history/state-9a7a929b4c7f4d11b8740abc936313e1.json",
+  "state": "history/state-ca5938a0d78f4be59399f8bac988b6a8.json",
   "appearance": {
     "id": "35e16871-63e7-483e-abad-2eccc27ae608",
-    "path": "appearance/9a7a929b4c7f4d11b8740abc936313e1/appearance.json"
+    "path": "appearance/ca5938a0d78f4be59399f8bac988b6a8/appearance.json"
   }
 }

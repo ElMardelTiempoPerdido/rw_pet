@@ -18,7 +18,7 @@ from .glow import GlowLayer
 from .styles import style_for
 from .face_decals import draw_face_decals
 from .eyes import EyeLidTransition, draw_eye_shape
-from .inner_robe import inner_collar_path, inner_robe_clip, inner_robe_path
+from .inner_robe import inner_collar_path, inner_robe_clip, inner_robe_path, torso_side_curves
 from .neckline import neckline_paths, sleeve_neckline_path
 from .shoulders import attach_sleeve_root, follow_gown_root
 from .upper_body import BELL_UPPER_BODY, upper_body_shape
@@ -26,7 +26,7 @@ from .outfit_definition import Slot, outfit_definition
 from .outfit_render import OutfitRenderer
 from .soft_parts import SoftPartsRenderer
 from .cape import draw_cape
-from .clothing_decals import clothing_key, draw_clothing_decals
+from .clothing_decals import clothing_key, draw_clothing_decals, draw_inner_clothing_decals
 from .prince_tentacles import draw_tentacles
 from .prince_robe import LowerRobeRenderer
 from .outfits import head_outfit_radius, outfit_raster_key
@@ -496,16 +496,15 @@ class OracleRenderer(OutfitRenderer):
                 path.closeSubpath()
         return path
 
-    def sleeve_path(self, edges, shape=None):
-        """只向内修圆袖口两角，保留原网格、横向渐变和袖口中央的手腕遮挡。"""
+    def rounded_strip_path(self, edges, radius):
+        """只向内修圆条带末端的两角，不改变根部和中段轮廓"""
         outline = self.strip_path(edges)
         a, b = edges[-1]
         center = a.lerp(b, .5)
         previous = edges[-2][0].lerp(edges[-2][1], .5)
         forward = unit(center-previous)
-        radius = shape.sleeve_cuff_radius if shape else self.SLEEVE_CUFF_RADIUS
-        radius = min(radius, (b-a).length()*.25,
-                     (center-edges[0][0].lerp(edges[0][1], .5)).length()*.25)
+        radius = min(radius, (b-a).length()*.5,
+                     (center-edges[0][0].lerp(edges[0][1], .5)).length()*.5)
         if radius <= 1e-9:
             return outline
         cuts = QPainterPath()
@@ -514,11 +513,36 @@ class OracleRenderer(OutfitRenderer):
             cuts.moveTo(point(side))
             cuts.lineTo(point(corner))
             cuts.lineTo(point(front))
-            # 四分之一圆的三次贝塞尔近似。剪掉的是角外的小块，不是整条袖口。
+            # 四分之一圆的三次贝塞尔近似，仅剪掉两角外的小块
             cuts.cubicTo(point(front-inward*(radius*.55228475)),
                          point(side+forward*(radius*.55228475)), point(side))
             cuts.closeSubpath()
         return outline.subtracted(cuts)
+
+    def sleeve_path(self, edges, shape=None):
+        """袖口保留原有半径限制和中央的手腕遮挡"""
+        radius = shape.sleeve_cuff_radius if shape else self.SLEEVE_CUFF_RADIUS
+        a, b = edges[-1]
+        radius = min(radius, (b-a).length()*.25,
+                     (a.lerp(b, .5)-edges[0][0].lerp(edges[0][1], .5)).length()*.25)
+        return self.rounded_strip_path(edges, radius)
+
+    def leg_path(self, legs, lower, direction, sign, knee, foot):
+        curves = legs.curves(lower, direction, sign, knee, foot)
+        points = [bezier(*curves[0], i/4) for i in range(5)]
+        points.extend(bezier(*curves[1], i/4) for i in range(1, 5))
+        last = len(points)-1
+        edges = []
+        for i, p in enumerate(points):
+            side = perpendicular(unit(points[min(i+1, last)]-points[max(i-1, 0)]))
+            half = legs.ROOT_WIDTH+(legs.FOOT_WIDTH-legs.ROOT_WIDTH)*(i/last)**.5
+            edges.append((p-side*half, p+side*half))
+        # 脚与腿使用连续轮廓，避免方形脚贴图盖回已修圆的末端
+        forward = unit(points[-1]-points[-2])
+        tip = foot+forward*legs.FOOT_TIP
+        side = perpendicular(forward)*legs.FOOT_WIDTH
+        edges.append((tip-side, tip+side))
+        return self.rounded_strip_path(edges, min(legs.FOOT_CORNER_RADIUS, legs.FOOT_TIP))
 
     def draw_sleeve(self, painter, edges, shape=None, *, scene=None, index=0):
         painter.save()
@@ -542,7 +566,6 @@ class OracleRenderer(OutfitRenderer):
         if hands and not scene.config.character.has_hands:
             return
         c = self.colors
-        side = perpendicular(direction)
         points = scene.appearance.hands if hands else scene.appearance.feet
         for index, (sign, p) in enumerate(zip((-1, 1), points)):
             end = p.sample(alpha)
@@ -554,11 +577,11 @@ class OracleRenderer(OutfitRenderer):
                 self.draw_sleeve(painter, self.body_sleeve_edges(scene, alpha, upper, direction, index), shape,
                                  scene=scene, index=index)
             else:
-                knee = lower.lerp(end, .5)+side*(4*sign)
-                self.ribbon(painter, lower, lower.lerp(knee, .9), end.lerp(knee, .9),
-                            end, 3.5, 1.6, c.skin, c.skin)
-                self.sprite(painter, 'haloGlyph-1', end, 4, 4, c.skin,
-                            degrees(atan2(direction.x, -direction.y)))
+                legs = scene.appearance.legs
+                knee = scene.appearance.knees[index].sample(alpha)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(c.skin)
+                painter.drawPath(self.leg_path(legs, lower, direction, sign, knee, end))
 
     @staticmethod
     def gown_point(cloth, n, u, v):
@@ -614,26 +637,21 @@ class OracleRenderer(OutfitRenderer):
         """胸肩保留原朝向，腰侧平滑弯向下身，平下摆垂直于下身轴。"""
         lower_direction = direction if lower_direction is None else lower_direction
         side = perpendicular(direction)
-        hem_side = perpendicular(lower_direction)
         shape = upper_body_shape(shape)
         chest = upper
         height = shape.chest_height
         width = shape.chest_width*.5
-        hem = lower-lower_direction*self.TORSO_HEM_DEPTH
         k = .5522847498307936  # 四分之一椭圆的三次曲线控制点。
         top = chest+direction*height
         path = QPainterPath(point(top))
         path.cubicTo(point(top+side*(width*k)),
                      point(chest+side*width+direction*(height*k)), point(chest+side*width))
         # 直立时保持两点连线；弯腰时控制点随上下身轴偏转，让两侧连续过渡。
-        span = (hem-chest).length()/3
-        bend = (direction-lower_direction)*span
-        right, left = hem+hem_side*self.TORSO_HEM_HALF, hem-hem_side*self.TORSO_HEM_HALF
-        shoulder = chest+side*width
-        path.cubicTo(point(shoulder.lerp(right, 1/3)-bend), point(shoulder.lerp(right, 2/3)-bend), point(right))
-        path.lineTo(point(left))
-        shoulder = chest-side*width
-        path.cubicTo(point(shoulder.lerp(left, 2/3)-bend), point(shoulder.lerp(left, 1/3)-bend), point(shoulder))
+        left, right = torso_side_curves(upper, lower, direction, lower_direction, width,
+                                        self.TORSO_HEM_HALF, self.TORSO_HEM_DEPTH)
+        path.cubicTo(*(point(p) for p in right[1:]))
+        path.lineTo(point(left[-1]))
+        path.cubicTo(*(point(p) for p in reversed(left[:-1])))
         path.cubicTo(point(chest-side*width+direction*(height*k)),
                      point(top-side*(width*k)), point(top))
         path.closeSubpath()
@@ -656,7 +674,7 @@ class OracleRenderer(OutfitRenderer):
     def neck_width(self, shape=None):
         return shape.neck_width if shape else 2*self.INNER_NECK_HALF
 
-    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None, shape=None):
+    def draw_inner_robe(self, painter, upper, lower, direction, head, *, lower_direction=None, shape=None, scene=None):
         # 胸肩沿真实身体轴，下身随衣袍弯曲，仍共用连续轮廓。
         # 领口距头部保持固定距离，随真实头颈伸缩、偏转，并保持平直截面。
         c = self.colors
@@ -674,9 +692,20 @@ class OracleRenderer(OutfitRenderer):
             painter.save()
             painter.setClipPath(inner_robe_clip(upper, direction), Qt.ClipOperation.IntersectClip)
             painter.drawPath(torso)
+            if scene is not None:
+                painter.setClipPath(torso, Qt.ClipOperation.IntersectClip)
+                draw_inner_clothing_decals(self, painter, scene, upper, lower, direction,
+                                           lower_direction or direction, head)
             painter.restore()
             # 高领独立覆盖，不合并恰好相接的轮廓，避免旋转时整块内搭丢失
-            painter.drawPath(inner_collar_path(upper, direction, head, shape))
+            collar = inner_collar_path(upper, direction, head, shape)
+            painter.drawPath(collar)
+            if scene is not None and not collar.isEmpty():
+                painter.save()
+                painter.setClipPath(collar, Qt.ClipOperation.IntersectClip)
+                draw_inner_clothing_decals(self, painter, scene, upper, lower, direction,
+                                           lower_direction or direction, head, collar=True)
+                painter.restore()
             return
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(c.inner_robe))
@@ -1440,7 +1469,7 @@ class OracleRenderer(OutfitRenderer):
                 frame = scene.prince_posture.frame(upper, direction, alpha)
                 pose.extend((frame.facing, frame.head_facing))
                 pose.extend(value for p in frame.points for value in (p.x-upper.x, p.y-upper.y))
-            for p in (app.head, *app.hands, *app.feet, *app.cloth):
+            for p in (app.head, *app.hands, *app.knees, *app.feet, *app.cloth):
                 v = p.sample(alpha)
                 pose.extend((v.x-upper.x, v.y-upper.y))
             key = (app, self.colors, self.atlas, scene.config.body_appearance, scene.config.active_custom_appearance,
@@ -1531,7 +1560,7 @@ class OracleRenderer(OutfitRenderer):
         # 腿根在内搭后方，粉色平下摆完整覆盖近端，露出的双腿保持肤色。
         self.draw_limbs(painter, scene, alpha, upper, lower, waist_direction, hands=False)
         self.draw_inner_robe(painter, upper, lower, direction, head, lower_direction=waist_direction,
-                             shape=scene.config.active_custom_appearance)
+                             shape=scene.config.active_custom_appearance, scene=scene)
         opening, trim, gown = self.draw_gown(painter, scene, alpha)
         sleeve_opening = opening
         shape = scene.config.active_custom_appearance
@@ -1594,7 +1623,7 @@ class OracleRenderer(OutfitRenderer):
         head = scene.appearance.head.sample(alpha)
         painter.drawLine(point(nodes[0]), point(head))
         painter.drawEllipse(point(head), 5, 5)
-        for p in scene.appearance.hands+scene.appearance.feet:
+        for p in scene.appearance.hands+scene.appearance.knees+scene.appearance.feet:
             painter.drawEllipse(point(p.sample(alpha)), 2, 2)
         if scene.prince_tentacles is not None:
             for part in scene.prince_tentacles.parts:

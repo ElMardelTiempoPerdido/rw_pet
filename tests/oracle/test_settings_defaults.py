@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QDoubleSpinBox, QMessageBox
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.oracle.config import CUSTOM_COLOR_NAMES, OracleColors
 from rw_creature_pet.oracle.characters import PRINCE_COLOR_NAMES
+from rw_creature_pet.oracle.internal_behavior import INTERNAL_BEHAVIOR_PATHS
 from rw_creature_pet.overseer.config import OverseerSlot
 from rw_creature_pet.settings_store import SettingsStore
 from rw_creature_pet.presets.common import replace_fields, set_value
@@ -36,7 +37,6 @@ PERCENTAGES = {
     'oracle.drag_reactions.voice_probability',
     'oracle.drag_reactions.gesture_min_amplitude', 'oracle.drag_reactions.gesture_max_amplitude',
     'oracle.drag_reactions.flutter_sync_probability',
-    'oracle.reading.drift_probability', 'oracle.reading.avoidance_probability',
     'oracle.reading.eye_open_probability', 'oracle.reading.matrix_probability',
     'oracle.custom_appearance.robe_flare', 'oracle.custom_appearance.robe_hem_curve',
 }
@@ -315,7 +315,7 @@ class SettingsDefaultsTests(unittest.TestCase):
         write_toml(self.source, self.data)
         config, _, _ = self.store.startup()
         dialog = self.audit(config)
-        self.assertEqual(set(dialog.controls), set(values))
+        self.assertEqual(set(dialog.controls), set(values)-INTERNAL_BEHAVIOR_PATHS)
 
     def test_upgraded_profile_displays_user_values_and_missing_toml_defaults(self):
         write_toml(self.source, self.data)
@@ -490,6 +490,8 @@ class SettingsDefaultsTests(unittest.TestCase):
             'appearance': {'oracle.outfit': 'maid', 'oracle.body_appearance': 'custom',
                            'oracle.pearl_bubble_color': '#654321'},
         }
+        per_tab = {tab: {key: value for key, value in values.items() if key not in INTERNAL_BEHAVIOR_PATHS}
+                   for tab, values in per_tab.items()}
         for values in per_tab.values():
             for key, value in values.items():
                 set_value(self.data, key, value)

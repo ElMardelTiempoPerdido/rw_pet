@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.clothing_config import ClothingDecal
+from rw_creature_pet.oracle.graphics.appearance import rotate
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.oracle.ui.settings_style import settings_font
@@ -53,6 +54,50 @@ def configured_scene(paths, pose='rest', angle=0, *, cape=False, outfit='normal'
     return scene, upper, direction
 
 
+def inner_preview(directory, paths):
+    sheet = QImage(1200, 620, QImage.Format.Format_ARGB32_Premultiplied)
+    sheet.fill(QColor('#26333c'))
+    canvas = QPainter(sheet)
+    canvas.setFont(settings_font())
+    poses = ((0, 0, 0, True, 'normal', 'Rest'), (0, .5, 0, True, 'normal', 'Head turns'),
+             (0, -.4, .5, True, 'normal', 'Waist bends'), (90, .3, -.3, True, 'normal', 'Sideways'),
+             (0, 0, 0, False, 'normal', 'Collar hidden'), (0, .3, 0, True, 'maid', 'Under outfit'))
+    try:
+        for i, (angle, neck, waist, collar, outfit, label) in enumerate(poses):
+            scene, upper, direction = configured_scene(paths, 'single', angle, outfit=outfit)
+            shape = replace(scene.config.custom_appearance,
+                clothing_decal_1=ClothingDecal(enabled=True, part='inner_robe', image_path=str(paths[0])),
+                clothing_decal_2=ClothingDecal(), clothing_decal_3=ClothingDecal(),
+                inner_collar_enabled=collar, inner_collar_top_width=8., inner_collar_bottom_width=8.)
+            scene.config = replace(scene.config, custom_appearance=shape)
+            appearance = scene.appearance
+            appearance.head.position = appearance.head.previous_position = upper+rotate(direction, neck)*14
+            appearance.waist_angle = appearance.previous_waist_angle = waist
+            appearance.lower = upper-rotate(direction, waist)*9
+            renderer = OracleRenderer()
+            renderer.colors = scene.config.active_colors
+            tile = QImage(200, 140, QImage.Format.Format_ARGB32_Premultiplied)
+            tile.fill(0)
+            painter = QPainter(tile)
+            try:
+                painter.scale(2, 2)
+                painter.translate(28-upper.x, 29-upper.y)
+                renderer.draw_geometry(painter, scene, arm=False, cords=False, pearl=False,
+                                       halo=False, cache_body=True, raster_scale=2.)
+                painter.translate(49, 0)
+                renderer.draw_inner_robe(painter, upper, appearance.lower, direction, appearance.head.position,
+                    lower_direction=rotate(direction, waist), shape=shape, scene=scene)
+            finally:
+                painter.end()
+            x, y = i%3*400, i//3*310
+            canvas.drawImage(QRectF(x, y+30, 400, 280), tile)
+            canvas.setPen(QColor('#e0e8ef'))
+            canvas.drawText(x+16, y+25, label)
+    finally:
+        canvas.end()
+    sheet.save(str(directory/'inner-poses.png'))
+
+
 def main():
     app = QApplication.instance() or QApplication([])
     app.setQuitOnLastWindowClosed(False)
@@ -61,6 +106,7 @@ def main():
     with tempfile.TemporaryDirectory() as temporary, ExitStack() as stack:
         root = Path(temporary)
         paths = test_pngs(root)
+        inner_preview(directory, paths)
         sheet = QImage(960, 640, QImage.Format.Format_ARGB32_Premultiplied)
         sheet.fill(QColor('#26333c'))
         canvas = QPainter(sheet)
@@ -109,6 +155,7 @@ def main():
                 for _ in range(3):
                     app.processEvents()
                 first = dialog.clothing_editors['clothing_decal_1']
+                first.part.setCurrentIndex(first.part.findData('inner_robe'))
                 page.verticalScrollBar().setValue(first.mapTo(page.widget(), QPoint()).y()-12)
                 app.processEvents()
                 assert page.horizontalScrollBar().maximum() == 0

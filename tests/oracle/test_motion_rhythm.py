@@ -33,7 +33,7 @@ class MotionRhythmTests(unittest.TestCase):
         for observing in (False, True):
             scene = self.scene(world_width=1600)
             scene.drift()
-            scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+            scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
             for _ in range(130):
                 scene.step()
             start = scene.body.chunks[0].position
@@ -105,7 +105,7 @@ class MotionRhythmTests(unittest.TestCase):
         self.assertFalse(nav.extend_to(Vec2(800, 300), box))  # 中央禁区。
         self.assertIs(nav.route, route)
         scene.drift()
-        scene.behavior.drift_next_observation = 100000
+        scene.behavior.reading_wait = 100000
         joins = 0
         for _ in range(1600):
             before = scene.navigator.route
@@ -127,7 +127,7 @@ class MotionRhythmTests(unittest.TestCase):
                                base_side=side, base_fraction=0., arm_scale=.35,
                                drift_speed=1.8, base_speed=1.5, antigravity_duration_seconds=35.)
             scene.drift()
-            scene.behavior.drift_next_observation = 100000
+            scene.behavior.reading_wait = 100000
             for tick in range(2600):
                 scene.step()
                 upper, lower = scene.body.chunks

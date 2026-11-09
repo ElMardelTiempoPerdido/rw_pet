@@ -149,6 +149,7 @@ class OracleDesktopMotion:
             self.scene.behavior.playback_random.setstate(previous.behavior.playback_random.getstate())
             self.scene.behavior.reading_timing_random.setstate(previous.behavior.reading_timing_random.getstate())
             self.scene.behavior.reading_wait = previous.behavior.reading_wait
+            self.scene.behavior.reading_return_pending = previous.behavior.reading_return_pending or previous.behavior.looking
             self.scene.pearl_playback_curve = previous.pearl_playback_curve
             self.scene.behavior.last_matrix_slot = previous.behavior.last_matrix_slot
             self.scene.behavior.last_fixed_index = previous.behavior.last_fixed_index
@@ -172,6 +173,13 @@ class OracleDesktopMotion:
             previous.drag.resume_autonomy if previous.drag.controlling else previous.behavior.enabled)
         self.scene.behavior.movement_enabled = True if previous is None else previous.behavior.movement_enabled
         self.scene.set_autonomous(autonomous)
+        if previous is not None and not previous.behavior.movement_enabled:
+            anchor = previous.behavior.reading_motion.anchor
+            if anchor is not None:
+                anchor = self.scene.project_target(Vec2(anchor.x/old.width*size.x, anchor.y/old.height*size.y))
+                self.scene.behavior.reading_motion.anchor = anchor
+                if previous.behavior.looking:
+                    self.scene._move_to(anchor, speed=settings.float_speed*.7)
 
     def step(self):
         self.scene.step()

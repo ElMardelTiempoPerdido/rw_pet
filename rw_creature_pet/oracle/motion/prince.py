@@ -4,7 +4,7 @@ from math import cos, sin
 
 from ...shared.geometry import Vec2
 from ..prince_assets import robe_layout
-from .prince_spine import PrinceSpine, SpineCurve, unit
+from .prince_spine import CHEST, NECK, HEAD, PrinceSpine, SpineCurve, unit
 
 
 WAIST_DEPTH = 14.
@@ -59,15 +59,15 @@ class PostureFrame:
 
     @property
     def chest(self):
-        return self.points[2]
+        return self.points[CHEST]
 
     @property
     def chest_direction(self):
-        return self.curve.tangents[2]
+        return self.curve.tangents[CHEST]
 
     @property
     def head_direction(self):
-        return self.curve.tangents[4]
+        return self.curve.tangents[HEAD]
 
     def axis(self, y):
         return self.curve.sample(y)
@@ -77,9 +77,9 @@ class PostureFrame:
         return center+side_of(direction)*x
 
     def neck_controls(self, head):
-        root = self.points[3]
+        root = self.points[NECK]
         length = (head-root).length()
-        return (root, root+self.curve.tangents[3]*(length*.40),
+        return (root, root+self.curve.tangents[NECK]*(length*.40),
                 head-self.head_direction*(length*.30), head)
 
 
@@ -93,7 +93,9 @@ class PrincePosture:
         self.neck_length = neck_length
         art = robe_layout()
         self.tail_length = art.height-art.join_y
-        self.stations = (-WAIST_DEPTH-self.tail_length, -WAIST_DEPTH, 0., 6., neck_length)
+        self.guide_stations = (-WAIST_DEPTH-self.tail_length, -WAIST_DEPTH, 0., 6., neck_length)
+        self.stations = tuple(-WAIST_DEPTH-self.tail_length*(1-i/3) for i in range(3)) + (
+            -WAIST_DEPTH, -WAIST_DEPTH*2/3, -WAIST_DEPTH/3, 0., 6., neck_length)
         goals = self.goals(upper, direction)
         self.spine = PrinceSpine(goals)
         self.points = self.spine.points
@@ -135,13 +137,16 @@ class PrincePosture:
         chest = waist+chest_axis*(WAIST_DEPTH-CHEST_DROP)
         neck = chest+neck_axis*6.
         head = neck+head_axis*(self.neck_length-6.)
-        return (waist-direction*self.tail_length, waist, chest, neck, head)
+        # 保留头、颈、胸的既有目标，中下段沿连续参考曲线细分
+        guide = SpineCurve((waist-direction*self.tail_length, waist, chest, neck, head),
+                           self.guide_stations)
+        return tuple(guide.sample(y)[0] for y in self.stations)
 
     def reset_head(self, head):
         head.position = head.previous_position = self.points[-1].position
         head.velocity = head.drive_velocity = Vec2()
 
-    def step(self, head, upper, direction, look, *, grab=None, gravity=1.):
+    def step(self, head, upper, direction, look, *, grab=None, gravity=1., weightlessness=0.):
         self.previous_upper, self.upper = self.upper, upper
         self.previous_direction, self.direction = self.direction, direction
         self.previous_facing, self.previous_head_facing = self.facing, self.head_facing
@@ -150,7 +155,7 @@ class PrincePosture:
         self.head_facing = follow(self.head_facing, self.facing, HEAD_FOLLOW)
         self.low_look = follow(self.low_look, max(0., -dot(look, direction)), LOW_LOOK_FOLLOW)
         goals = self.goals(upper, direction)
-        self.spine.step(goals, grab=grab, gravity=gravity)
+        self.spine.step(goals, grab=grab, gravity=gravity, weightlessness=weightlessness)
         self.target = goals[-1]
         point = self.points[-1]
         head.position, head.previous_position, head.velocity = point.position, point.previous_position, point.velocity

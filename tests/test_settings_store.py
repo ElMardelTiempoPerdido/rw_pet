@@ -43,7 +43,7 @@ class SettingsStoreTests(unittest.TestCase):
             self.assertEqual(loaded.oracle.float_speed, 1.2)
             self.assertEqual(loaded.oracle.cross_edge_probability, 0)
             self.assertEqual(loaded.oracle.daily_activity,
-                             DailyActivityConfig(move_weight=0, move_lean_degrees=0))
+                             DailyActivityConfig(move_weight=0))
             self.assertEqual(loaded.oracle.reading, ReadingConfig(0))
             self.assertEqual(loaded.oracle.drift.duration_variation, 0.)
             self.assertEqual(loaded.oracle.drift.cooldown_seconds, 120.)

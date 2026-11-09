@@ -86,7 +86,7 @@ class FixedSatelliteTests(unittest.TestCase):
         scene.set_pearl_orbits(True)
         scene.set_autonomous(True)
         scene.behavior.duration = 1
-        with patch.object(scene.behavior, 'choose_activity', return_value=Activity.NOTICE) as choose:
+        with patch.object(scene.behavior, 'choose_activity', return_value=Activity.IDLE) as choose:
             for _ in range(100):
                 scene.step()
             self.assertLessEqual(choose.call_count, 1)

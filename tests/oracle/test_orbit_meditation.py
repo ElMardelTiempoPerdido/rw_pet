@@ -79,12 +79,15 @@ class OrbitMeditationTests(unittest.TestCase):
             scene = self.scene(sliding_base=sliding)
             scene.observe_pearl('orbit')
             visited = set()
-            with patch.object(EdgePlanner, 'local_arc', return_value=None) as plan:
+            with patch.object(EdgePlanner, 'local_arc', return_value=None) as plan, \
+                    patch.object(scene.behavior.reading_motion, 'prepare',
+                                 wraps=scene.behavior.reading_motion.prepare) as prepare:
                 def complete():
                     visited.add(scene.behavior.state)
                     return scene.behavior.completed_cycles == 1
                 self.until(scene, complete)
-                self.assertLessEqual(plan.call_count, 6)  # 五个入场候选，抵达后一次；不逐帧重算。
+                prepare.assert_called_once()  # 有限次挪珠选位只在入场时搜索，不逐帧重算
+                self.assertLessEqual(plan.call_count, 103)  # 最多 17 个珠位各 6 个身体候选，抵达后一次
             self.assertNotIn(Activity.ORBIT, visited)
             self.assertIn(Activity.OBSERVE, visited)
 

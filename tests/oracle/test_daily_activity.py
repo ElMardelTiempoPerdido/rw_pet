@@ -50,8 +50,8 @@ class DailyActivityTests(unittest.TestCase):
                     expected = Activity.DRIFT
                 else:
                     value = (value-.08)/.92
-                    expected = (Activity.MEDITATE if value < .12 else Activity.IDLE if value < .40
-                                else Activity.ROAM if value < .75 else Activity.NOTICE)
+                    expected = (Activity.MEDITATE if value < 12/75 else Activity.IDLE if value < 40/75
+                                else Activity.ROAM)
             self.assertEqual(behavior.choose_activity(scene), expected)
         self.assertEqual(behavior.random.getstate(), prior.getstate())
 
@@ -59,15 +59,15 @@ class DailyActivityTests(unittest.TestCase):
         daily = DailyActivityConfig(idle_weight=1, move_weight=2, meditate_weight=1)
         scene = self.scene(daily_activity=daily, reading=ReadingConfig(.2),
                            cross_edge_probability=0, antigravity_probability=0)
-        for draw, expected in ((.19, Activity.MEDITATE), (.21, Activity.IDLE),
-                               (.41, Activity.ROAM), (.79, Activity.ROAM), (.81, Activity.NOTICE)):
+        for draw, expected in ((.19, Activity.MEDITATE), (.26, Activity.IDLE),
+                               (.51, Activity.ROAM), (.79, Activity.ROAM), (.81, Activity.ROAM)):
             with patch.object(scene.behavior.random, 'random', return_value=draw):
                 self.assertEqual(scene.behavior.choose_activity(scene), expected)
         scene.behavior.movement_enabled = False
         with patch.object(scene.behavior.random, 'random', return_value=.6):
             self.assertEqual(scene.behavior.choose_activity(scene), Activity.IDLE)
         with patch.object(scene.behavior.random, 'random', return_value=.9):
-            self.assertEqual(scene.behavior.choose_activity(scene), Activity.NOTICE)
+            self.assertEqual(scene.behavior.choose_activity(scene), Activity.IDLE)
         for name, activity in (('idle_weight', Activity.IDLE), ('move_weight', Activity.ROAM),
                                ('meditate_weight', Activity.MEDITATE)):
             weights = dict(idle_weight=0, move_weight=0, meditate_weight=0)
@@ -76,7 +76,7 @@ class DailyActivityTests(unittest.TestCase):
                                cross_edge_probability=0, antigravity_probability=0)
             self.assertEqual({scene.behavior.choose_activity(scene) for _ in range(100)}, {activity})
         scene.config = replace(scene.config, reading=ReadingConfig(1))
-        self.assertEqual({scene.behavior.choose_activity(scene) for _ in range(100)}, {Activity.NOTICE})
+        self.assertEqual({scene.behavior.choose_activity(scene) for _ in range(100)}, {activity})
 
     def test_duration_ranges_reach_initial_idle_resume_long_idle_and_meditation(self):
         scene = self.scene(daily_activity=DailyActivityConfig(

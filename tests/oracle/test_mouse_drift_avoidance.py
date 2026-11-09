@@ -16,7 +16,7 @@ class DriftMouseAvoidanceTests(unittest.TestCase):
         config.setdefault('cross_edge_probability', 0.)
         s = self.fixture.scene(**config)
         s.drift()
-        s.behavior.drift_next_move = s.behavior.drift_next_observation = 100000
+        s.behavior.drift_next_move = s.behavior.reading_wait = 100000
         for _ in range(160):
             s.step()
         s.mouse_reaction.avoidance.DELAY = (.25, .25)
@@ -115,15 +115,16 @@ class DriftMouseAvoidanceTests(unittest.TestCase):
         a = self.engage(s)
         route = s.navigator.route
         deadline = b.drift_duration
-        b.drift_next_observation = b.drift_next_move = 0
+        b.reading_wait = b.drift_next_move = 0
         b.drift_bout_until = 100000
-        for _ in range(320):
-            s.mouse_reaction.pointer = self.pointer(s)
-            s.step()
-            if not a.moving:
-                break
-            self.assertIs(s.navigator.route, route)
-            self.assertEqual(b.state, Activity.DRIFT)
+        with patch.object(b.reading_timing_random, 'random', return_value=0.):
+            for _ in range(320):
+                s.mouse_reaction.pointer = self.pointer(s)
+                s.step()
+                if not a.moving:
+                    break
+                self.assertIs(s.navigator.route, route)
+                self.assertEqual(b.state, Activity.DRIFT)
         self.assertEqual(b.state, Activity.NOTICE)
         s.step()
         self.assertFalse(a.busy)
@@ -229,7 +230,7 @@ class DriftMouseAvoidanceTests(unittest.TestCase):
         self.assertEqual(a.offset, Vec2())
         self.assertEqual(a.lean, 0.)
         self.assertIsNone(a.pivot_axis)
-        s.behavior.drift_next_move = s.behavior.drift_next_observation = 100000
+        s.behavior.drift_next_move = s.behavior.reading_wait = 100000
         a.DELAY = (.25, .25)
         self.engage(s)
         self.assertTrue(a.drifting)

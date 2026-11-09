@@ -3,14 +3,17 @@
   "version": 2,
   "id": "296457e8-88c0-4b61-93ed-59ebb951ca92",
   "name": "dust",
-  "updated_at": "2026-10-30T06:13:24.389393+00:00",
+  "updated_at": "2026-11-09T08:49:26.708626+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
       "hover_dwell_seconds": 1.0,
       "hover_open_probability": 0.0,
       "hover_probability": 1.0,
-      "hover_radius": 300.0
+      "hover_radius": 300.0,
+      "petting_enabled": true,
+      "petting_grace_seconds": 0.6,
+      "petting_seconds": 1.5
     },
     "oracle": {
       "antigravity_duration_seconds": 300.0,
@@ -62,6 +65,39 @@
         "move_max_distance": 160.0,
         "move_min_distance": 60.0,
         "move_weight": 35.0
+      },
+      "drag_expressions": {
+        "chevron_down": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "chevron_up": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "probability": 0.9,
+        "round": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "slant_in": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "slant_out": {
+          "enabled": false,
+          "large_only": false,
+          "weight": 1
+        },
+        "squeezed": {
+          "enabled": true,
+          "large_only": false,
+          "weight": 1
+        }
       },
       "drag_projection_cooldown_seconds": 60.0,
       "drag_projection_probability": 0.18,
@@ -173,35 +209,29 @@
       "pearl_satellite_count": 1,
       "projection_opacity": 0.3,
       "reading": {
-        "approach_weight": 35.0,
-        "avoidance_probability": 0.35,
-        "drift_delay_max_seconds": 24.0,
-        "drift_delay_min_seconds": 12.0,
-        "drift_interval_max_seconds": 40.0,
-        "drift_interval_min_seconds": 20.0,
-        "drift_probability": 1.0,
+        "approach_weight": 0.0,
+        "attempt_max_seconds": 40.0,
+        "attempt_min_seconds": 20.0,
         "eye_open_probability": 0.1,
-        "interval_max_seconds": 0.0,
-        "interval_min_seconds": 0.0,
         "matrix_probability": 0.5,
         "notice_max_seconds": 1.5,
         "notice_min_seconds": 0.9,
         "observe_distance": 50.0,
         "observe_max_seconds": 60.0,
         "observe_min_seconds": 40.0,
-        "orbit_weight": 30.0,
+        "orbit_weight": 100.0,
         "playback_max_seconds": 120.0,
         "playback_min_seconds": 90.0,
         "recall_distance": 38.0,
-        "recall_weight": 35.0,
-        "start_probability": 0.25
+        "recall_weight": 0.0,
+        "start_probability": 1.0
       },
       "voice": "none"
     }
   },
-  "state": "history/state-00bc15a1ae824923b391ba3e8e74d27e.json",
+  "state": "history/state-c6b0914cb4f347f58660329b50147455.json",
   "appearance": {
     "id": "ad12bbbb-1830-403f-9cae-37ce94ee10f3",
-    "path": "appearance/00bc15a1ae824923b391ba3e8e74d27e/appearance.json"
+    "path": "appearance/c6b0914cb4f347f58660329b50147455/appearance.json"
   }
 }

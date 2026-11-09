@@ -61,16 +61,10 @@ class DailyActivityConfig:
 
 @dataclass(frozen=True, slots=True)
 class ReadingConfig:
-    # 普通停留后的读珠选择，与停留 / 移动 / 冥想的相对权重独立
+    # 所有自主读珠共用概率和尝试时钟，与日常活动选择及阅读时长独立
     start_probability: float = .25
-    interval_min_seconds: float = 0.
-    interval_max_seconds: float = 0.
-    drift_probability: float = 1.
-    drift_delay_min_seconds: float = 12.
-    drift_delay_max_seconds: float = 24.
-    drift_interval_min_seconds: float = 20.
-    drift_interval_max_seconds: float = 40.
-    avoidance_probability: float = .35
+    attempt_min_seconds: float = 20.
+    attempt_max_seconds: float = 40.
     notice_min_seconds: float = .9
     notice_max_seconds: float = 1.5
     observe_min_seconds: float = 40.
@@ -97,7 +91,7 @@ class ReadingConfig:
                 limits = (32, 150)
             elif name == 'recall_distance':
                 limits = (30, 150)
-            elif name.startswith('interval_'):
+            elif name.startswith('attempt_'):
                 limits = (0, 3600)
             else:
                 limits = (.1, 3600)

@@ -95,14 +95,15 @@ class ClothingSettingsTests(unittest.TestCase):
         source.unlink()
         self.assertTrue(Path(editor.value().image_path).is_file())
         self.assertFalse(editor.import_file(self.png('too-large.png', 129)))
-        editor.part.setCurrentIndex(editor.part.findData('left_sleeve'))
+        editor.part.setCurrentIndex(editor.part.findData('inner_robe'))
         editor.y_input.setValue(4.5)
         QTest.qWait(800)
         saved = self.store.load().oracle.custom_appearance.clothing_decal_1
         self.assertEqual(saved.offset_x, 1.12345)
         self.assertEqual(saved.offset_y, 4.5)
-        self.assertEqual(saved.part, 'left_sleeve')
-        self.assertEqual(original, first.path.read_bytes())
+        self.assertEqual(saved.part, 'inner_robe')
+        # 首次保存会把根清单升级为当前版本，下载时的原件保存在 original 中
+        self.assertEqual(original, (first.path.parent/'original/profile.json').read_bytes())
         d.preset_workflow.reset_parameter(PREFIX+'clothing_decal_1.part')
         self.assertEqual(editor.value().part, 'robe')
         self.assertTrue(d.preset_workflow.flush())
@@ -116,6 +117,7 @@ class ClothingSettingsTests(unittest.TestCase):
         language_manager().set_language('en')
         self.assertEqual(editor.enabled.text(), 'Clothing texture 1')
         self.assertEqual(editor.part.currentText(), 'Robe')
+        self.assertEqual(editor.part.itemText(editor.part.findData('inner_robe')), 'Inner robe')
         d.controls['oracle.outfit'].setValue('maid')
         self.assertEqual(d.candidate().oracle.custom_appearance.clothing_decal_1, editor.value())
 
@@ -123,7 +125,7 @@ class ClothingSettingsTests(unittest.TestCase):
         d = self.dialog()
         for i, editor in enumerate(d.clothing_editors.values()):
             self.assertTrue(editor.import_file(self.png(f'{i}.png', 64+i)))
-            editor.part.setCurrentIndex(0)  # 三个槽位允许同一部位
+            editor.part.setCurrentIndex(editor.part.findData('inner_robe'))  # 三个槽位允许同一部位
             editor.x_input.setValue(i*2.)
         d.clothing_editors['clothing_decal_2'].enabled.setChecked(False)
         expected = d.candidate()

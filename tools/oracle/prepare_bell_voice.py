@@ -1,4 +1,4 @@
-"""离线准备 Bell 语音：与自动初始化共用切分及 04/05 开头的声道抵消算法。"""
+"""离线准备 Bell 语音：共用切片、04/05 开头声道抵消及最终 0.2 倍振幅处理"""
 import argparse
 from pathlib import Path
 import sys

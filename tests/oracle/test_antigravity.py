@@ -105,7 +105,7 @@ class AntigravityTests(unittest.TestCase):
         for sign in (-1, 1):
             scene = self.scene(antigravity_duration_seconds=300.)
             scene.drift()
-            scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+            scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
             for _ in range(160):
                 scene.step()
             self.assertAlmostEqual(scene.pose.angle, 0., places=5)
@@ -179,7 +179,7 @@ class AntigravityTests(unittest.TestCase):
                                    arm_scale=.75 if sliding else .35)
                 scene.drift()
                 # 本组隔离纯移动；观察期间可能按原有小概率睁眼，另组覆盖。
-                scene.behavior.drift_next_observation = 100000
+                scene.behavior.reading_wait = 100000
                 box = (scene.navigator.region if scene.navigator else scene.body_region).boxes[
                     scene.behavior.current_edge(scene)]
                 start = scene.body.chunks[0].position

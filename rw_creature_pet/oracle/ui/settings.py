@@ -21,7 +21,7 @@ from ...overseer.config import APPEARANCE_COLORS, FILAMENT_COUNT_MIN, FILAMENT_C
 from ..assets import prepare_oracle_assets
 from ..characters import CHARACTERS, PRINCE_COLOR_NAMES
 from ..config import (COLOR_LABELS, CUSTOM_LENGTH_UNITS, DISPLAY_SCALES,
-                      EDGE_NAMES, INNER_COLLAR_WIDTH_MAX, validate_edges)
+                      EDGE_NAMES, INNER_COLLAR_WIDTH_MAX, LEG_LENGTH_MIN, LEG_LENGTH_MAX, validate_edges)
 from ..space import EDGE_FRACTION_MAX
 from .space import screen_space, selected_screen, space_description
 from .inputs import ColorButton, WheelSafeSpinBox, WheelSafeDoubleSpinBox, WheelSafeComboBox
@@ -638,24 +638,29 @@ class OracleSettingsDialog(QDialog):
                   4, 10, decimals=1, step=.5, suffix=' px')
         self.controls['oracle.custom_appearance.chest_height'].setToolTip(
             '胸部中心至胸肩最高点的距离；领口起始高度保持独立')
-        self.spin(custom, '肩膀宽度', 'oracle.custom_appearance.shoulder_width', shape.shoulder_width,
+        left, right = self.two_columns(custom)
+        self.spin(left, '肩膀宽度', 'oracle.custom_appearance.shoulder_width', shape.shoulder_width,
                   4, 18, decimals=1, step=.5, suffix=' px')
         self.controls['oracle.custom_appearance.shoulder_width'].setToolTip(
             '左右袖根参考点之间的距离；调大时上肩向外展开、肩线更平，胸肩和袖口尺寸保持不变')
+        self.spin(right, '袖口圆角', 'oracle.custom_appearance.sleeve_cuff_radius', shape.sleeve_cuff_radius,
+                  0, 4, decimals=1, step=.5, suffix=' px')
+        self.controls['oracle.custom_appearance.sleeve_cuff_radius'].setToolTip(
+            '圆角半径；0 为直角，实际半径受袖宽与袖长限制')
         left, right = self.two_columns(custom)
         self.spin(left, '袖根宽度', 'oracle.custom_appearance.sleeve_root_width', shape.sleeve_root_width,
                   2, 12, decimals=1, step=.5, suffix=' px')
         self.spin(right, '袖口宽度', 'oracle.custom_appearance.sleeve_cuff_width', shape.sleeve_cuff_width,
                   2, 16, decimals=1, step=.5, suffix=' px')
         left, right = self.two_columns(custom)
-        self.spin(left, '袖口圆角', 'oracle.custom_appearance.sleeve_cuff_radius', shape.sleeve_cuff_radius,
-                  0, 4, decimals=1, step=.5, suffix=' px')
-        self.controls['oracle.custom_appearance.sleeve_cuff_radius'].setToolTip(
-            '圆角半径；0 为直角，实际半径受袖宽与袖长限制')
         key = 'oracle.custom_appearance.robe_length'
-        self.spin(right, '衣袍长度', key, display_value(key, shape.robe_length),
+        self.spin(left, '衣袍长度', key, display_value(key, shape.robe_length),
                   ceil(display_value(key, .7)*10)/10, floor(display_value(key, 1.5)*10)/10,
                   decimals=1, step=1, suffix=' px')
+        self.spin(right, '腿部长度', 'oracle.custom_appearance.leg_length', shape.leg_length,
+                  LEG_LENGTH_MIN, LEG_LENGTH_MAX, decimals=1, step=.5, suffix=' px')
+        self.controls['oracle.custom_appearance.leg_length'].setToolTip(
+            '自然姿态沿身体方向从腿根至脚中心的距离；不包含脚的大小，与衣袍长度独立')
         left, right = self.two_columns(custom)
         self.spin(left, '衣袍下摆张开程度', 'oracle.custom_appearance.robe_flare', shape.robe_flare*100,
                   0, 200, step=5, suffix=' %')
@@ -948,6 +953,7 @@ class OracleSettingsDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self.controls['oracle.voice'].refresh()
         if self._migration_notice:
             self._migration_notice = False
             QTimer.singleShot(0, self, self.confirm_legacy_parameters)
@@ -1037,6 +1043,8 @@ class OracleSettingsDialog(QDialog):
         shown = display_value(key, value)
         if isinstance(control, QCheckBox):
             control.setChecked(shown)
+        elif key == 'oracle.voice':
+            control.refresh(selection=shown, scan=False)
         elif isinstance(control, ScreenComboBox):
             control.refresh(selection=shown)
         elif isinstance(control, QComboBox):
@@ -1172,7 +1180,7 @@ class OracleSettingsDialog(QDialog):
             editor.refresh()
         self.refresh_space()
         voice = self.controls['oracle.voice']
-        voice.setItemText(voice.findData('none'), tr('不使用语音'))
+        voice.refresh_labels()
         mode = self.controls['overseer.appearance_mode']
         for key, label in (('random', '随机出现'), ('resident', '常驻')):
             mode.setItemText(mode.findData(key), tr(label))
@@ -1512,9 +1520,8 @@ class OracleSettingsDialog(QDialog):
         for key in ('oracle.glow_color', 'oracle.glow_radius', 'oracle.glow_opacity'):
             c[key].setEnabled(c['oracle.glow_enabled'].isChecked())
         c['oracle.pearl_matrix_count'].setEnabled(c['oracle.pearl_matrix_enabled'].isChecked())
-        c['oracle.pearl_matrix_avoid_radius'].setEnabled(
+        c['oracle.pearl_playback_probability'].setEnabled(
             c['oracle.pearl_matrix_enabled'].isChecked() and c['oracle.pearl_matrix_count'].value() > 0)
-        c['oracle.pearl_playback_probability'].setEnabled(c['oracle.pearl_matrix_avoid_radius'].isEnabled())
         for editor in (c['oracle.pearl_bubble_max_size'], self.pearl_bubble_color):
             editor.setEnabled(c['oracle.pearl_playback_probability'].isEnabled()
                               and c['oracle.pearl_playback_probability'].value() > 0)

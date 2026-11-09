@@ -85,6 +85,18 @@ VOICE_CLIPS = {'bell': BELL_VOICE_CLIPS, **CHAT_VOICE_CLIPS, 'sig': SIG_VOICE_CL
 VOICE_RESOURCES = {name: name+'_voice' for name in VOICE_CLIPS if name != 'none'}
 
 
+def valid_voice(value):
+    from .custom import custom_voice_name
+    return isinstance(value, str) and (value in VOICE_CLIPS or custom_voice_name(value) is not None)
+
+
+def voice_clips(value):
+    if value in VOICE_CLIPS:
+        return VOICE_CLIPS[value]
+    from .custom import custom_voice
+    return custom_voice(value).clips
+
+
 def legacy_voice(body_appearance):
     """仅补齐旧配置的缺省选项，显式选择语音后不再依据主体外观推断"""
     return 'bell' if body_appearance == 'bell' else 'none'

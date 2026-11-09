@@ -9,7 +9,7 @@
 
 format_version = 1
 
-# 日常活动 - daily_activity - 17 个参数
+# 日常活动 - daily_activity - 16 个参数
 
 [[styles]]
 id = "daily_activity.still"
@@ -37,7 +37,6 @@ description_en = "Mostly rests or meditates"
 "oracle.daily_activity.meditate_max_seconds" = 150.0
 "oracle.daily_activity.cross_edge_cooldown_seconds" = 180.0
 "oracle.daily_activity.cross_edge_check_seconds" = 45.0
-"oracle.daily_activity.move_lean_degrees" = 8.0
 
 [[styles]]
 id = "daily_activity.balanced"
@@ -65,7 +64,6 @@ description_en = "Alternates rest and movement with occasional meditation"
 "oracle.daily_activity.meditate_max_seconds" = 60.0
 "oracle.daily_activity.cross_edge_cooldown_seconds" = 60.0
 "oracle.daily_activity.cross_edge_check_seconds" = 20.0
-"oracle.daily_activity.move_lean_degrees" = 20.0
 
 [[styles]]
 id = "daily_activity.active"
@@ -93,9 +91,8 @@ description_en = "Takes shorter rests and longer same-edge trips"
 "oracle.daily_activity.meditate_max_seconds" = 35.0
 "oracle.daily_activity.cross_edge_cooldown_seconds" = 60.0
 "oracle.daily_activity.cross_edge_check_seconds" = 18.0
-"oracle.daily_activity.move_lean_degrees" = 20.0
 
-# 漫游节奏 - drift - 27 个参数
+# 漫游节奏 - drift - 23 个参数
 
 [[styles]]
 id = "drift.occasional"
@@ -112,10 +109,6 @@ description_en = "Occasionally enters a shorter drift"
 "oracle.drift_speed" = 0.85
 "oracle.drift.cooldown_seconds" = 300.0
 "oracle.drift.duration_variation" = 0.2
-"oracle.drift.entry_min_seconds" = 3.0
-"oracle.drift.entry_max_seconds" = 7.0
-"oracle.drift.resume_min_seconds" = 2.0
-"oracle.drift.resume_max_seconds" = 5.0
 "oracle.drift.short_pause_min_seconds" = 0.7
 "oracle.drift.short_pause_max_seconds" = 1.8
 "oracle.drift.normal_pause_min_seconds" = 3.0
@@ -150,10 +143,6 @@ description_en = "Alternates drifting and pauses"
 "oracle.drift_speed" = 1.0
 "oracle.drift.cooldown_seconds" = 120.0
 "oracle.drift.duration_variation" = 0.1
-"oracle.drift.entry_min_seconds" = 2.5
-"oracle.drift.entry_max_seconds" = 5.0
-"oracle.drift.resume_min_seconds" = 0.5
-"oracle.drift.resume_max_seconds" = 3.0
 "oracle.drift.short_pause_min_seconds" = 0.35
 "oracle.drift.short_pause_max_seconds" = 1.2
 "oracle.drift.normal_pause_min_seconds" = 1.8
@@ -188,10 +177,6 @@ description_en = "Drifts more often and for longer"
 "oracle.drift_speed" = 1.05
 "oracle.drift.cooldown_seconds" = 90.0
 "oracle.drift.duration_variation" = 0.1
-"oracle.drift.entry_min_seconds" = 0.8
-"oracle.drift.entry_max_seconds" = 2.0
-"oracle.drift.resume_min_seconds" = 0.4
-"oracle.drift.resume_max_seconds" = 1.2
 "oracle.drift.short_pause_min_seconds" = 0.15
 "oracle.drift.short_pause_max_seconds" = 0.7
 "oracle.drift.normal_pause_min_seconds" = 1.0
@@ -377,7 +362,7 @@ description_en = "Away! Away!"
 "oracle.mouse_avoidance.lean_speed" = 75.0
 "oracle.mouse_avoidance.move_angle_jitter" = 25.0
 
-# 拖动反应 - drag_reactions - 38 个参数
+# 拖动反应 - drag_reactions - 35 个参数
 
 [[styles]]
 id = "drag_reactions.quiet"
@@ -421,10 +406,7 @@ description_en = "May responds after a pause with gentle gestures"
 "oracle.drag_reactions.projection_interval_max_seconds" = 3.0
 "oracle.drag_reactions.projection_duration_min_seconds" = 5.0
 "oracle.drag_reactions.projection_duration_max_seconds" = 7.0
-"oracle.drag_reactions.projection_frame_seconds" = 0.375
 "oracle.drag_reactions.projection_lift_delay_seconds" = 0.5
-"oracle.drag_reactions.projection_move_min_seconds" = 1.2
-"oracle.drag_reactions.projection_move_max_seconds" = 2.4
 "oracle.drag_projection_probability" = 0.05
 "oracle.drag_projection_cooldown_seconds" = 120.0
 
@@ -470,10 +452,7 @@ description_en = "Makes a few varied gestures after being held"
 "oracle.drag_reactions.projection_interval_max_seconds" = 1.8
 "oracle.drag_reactions.projection_duration_min_seconds" = 7.0
 "oracle.drag_reactions.projection_duration_max_seconds" = 9.0
-"oracle.drag_reactions.projection_frame_seconds" = 0.375
 "oracle.drag_reactions.projection_lift_delay_seconds" = 0.35
-"oracle.drag_reactions.projection_move_min_seconds" = 0.8
-"oracle.drag_reactions.projection_move_max_seconds" = 1.8
 "oracle.drag_projection_probability" = 0.12
 "oracle.drag_projection_cooldown_seconds" = 75.0
 
@@ -519,14 +498,11 @@ description_en = "(ノ｀Д)ノ"
 "oracle.drag_reactions.projection_interval_max_seconds" = 1.5
 "oracle.drag_reactions.projection_duration_min_seconds" = 8.0
 "oracle.drag_reactions.projection_duration_max_seconds" = 10.0
-"oracle.drag_reactions.projection_frame_seconds" = 0.375
 "oracle.drag_reactions.projection_lift_delay_seconds" = 0.35
-"oracle.drag_reactions.projection_move_min_seconds" = 0.65
-"oracle.drag_reactions.projection_move_max_seconds" = 1.6
 "oracle.drag_projection_probability" = 0.18
 "oracle.drag_projection_cooldown_seconds" = 60.0
 
-# 阅读习惯 - reading_habits - 18 个参数
+# 阅读习惯 - reading_habits - 10 个参数
 
 [[styles]]
 id = "reading_habits.occasional"
@@ -539,16 +515,8 @@ description_en = "Reads infrequently"
 
 [styles.values]
 "oracle.reading.start_probability" = 0.1
-"oracle.reading.interval_min_seconds" = 45.0
-"oracle.reading.interval_max_seconds" = 90.0
-"oracle.reading.drift_probability" = 0.25
-"oracle.reading.drift_delay_min_seconds" = 25.0
-"oracle.reading.drift_delay_max_seconds" = 50.0
-"oracle.reading.drift_interval_min_seconds" = 45.0
-"oracle.reading.drift_interval_max_seconds" = 90.0
-"oracle.reading.avoidance_probability" = 0.1
-"oracle.reading.notice_min_seconds" = 1.2
-"oracle.reading.notice_max_seconds" = 2.5
+"oracle.reading.attempt_min_seconds" = 45.0
+"oracle.reading.attempt_max_seconds" = 90.0
 "oracle.reading.observe_min_seconds" = 10.0
 "oracle.reading.observe_max_seconds" = 22.0
 "oracle.reading.playback_min_seconds" = 25.0
@@ -568,16 +536,8 @@ description_en = "Reads at a moderate pace"
 
 [styles.values]
 "oracle.reading.start_probability" = 0.25
-"oracle.reading.interval_min_seconds" = 15.0
-"oracle.reading.interval_max_seconds" = 35.0
-"oracle.reading.drift_probability" = 0.65
-"oracle.reading.drift_delay_min_seconds" = 18.0
-"oracle.reading.drift_delay_max_seconds" = 32.0
-"oracle.reading.drift_interval_min_seconds" = 30.0
-"oracle.reading.drift_interval_max_seconds" = 55.0
-"oracle.reading.avoidance_probability" = 0.25
-"oracle.reading.notice_min_seconds" = 1.2
-"oracle.reading.notice_max_seconds" = 2.2
+"oracle.reading.attempt_min_seconds" = 15.0
+"oracle.reading.attempt_max_seconds" = 35.0
 "oracle.reading.observe_min_seconds" = 40.0
 "oracle.reading.observe_max_seconds" = 65.0
 "oracle.reading.playback_min_seconds" = 75.0
@@ -597,16 +557,8 @@ description_en = "Reads more frequently"
 
 [styles.values]
 "oracle.reading.start_probability" = 0.55
-"oracle.reading.interval_min_seconds" = 3.0
-"oracle.reading.interval_max_seconds" = 10.0
-"oracle.reading.drift_probability" = 0.9
-"oracle.reading.drift_delay_min_seconds" = 10.0
-"oracle.reading.drift_delay_max_seconds" = 20.0
-"oracle.reading.drift_interval_min_seconds" = 15.0
-"oracle.reading.drift_interval_max_seconds" = 30.0
-"oracle.reading.avoidance_probability" = 0.5
-"oracle.reading.notice_min_seconds" = 0.6
-"oracle.reading.notice_max_seconds" = 1.2
+"oracle.reading.attempt_min_seconds" = 3.0
+"oracle.reading.attempt_max_seconds" = 10.0
 "oracle.reading.observe_min_seconds" = 65.0
 "oracle.reading.observe_max_seconds" = 100.0
 "oracle.reading.playback_min_seconds" = 100.0
@@ -615,7 +567,7 @@ description_en = "Reads more frequently"
 "oracle.reading.matrix_probability" = 0.5
 "oracle.pearl_playback_probability" = 0.35
 
-# 珍珠互动方式 - pearl_interaction - 8 个参数
+# 珍珠互动方式 - pearl_interaction - 5 个参数
 
 [[styles]]
 id = "pearl_interaction.recall"
@@ -632,9 +584,6 @@ description_en = "Usually stays still and recalls fixed pearls for close reading
 "oracle.reading.orbit_weight" = 5.0
 "oracle.reading.observe_distance" = 45.0
 "oracle.reading.recall_distance" = 36.0
-"oracle.pearl_matrix_avoid_radius" = 80.0
-"oracle.pearl_follow_width" = 300.0
-"oracle.pearl_follow_height" = 220.0
 
 [[styles]]
 id = "pearl_interaction.approach"
@@ -651,9 +600,6 @@ description_en = "Usually approaches fixed pearls and stops at a comfortable dis
 "oracle.reading.orbit_weight" = 5.0
 "oracle.reading.observe_distance" = 55.0
 "oracle.reading.recall_distance" = 40.0
-"oracle.pearl_matrix_avoid_radius" = 80.0
-"oracle.pearl_follow_width" = 440.0
-"oracle.pearl_follow_height" = 320.0
 
 [[styles]]
 id = "pearl_interaction.orbit"
@@ -670,6 +616,3 @@ description_en = "Favors feasible local arcs around fixed pearls with a wider fo
 "oracle.reading.orbit_weight" = 65.0
 "oracle.reading.observe_distance" = 60.0
 "oracle.reading.recall_distance" = 42.0
-"oracle.pearl_matrix_avoid_radius" = 80.0
-"oracle.pearl_follow_width" = 480.0
-"oracle.pearl_follow_height" = 360.0

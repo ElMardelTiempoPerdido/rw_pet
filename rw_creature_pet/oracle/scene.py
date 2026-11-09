@@ -301,9 +301,11 @@ class FixedOracleArm:
             carries.append(carry)
         self._carry = tuple(carries)
         self._solve(tip)
-        if self.constraint_error > .02:
-            # 大倾角末端经过窄角落时，边界投影偶尔耗尽首轮预算。
-            # 只为未收敛帧补一轮；常规移动和静置不增加迭代数。
+        # 大倾角末端经过窄角落时，边界投影可能需要多轮才能收敛
+        # 仅为未收敛帧有限次补算，常规移动和静置不增加迭代数
+        for _ in range(3):
+            if self.constraint_error <= .02:
+                break
             self._solve(tip)
         for joint in self.joints:
             joint.velocity = joint.position - joint.previous_position
@@ -563,7 +565,7 @@ class OracleScene:
         self.behavior.set_enabled(self, enabled)
 
     def set_autonomous_movement(self, enabled):
-        """桌面设置只限制自主位移；原地行为循环继续，拖拽结束后再恢复。"""
+        """桌面设置限制日常游走；局部阅读继续，拖拽结束后再恢复"""
         self.behavior.set_movement_enabled(self, enabled)
         self.set_autonomous(True)
 
@@ -676,11 +678,11 @@ class OracleScene:
         self.behavior.enabled = False  # 调试按钮明确运行一次；循环由自主开关启动。
         return True
 
-    def observe_matrix_pearl(self, slot=None):
-        """手动抽取一次；已抽出时继续使用同一颗，关闭矩阵时无操作。"""
+    def observe_matrix_pearl(self, slot=None, *, mode='recall'):
+        """手动抽取一次，支持三种方式；已抽出时复用同一颗，关闭矩阵时无操作"""
         if self.drag.controlling:
             return False
-        if not self.behavior.notice(self, 'recall', matrix=True, slot=slot):
+        if not self.behavior.notice(self, mode, matrix=True, slot=slot):
             return False
         self.behavior.enabled = False
         return True
@@ -878,6 +880,10 @@ class OracleScene:
         upper = self.body.chunks[0]
         # 珍珠本轮尚不可抓取，仍在活动带内跟随人偶对应的边缘投影。
         pearl_center = self.project_target(upper.position) if self.drag.controlling else upper.position
+        if (self.behavior.looking and self.behavior.reading_motion.origin is not None
+                and (self.behavior.controls_pearl or self.behavior.reading_motion.return_to is not None)):
+            # 阅读移动不迁移整组悬浮点，尤其不能让人偶与矩阵互相追逐
+            pearl_center = self.behavior.reading_motion.origin
         if self.pearl_matrix is not None:
             self.pearl_matrix.step(pearl_center)
         self.fixed_pearls.step(pearl_center, self.observed_pearl if self.behavior.controls_pearl else None)
@@ -890,7 +896,8 @@ class OracleScene:
         self.look_direction = self.look_direction.lerp(desired_look, .12)
         if self.prince_posture is not None:
             self.prince_posture.step(self.head, upper.position, self.body.direction, self.look_direction,
-                                     grab=self.drag.prince_grab(), gravity=self.pose.gravity_scale)
+                                     grab=self.drag.prince_grab(), gravity=self.pose.gravity_scale,
+                                     weightlessness=self.pose.weightlessness)
         else:
             self.head.step(upper, self.body.direction, self.look_direction)
         if self.pearl_orbits is not None:

@@ -145,6 +145,7 @@ head_length = 1.0              # 存储比例 0.7～1.5；设置面板换算为�
 sleeve_root_width = 6.0        # 袖根完整宽度，2～12 逻辑像素
 sleeve_cuff_width = 10.0       # 袖口完整宽度，2～16 逻辑像素
 robe_length = 1.0              # 下半部存储比例 0.7～1.5；面板显示中央领口至下摆长度，默认约 27.6px
+leg_length = 8.5               # 自然姿态沿身体轴从腿根至脚中心的距离，4～20 逻辑像素，独立于衣袍长度
 robe_flare = 1.0               # 下摆张开程度，0～2；1 为原轮廓，0 为不向外展开
 robe_hem_curve = 1.0           # 底边弯曲程度，0～2；1 为原弧度，0 为平底，不随长度拉伸
 sleeve_cuff_radius = 2.0       # 袖口圆角半径，0～4 逻辑像素；0 为直角，实际半径受袖宽与袖长限制
@@ -487,19 +488,13 @@ cross_edge_cooldown_seconds = 60.0
 cross_edge_check_seconds = 20.0
 move_lean_degrees = 20.0
 
-# 普通停留后、排除跨边与漫游分支后的读珠概率
+# 停留、漫游与躲避共用的读珠概率和尝试间隔；阅读时长分别保留
 [oracle.reading]
 start_probability = 0.25
 
 # 漫游节奏；时间为秒，速度浮动乘以 drift_speed
-interval_min_seconds = 0.0
-interval_max_seconds = 0.0
-drift_probability = 1.0
-drift_delay_min_seconds = 12.0
-drift_delay_max_seconds = 24.0
-drift_interval_min_seconds = 20.0
-drift_interval_max_seconds = 40.0
-avoidance_probability = 0.35
+attempt_min_seconds = 20.0
+attempt_max_seconds = 40.0
 notice_min_seconds = 0.9
 notice_max_seconds = 1.5
 observe_min_seconds = 40.0

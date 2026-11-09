@@ -82,8 +82,8 @@ delivery = "resolved"
 loader = "rw_creature_pet.oracle.audio.assets:prepare_bell_voice"
 check = "以准备函数返回的片段与错误为准；自动提取检查完整双声道 16bit WAV、切片帧数及 SHA256；指定目录目前只检查十个预期文件存在，实际解码仍可能失败"
 missing = "bell 语音选项不可用，不阻止启动、摆手、阅读或其他事件；none 始终可选"
-cache = "%LOCALAPPDATA%/rw_creature_pet/voices/bell-<源文件与处理版本指纹>/，只缓存十段片段与 manifest.json"
-notes = "显式 voice_directory 优先，非旧版兼容路径缺文件时不回退；auto 或失效的旧版 bell-clips 路径走游戏提取。不得仅凭 Watcher 目录、共用音效包或同名占位 WAV 判为可用。选择语音与角色名称无关"
+cache = "%LOCALAPPDATA%/rw_creature_pet/voices/bell-<源文件、处理版本及增益指纹>/，只缓存十段片段与 manifest.json"
+notes = "v3 在切片后统一应用 0.2 倍振幅；完整且来源匹配的 v2 缓存转换一次，旧文件不变。进程内复用结果，显式重新检查允许重试。显式 voice_directory 优先，普通自定义文件不自动降音量；可验证的受管 v2 目录使用升级副本。非旧版兼容路径缺文件时不回退；auto 或失效的旧版 bell-clips 路径走游戏提取。不得仅凭 Watcher 目录、共用音效包或同名占位 WAV 判为可用。选择语音与角色名称无关"
 [[resources.bell_voice.sources]]
 origin = "user"
 root = "setting"
@@ -513,7 +513,7 @@ features = ["pearl_playback"]
 effect = "unavailable"
 [settings.pearl_layout]
 title = "珍珠矩阵、环绕、固定珠、卫星珠与普通阅读"
-paths = ["oracle.pearl_matrix_enabled", "oracle.pearl_matrix_count", "oracle.pearl_orbits_enabled", "oracle.pearl_inner_count", "oracle.pearl_outer_count", "oracle.pearl_fixed_count", "oracle.pearl_satellite_count", "oracle.pearl_follow_width", "oracle.pearl_follow_height", "oracle.pearl_matrix_avoid_radius", "oracle.reading.start_probability", "oracle.reading.interval_min_seconds", "oracle.reading.interval_max_seconds", "oracle.reading.drift_probability", "oracle.reading.drift_delay_min_seconds", "oracle.reading.drift_delay_max_seconds", "oracle.reading.drift_interval_min_seconds", "oracle.reading.drift_interval_max_seconds", "oracle.reading.avoidance_probability", "oracle.reading.notice_min_seconds", "oracle.reading.notice_max_seconds", "oracle.reading.observe_min_seconds", "oracle.reading.observe_max_seconds", "oracle.reading.eye_open_probability", "oracle.reading.matrix_probability", "oracle.reading.approach_weight", "oracle.reading.recall_weight", "oracle.reading.orbit_weight", "oracle.reading.observe_distance", "oracle.reading.recall_distance"]
+paths = ["oracle.pearl_matrix_enabled", "oracle.pearl_matrix_count", "oracle.pearl_orbits_enabled", "oracle.pearl_inner_count", "oracle.pearl_outer_count", "oracle.pearl_fixed_count", "oracle.pearl_satellite_count", "oracle.pearl_follow_width", "oracle.pearl_follow_height", "oracle.pearl_matrix_avoid_radius", "oracle.reading.start_probability", "oracle.reading.attempt_min_seconds", "oracle.reading.attempt_max_seconds", "oracle.reading.notice_min_seconds", "oracle.reading.notice_max_seconds", "oracle.reading.observe_min_seconds", "oracle.reading.observe_max_seconds", "oracle.reading.eye_open_probability", "oracle.reading.matrix_probability", "oracle.reading.approach_weight", "oracle.reading.recall_weight", "oracle.reading.orbit_weight", "oracle.reading.observe_distance", "oracle.reading.recall_distance"]
 features = ["pearls"]
 effect = "related"
 notes = "缺字符投影或播放曲线不应关闭这些功能"

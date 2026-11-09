@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.oracle.config import OracleConfig
-from rw_creature_pet.oracle.audio.voice import VOICE_CLIPS
+from rw_creature_pet.oracle.audio.voice import VOICE_CLIPS, valid_voice
 from rw_creature_pet.presets.personal import PersonalEntry
 from rw_creature_pet.presets.profile import apply_profile, load_profile
 from rw_creature_pet.presets.profile_library import ProfileLibrary
@@ -40,7 +40,7 @@ class VoiceSelectionTests(unittest.TestCase):
             data = json.loads(path.read_text(encoding='utf-8'))
             with self.subTest(profile=data['name']):
                 # 角色可自行选择语音；缺省迁移规则由隔离用例验证，不约束用户当前选择
-                self.assertIn(data['config']['oracle']['voice'], VOICE_CLIPS)
+                self.assertTrue(valid_voice(data['config']['oracle']['voice']))
 
     def test_settings_upgrade_and_restart_preserve_explicit_choice(self):
         with tempfile.TemporaryDirectory() as temp, patch(

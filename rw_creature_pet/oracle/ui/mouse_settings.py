@@ -33,7 +33,7 @@ def build_mouse_avoidance_settings(dialog, form, config):
     tooltips(dialog, prefix, ('exit_distance',), '至少比进入距离大 20 逻辑像素；鼠标远离当前和回正后的身体后，才开始回正等待')
     tooltips(dialog, prefix, ('leave_grace_seconds',), '短暂移出范围仍继续躲避；设为 0 时在离开退出范围后立即开始回正')
     tooltips(dialog, prefix, ('pointer_lag_seconds',), '越大越迟缓，影响侧倾对鼠标位置的跟随，不改变头部注视速度')
-    tooltips(dialog, prefix, ('retry_min_seconds', 'retry_max_seconds'), '躲避触发重试、连续侧倾伴随移动和不耐烦移动的随机尝试间隔')
+    tooltips(dialog, prefix, ('retry_min_seconds', 'retry_max_seconds'), '躲避触发重试、连续侧倾伴随移动和不耐烦移动的随机抽取间隔')
     tooltips(dialog, prefix, ('impatience_min_seconds', 'impatience_max_seconds'), '持续靠近时积累不耐烦的阈值；鼠标越近积累越快，移远时逐渐消退')
     tooltips(dialog, prefix, ('move_probability',), '不耐烦后每次尝试短途移动的概率，不影响下半身或漫游分支开始时的首次漂开')
     tooltips(dialog, prefix, ('move_min_distance', 'move_max_distance', 'lean_move_min_distance', 'lean_move_max_distance'),

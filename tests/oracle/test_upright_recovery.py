@@ -14,7 +14,7 @@ class UprightRecoveryTests(unittest.TestCase):
         scene = OracleScene(OracleConfig(cross_edge_probability=0., **settings))
         scene.appearance.step = lambda scene: None
         scene.drift()
-        scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+        scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
         # 受控姿态覆盖跨过半圈/多圈的角度；不依赖随机漂浮恰好转到该处。
         scene.pose.angle = angle
         scene.pose.weightlessness = scene.pose._weightlessness_target = 1.
@@ -90,7 +90,7 @@ class UprightRecoveryTests(unittest.TestCase):
         self.assertEqual(snapshot, (scene.body.direction, scene.pose.angle, scene.pose.weightlessness, scene.behavior.drift_ticks))
         before = scene.body.direction
         scene.drift()
-        scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+        scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
         self.assertFalse(scene.behavior.drift_recovering)
         scene.step()
         self.assertGreater(dot(before, scene.body.direction), .998)

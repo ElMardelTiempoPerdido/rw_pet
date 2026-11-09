@@ -27,6 +27,7 @@ class ProfileSharingTests(unittest.TestCase):
             'oracle.body_appearance': 'custom', 'oracle.voice': 'bell',
             'oracle.custom_colors.skin': '#123456', 'oracle.colors.skin': '#abcdef',
             'oracle.float_speed': 1.234567,
+            'oracle.custom_appearance.leg_length': 19.,
             'oracle.custom_appearance.forehead.enabled': True,
             'oracle.custom_appearance.forehead.image_path': str(self.image)})
         self.library = ProfileLibrary(self.root/'profiles')
@@ -50,6 +51,7 @@ class ProfileSharingTests(unittest.TestCase):
             self.assertEqual(preset.id, self.role.id)
             self.assertEqual(preset.config.oracle.voice, 'bell')
             self.assertEqual(preset.config.oracle.float_speed, 1.234567)
+            self.assertEqual(preset.appearance.oracle.custom_appearance.leg_length, 19.)
             self.assertEqual(preset.appearance.oracle.colors.skin, '#abcdef')
             self.assertEqual(content_key(preset)[1], content_key(preset)[2])
         self.assertEqual(previous, {p: p.read_bytes() for p in self.role.path.parent.rglob('*') if p.is_file()})
@@ -70,6 +72,7 @@ class ProfileSharingTests(unittest.TestCase):
         archive.unlink()
         entry = read_entry(imported.path)
         self.assertEqual(entry.values['oracle.custom_colors.skin'], '#123456')
+        self.assertEqual(entry.values['oracle.custom_appearance.leg_length'], 19.)
         self.assertTrue(Path(entry.values['oracle.custom_appearance.forehead.image_path']).is_file())
         entry.overrides['oracle.custom_colors.skin'] = '#111111'
         saved = save_entry(entry)

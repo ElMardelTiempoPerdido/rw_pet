@@ -52,7 +52,7 @@ class ReactionReadingConfigTests(unittest.TestCase):
             for f in fields(cls):
                 self.assertEqual(scope_for('oracle.'+prefix+'.'+f.name).value, 'profile')
         config = replace(defaults, oracle=replace(defaults.oracle,
-            reading=ReadingConfig(matrix_probability=.82, interval_min_seconds=17, interval_max_seconds=27,
+            reading=ReadingConfig(matrix_probability=.82, attempt_min_seconds=17, attempt_max_seconds=27,
                                   recall_weight=100, approach_weight=0, orbit_weight=0),
             drag_reactions=DragReactionConfig(gesture_speed=2.3, projection_frame_seconds=.2,
                                              voice_delay_min_seconds=1.2, voice_delay_max_seconds=1.7)))
@@ -197,7 +197,7 @@ class ReadingTimingTests(unittest.TestCase):
             s = self.ready(pearl_matrix_enabled=matrix, pearl_fixed_count=0 if matrix else 1,
                 pearl_playback_probability=0, reading=ReadingConfig(
                     notice_min_seconds=.2, notice_max_seconds=.2, observe_min_seconds=.3, observe_max_seconds=.3,
-                    interval_min_seconds=5, interval_max_seconds=5, eye_open_probability=1,
+                    attempt_min_seconds=5, attempt_max_seconds=5, eye_open_probability=1,
                     matrix_probability=0 if matrix else 1, approach_weight=100, recall_weight=0, orbit_weight=0))
             b = s.behavior
             b.movement_enabled = False
@@ -205,13 +205,13 @@ class ReadingTimingTests(unittest.TestCase):
             self.assertTrue(b.notice(s))
             pearl = b.observation_pearl
             identity = (pearl.color_slot, pearl.glyph_id)
-            self.assertEqual(b.mode, 'recall')
+            self.assertEqual(b.mode, 'approach')
             self.assertEqual(b.duration, 8)
             self.assertEqual(s.eyes.target, 1)
             self.until(s, lambda: b.state == Activity.OBSERVE)
             self.assertEqual(b.duration, 12)
             self.until(s, lambda: b.completed_cycles == 1)
-            self.assertEqual(s.target, origin)
+            self.assertLess((s.target-origin).length(), .05)
             self.assertEqual((pearl.color_slot, pearl.glyph_id), identity)
             self.assertTrue(s.observation_returned)
             self.assertEqual(b.reading_wait, 200)
@@ -225,30 +225,29 @@ class ReadingTimingTests(unittest.TestCase):
                       approach_weight=0, recall_weight=0, orbit_weight=100))
             self.assertTrue(s.behavior.notice(s))
             self.assertEqual(s.behavior.matrix_observation, matrix)
-            self.assertEqual(s.behavior.mode, 'recall' if matrix else 'orbit')
+            self.assertEqual(s.behavior.mode, 'orbit')
         s = scene(pearl_matrix_enabled=False, pearl_fixed_count=0, pearl_inner_count=4, pearl_satellite_count=2)
         self.assertFalse(s.behavior.notice(s))
         self.assertEqual(s.behavior.state, Activity.IDLE)
 
     def test_interval_blocks_automatic_but_not_manual_and_drift_attempts_have_probability(self):
         s = self.ready(pearl_fixed_count=1, cross_edge_probability=0, antigravity_probability=0,
-            reading=ReadingConfig(start_probability=1, drift_probability=.2,
-                drift_delay_min_seconds=.2, drift_delay_max_seconds=.2,
-                drift_interval_min_seconds=.4, drift_interval_max_seconds=.4))
+            reading=ReadingConfig(start_probability=.2, attempt_min_seconds=.4, attempt_max_seconds=.4))
         b = s.behavior
         b.reading_wait = 100
         self.assertNotIn(Activity.NOTICE, {b.choose_activity(s) for _ in range(100)})
         self.assertTrue(b.notice(s, mode='recall'))
         b.cancel(s)
         b.start_drift(s)
-        self.assertEqual(b.drift_next_observation, 8)
+        self.assertEqual(b.reading_wait, 100)
+        self.until(s, lambda: not b.reading_return_pending)
         b.drift_ticks = 8
         b.drift_next_move = 1000
         b.reading_wait = 0
         with patch.object(b, 'notice') as notice, patch.object(b.reading_timing_random, 'random', return_value=.8):
             b.step_drift(s)
         notice.assert_not_called()
-        self.assertEqual(b.drift_next_observation, 24)
+        self.assertEqual(b.reading_wait, 16)
 
     def test_distances_reach_planning_and_no_space_returns_pearl(self):
         s = self.ready(pearl_fixed_count=1, reading=ReadingConfig(observe_distance=85, recall_distance=65))
@@ -280,10 +279,10 @@ class ReadingTimingTests(unittest.TestCase):
         self.assertIsNone(s.pearl_matrix.extracted)
 
     def test_zero_drift_reading_probability_does_not_interrupt_roaming_routes(self):
-        s = self.ready(pearl_fixed_count=1, reading=ReadingConfig(drift_probability=0))
+        s = self.ready(pearl_fixed_count=1, reading=ReadingConfig(start_probability=0))
         b = s.behavior
         b.start_drift(s)
-        b.drift_next_observation = 0
+        b.reading_wait = 0
         b.drift_next_move = 0
         with patch.object(b, 'notice') as notice, patch.object(b, 'drift_move_to') as move:
             b.step_drift(s)

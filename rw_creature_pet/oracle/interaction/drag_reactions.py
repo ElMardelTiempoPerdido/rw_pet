@@ -5,7 +5,7 @@ from random import Random
 from ...interaction.drag import limited
 from ...interaction.voice import VoiceCue, VoiceCueChannel
 from ...shared.geometry import Vec2
-from ..audio.voice import VOICE_CLIPS
+from ..audio.voice import voice_clips
 from ..effects.projection import OracleProjection
 
 
@@ -152,7 +152,7 @@ class OracleDragReactions:
         self.eye_wait = self.eye_remaining+self.sample(self.eye_random, 'eye_interval')
 
     def _try_voice(self, source):
-        clips = VOICE_CLIPS[source]
+        clips = voice_clips(source)
         if not clips or self.voice.remaining > 0:
             return
         if self.voice_random.random() < self.config.voice_probability:

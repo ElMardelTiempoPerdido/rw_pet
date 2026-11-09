@@ -6,7 +6,7 @@ from .face_config import FaceDecal
 
 
 CLOTHING_DECAL_FIELDS = ('clothing_decal_1', 'clothing_decal_2', 'clothing_decal_3')
-CLOTHING_PARTS = ('robe', 'left_sleeve', 'right_sleeve')
+CLOTHING_PARTS = ('robe', 'left_sleeve', 'right_sleeve', 'inner_robe')
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,4 +18,4 @@ class ClothingDecal(FaceDecal):
     def __post_init__(self):
         FaceDecal.__post_init__(self)
         if self.part not in CLOTHING_PARTS:
-            raise ValueError('服装贴图部位必须为 robe / left_sleeve / right_sleeve')
+            raise ValueError('服装贴图部位必须为 robe / left_sleeve / right_sleeve / inner_robe')

@@ -2,11 +2,12 @@
 import unittest
 
 from rw_creature_pet.shared.geometry import Vec2
+from rw_creature_pet.oracle.motion.prince_spine import HEAD
 from tests.oracle.test_prince_autonomous_support import scene_at
 
 
 class PrinceDragLimitTests(unittest.TestCase):
-    def prepare(self, side='right', index=4):
+    def prepare(self, side='right', index=HEAD):
         scene = scene_at(side)
         for _ in range(250):
             scene.step()
@@ -30,7 +31,7 @@ class PrinceDragLimitTests(unittest.TestCase):
 
     def test_fixed_pointer_at_limit_settles_for_head_and_tail_on_all_edges(self):
         for side in ('right', 'left', 'top', 'bottom'):
-            for index in (4, 0):
+            for index in (HEAD, 0):
                 with self.subTest(side=side, index=index):
                     scene, start = self.prepare(side, index)
                     direction = scene.base_normal()

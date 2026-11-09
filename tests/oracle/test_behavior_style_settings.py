@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 from rw_creature_pet.config import AppConfig
 from rw_creature_pet.i18n import language_manager
 from rw_creature_pet.oracle.style_config import DIMENSIONS
+from rw_creature_pet.oracle.internal_behavior import INTERNAL_BEHAVIOR_PATHS
 from rw_creature_pet.oracle.ui.settings import OracleSettingsDialog
 from rw_creature_pet.presets.behavior_styles import BehaviorStyleLibrary, DIMENSION_PATHS
 from rw_creature_pet.presets.profile import profile_mapping
@@ -61,8 +62,9 @@ class BehaviorStyleSettingsTests(unittest.TestCase):
         combo.setCurrentIndex(combo.findData(identifier))
         combo.activated.emit(combo.currentIndex())
 
-    def test_legacy_is_custom_and_all_140_controls_remain_owned_by_their_dimension(self):
+    def test_legacy_is_custom_and_visible_controls_remain_owned_by_their_dimension(self):
         d = self.d
+        self.assertFalse(INTERNAL_BEHAVIOR_PATHS & d.controls.keys())
         before = d.candidate()
         for dimension, group in d.behavior_styles.groups.items():
             self.assertEqual(group.selector.currentData(), '')

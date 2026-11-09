@@ -23,7 +23,7 @@ class StationaryBehaviorTests(unittest.TestCase):
                 return
         self.fail(f'{scene.behavior.state}: arrived={scene.arrived}')
 
-    def test_random_stationary_cycles_recall_fixed_and_matrix_pearls_without_travel(self):
+    def test_random_local_reading_cycles_return_without_daily_travel(self):
         for matrix in (False, True):
             with self.subTest(matrix=matrix):
                 scene = self.scene(pearl_matrix_enabled=matrix, pearl_fixed_count=0 if matrix else 1)
@@ -39,15 +39,15 @@ class StationaryBehaviorTests(unittest.TestCase):
                     scene.step()
                     states.add(behavior.state)
                     max_distance = max(max_distance, (scene.body.chunks[0].position-origin).length())
-                    self.assertLess((scene.target-origin).length(), 2.)
-                    self.assertEqual(scene.navigator.route.length, 0.)
+                    self.assertLess((scene.target-origin).length(), 92.)
                     if behavior.completed_cycles >= 2:
                         break
                 self.assertGreaterEqual(behavior.completed_cycles, 2)
-                self.assertTrue({Activity.NOTICE, Activity.RECALL, Activity.OBSERVE, Activity.RETURN} <= states)
+                self.assertTrue({Activity.NOTICE, Activity.OBSERVE, Activity.RETURN} <= states)
                 self.assertTrue(states <= {Activity.IDLE, Activity.MEDITATE, Activity.NOTICE,
-                                           Activity.RECALL, Activity.OBSERVE, Activity.RETURN})
-                self.assertLess(max_distance, 2., '只保留阅读时的轻微姿态响应')
+                                           Activity.APPROACH, Activity.ORBIT, Activity.RECALL, Activity.OBSERVE, Activity.RETURN})
+                self.assertLess(max_distance, 92., '阅读移动限制在固定停驻范围内')
+                self.assertLess((scene.target-origin).length(), .05)
                 self.assertTrue(behavior.enabled)
                 self.assertFalse(behavior.movement_enabled)
                 self.assertTrue(scene.observation_returned)
@@ -57,13 +57,13 @@ class StationaryBehaviorTests(unittest.TestCase):
         self.until(scene, lambda: scene.arrived and scene.observation_pearls_settled)
         scene.set_autonomous_movement(False)
         behavior = scene.behavior
-        behavior.duration = 0
+        behavior.duration = behavior.reading_wait = 0
         with patch.object(behavior, 'matrix_clear', return_value=False), \
-                patch.object(behavior, 'choose_activity', return_value=Activity.NOTICE), \
+                patch.object(behavior.reading_timing_random, 'random', return_value=0.), \
                 patch.object(behavior, 'start_roam') as roam:
             scene.step()
             self.assertEqual(behavior.state, Activity.NOTICE)
-            self.assertEqual(behavior.mode, 'recall')
+            self.assertIn(behavior.mode, ('approach', 'recall', 'orbit'))
             roam.assert_not_called()
 
     def test_disabling_during_movement_brakes_without_teleporting(self):
@@ -85,7 +85,7 @@ class StationaryBehaviorTests(unittest.TestCase):
                 self.assertEqual(scene.target, stopped_target)
                 self.assertEqual(scene.navigator.route.length, 0.)
 
-    def test_disabling_approach_recalls_same_pearl_and_preserves_reading(self):
+    def test_disabling_approach_keeps_same_pearl_and_replans_locally(self):
         scene = self.scene()
         scene.observe_pearl('approach')
         scene.set_autonomous(True)
@@ -93,7 +93,8 @@ class StationaryBehaviorTests(unittest.TestCase):
         pearl = scene.observed_pearl
         scene.set_autonomous_movement(False)
         self.assertIs(scene.observed_pearl, pearl)
-        self.assertEqual(scene.behavior.state, Activity.RECALL)
+        self.assertEqual(scene.behavior.state, Activity.NOTICE)
+        self.assertEqual(scene.behavior.mode, 'approach')
         self.until(scene, lambda: scene.behavior.state == Activity.OBSERVE)
         before = (scene.behavior.state_ticks, scene.behavior.duration, scene.eyes.random.getstate(), scene.target)
         scene.set_autonomous_movement(True)

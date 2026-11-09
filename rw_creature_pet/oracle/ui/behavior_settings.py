@@ -1,8 +1,7 @@
 """行为页的四组参数，复用设置窗口的字段、保存和默认值处理"""
 from PySide6.QtWidgets import QLabel, QSizePolicy
 from ..characters import CHARACTERS
-from ..audio.voice import VOICE_CLIPS
-from .inputs import WheelSafeComboBox
+from .voice_selector import VoiceSelector
 from .behavior_styles import BehaviorStyles
 
 from .settings_style import NOTE_STYLE, PixelRuleThin
@@ -15,11 +14,11 @@ from .reading_settings import build_reading_settings, build_pearl_interaction_se
 
 
 DRAG_PROBABILITIES = (
-    ('gesture_probability', '手势触发概率'),
+    ('gesture_probability', '摆手触发概率'),
     ('eye_open_probability', '拖动时睁眼概率'),
     ('flutter_probability', '双手动作占比'),
     ('alternating_probability', '双手交替动作占比'),
-    ('voice_probability', '拖动时语音概率'),
+    ('voice_probability', '拖动触发语音概率'),
 )
 
 
@@ -27,17 +26,15 @@ def build_behavior_settings(dialog, form, config):
     root = form
     dialog.behavior_styles = styles = BehaviorStyles(dialog)
     o, interaction = config.oracle, config.interaction
-    voice = WheelSafeComboBox()
-    # 可用性提示会在后台检查后更新，宽度须随选项文字重新计算
-    voice.setSizeAdjustPolicy(voice.SizeAdjustPolicy.AdjustToContents)
-    for name in VOICE_CLIPS:
-        if name != 'none':
-            voice.addItem(name, name)
-    voice.addItem('不使用语音', 'none')
-    voice.setCurrentIndex(voice.findData(o.voice))
+    voice = VoiceSelector(o.voice)
     dialog.controls['oracle.voice'] = voice
     left, _ = dialog.two_columns(form)
     left.addRow('使用的语音', voice)
+    voice_note = QLabel('*您也可以在presets/voices下创建子目录，放置自定义的.wav文件，并在此选择')
+    voice_note.setStyleSheet(NOTE_STYLE)
+    voice_note.setWordWrap(True)
+    voice_note.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+    form.addRow(voice_note)
     voice.currentIndexChanged.connect(dialog.sync_dependencies)
     form.addRow(PixelRuleThin())
     dialog.section_heading(form, '移动与漫游')

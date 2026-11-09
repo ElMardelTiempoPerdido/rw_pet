@@ -3,7 +3,7 @@
   "version": 2,
   "id": "04d7545b-8221-4900-bf7c-6552a347169d",
   "name": "新建迭代器测试腿部",
-  "updated_at": "2026-11-02T11:18:59.513006+00:00",
+  "updated_at": "2026-11-05T04:19:54.089392+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": true,
@@ -235,9 +235,9 @@
       "voice": "none"
     }
   },
-  "state": "history/state-6a5592552eeb4b929867d49b2465738e.json",
+  "state": "history/state-69a6355d1c614826aaa94519aa0d960f.json",
   "appearance": {
     "id": "2e929eac-865a-4760-973d-2014ea39f40a",
-    "path": "appearance/6a5592552eeb4b929867d49b2465738e/appearance.json"
+    "path": "appearance/69a6355d1c614826aaa94519aa0d960f/appearance.json"
   }
 }

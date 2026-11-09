@@ -14,7 +14,7 @@ class DriftCrossingTests(unittest.TestCase):
         scene = OracleScene(OracleConfig(**settings))
         scene.appearance.step = lambda scene: None
         scene.drift()
-        scene.behavior.drift_next_move = scene.behavior.drift_next_observation = 100000
+        scene.behavior.drift_next_move = scene.behavior.reading_wait = 100000
         for _ in range(130):
             scene.step()
         return scene
@@ -60,7 +60,7 @@ class DriftCrossingTests(unittest.TestCase):
         self.assertEqual(behavior.state, Activity.DRIFT_CROSS_EDGE)
         destination = behavior.destination_edge
         behavior.drift_duration = behavior.drift_ticks+1
-        behavior.drift_next_observation = behavior.drift_ticks+1
+        behavior.reading_wait = 1
         for _ in range(30):
             scene.step()
             self.assertEqual(behavior.state, Activity.DRIFT_CROSS_EDGE)

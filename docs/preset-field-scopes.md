@@ -22,9 +22,9 @@
 | `interaction.hover_radius`、`hover_dwell_seconds`、`hover_probability`、`hover_open_probability`、`hover_avoidance_enabled` | 行为 | 观察和躲避鼠标的方式属于角色行为 |
 | `desktop.autonomous` | 本机 | 是否允许自主移动由用户决定 |
 | `oracle.drag_reactions` 中的全部 6 个叶字段 | 行为 | 拖动后的动作、睁眼及发声概率属于角色反应，不等于语音总开关 |
-| `oracle.base_speed`、`pearl_follow_width`、`pearl_follow_height` | 行为 | 底座滑动速度与珍珠跟随范围，在行为页调整 |
+| `oracle.base_speed`、`pearl_follow_width`、`pearl_follow_height` | 行为 | 底座速度可编辑；跟随范围保留存储兼容性，运行时统一为内部默认值 |
 | `oracle.daily_activity` 的全部 14 个叶字段 | 行为 | 日常停留、移动距离、活动权重、冥想、跨边节奏和移动侧倾 |
-| `oracle.reading.start_probability` | 行为 | 普通停留后启动读珠的概率，独立于日常活动权重 |
+| `oracle.reading.start_probability` | 行为 | 所有自主入口共用的读珠概率，独立于日常活动权重 |
 | `oracle.drift` 的全部 24 个叶字段 | 行为 | 漫游的冷却、等待、停顿分布、连续漂浮、距离和速度浮动 |
 | `oracle.mouse_avoidance` 的全部 24 个叶字段 | 行为 | 人偶专用的躲避延迟、距离、侧倾与移动风格；通用关注参数保留在 `interaction` |
 | `oracle.arm_scale` | 本机 | 取决于设备空间与活动带，不随角色设置覆盖 |
@@ -51,7 +51,7 @@
 - 移动与漫游：通常移动与底座滑动速度、跨边概率、反重力漫游概率、速度和时长，以及日常活动时长、距离、权重和侧倾
 - 鼠标观察与避让：是否躲避鼠标、观察与睁眼概率、鼠标停留半径和时间，以及人偶专用躲避风格
 - 拖动反应：反应开关、手势与睁眼概率、双手动作及交替动作占比、语音概率、拖动投影概率和冷却
-- 珍珠互动：停留后读珠概率、避让矩阵半径、播放动画概率、跟随范围宽高
+- 珍珠互动：读珠概率与节奏、播放动画概率、观察方式与距离；矩阵避让半径和跟随范围使用内部默认值
 - 珍珠和投影页保留数量、显示和特效尺寸等参数；鼠标拖动许可、语音开关及音量仍在常规页
 - 外观细节：配色与自定义部件，位于角色设置之后；机械臂颜色保留在这里，主体类型由角色或导入外观决定
 - 珍珠播放光晕颜色在外观和珍珠页均可修改，两个入口同步编辑同一个字段
@@ -73,9 +73,9 @@
 | `cross_edge_cooldown_seconds` | 60 秒 | 普通移动和漫游共用；完成或中断跨边后冷却，仍只允许相邻边 |
 | `cross_edge_check_seconds` | 20 秒 | 漫游选下一段路线时，尝试跨边的最短间隔 |
 | `move_lean_degrees` | 20 度 | 通常移动时随横向速度变化的侧倾幅度，不限制鼠标躲避和失重姿态 |
-| `oracle.reading.start_probability` | 0.25 | 普通停留后的读珠概率，排除跨边、漫游分支后生效；本批不改变漫游和鼠标避让期间的读珠规则 |
+| `oracle.reading.start_probability` | 0.25 | 停留、漫游与躲避停稳后共用的读珠概率，与尝试间隔配合 |
 
-默认活动份额仍是冥想 12%、停留 28%、移动 35%、读珠 25%，以上为排除跨边与漫游后的份额；修改读珠概率会等比缩放前三项份额，而修改三项权重不会影响读珠份额
+排除跨边与漫游后的日常活动使用冥想 12、停留 28、移动 35 的相对权重；读珠使用独立概率和尝试时钟，不再混入这三项的选择份额
 
 时间在场景创建时转换为 40 Hz 的逻辑帧数，不增加逐帧随机采样；停稳休眠、边界检查和移动许可规则保持原样
 
@@ -85,7 +85,7 @@
 
 ## 漫游节奏参数
 
-新增字段位于 `oracle.drift`，定义在 `oracle/drift_config.py`；原有 `oracle.drift_speed`、`antigravity_probability`、`antigravity_duration_seconds` 路径继续使用。跨边概率、冷却与尝试间隔仍归日常活动，漫游读珠间隔留给后续阅读维度
+新增字段位于 `oracle.drift`，定义在 `oracle/drift_config.py`；原有 `oracle.drift_speed`、`antigravity_probability`、`antigravity_duration_seconds` 路径继续使用。跨边概率、冷却与尝试间隔仍归日常活动，读珠间隔使用阅读维度的统一尝试时钟
 
 | 参数 | 默认值 | 生效方式 |
 | --- | --- | --- |

@@ -15,7 +15,7 @@ from .drag_expression_config import DragExpressionConfig
 from .drift_config import DriftConfig
 from .style_config import BehaviorStyleSelections
 from .mouse_avoidance_config import MouseAvoidanceConfig
-from .audio.voice import VOICE_CLIPS, legacy_voice
+from .audio.voice import valid_voice, legacy_voice
 from dataclasses import dataclass, fields, replace
 from math import isfinite
 from pathlib import Path
@@ -24,6 +24,8 @@ import re
 
 DISPLAY_SCALES = (1., 1.5, 2., 3., 4.)
 EDGE_NAMES = ALL_EDGES
+LEG_LENGTH_DEFAULT = 8.5
+LEG_LENGTH_MIN, LEG_LENGTH_MAX = 4., 40.
 INNER_COLLAR_WIDTH_MAX = 24.  # 完整宽度，允许用宽高领表现围巾轮廓
 
 # 显示长度 = 存储比例 × 可变段长度 + 固定段长度；与头部椭圆、衣袍中央理想轮廓一致
@@ -105,7 +107,7 @@ def migrate_shoulder_width(data):
 
 @dataclass(frozen=True, slots=True)
 class CustomAppearance:
-    """独立保存的尺寸和面部贴图；长度为比例，其余尺寸为逻辑像素，宽度为完整宽度"""
+    """独立保存的尺寸和面部贴图；头长、袍长为比例，其余尺寸为逻辑像素，宽度为完整宽度"""
     head_length: float = 1.
     sleeve_root_width: float = 6.
     sleeve_cuff_width: float = 10.
@@ -145,6 +147,7 @@ class CustomAppearance:
     clothing_decal_1: ClothingDecal = ClothingDecal()
     clothing_decal_2: ClothingDecal = ClothingDecal(part='left_sleeve')
     clothing_decal_3: ClothingDecal = ClothingDecal(part='right_sleeve')
+    leg_length: float = LEG_LENGTH_DEFAULT
 
     def __post_init__(self):
         for name in ('inner_robe_enabled', 'inner_collar_enabled', 'neckline_trim_enabled'):
@@ -170,6 +173,7 @@ class CustomAppearance:
                                 ('sleeve_cuff_radius', 0., 4.), ('neck_width', 1., 8.),
                                 ('chest_width', 8., 18.), ('chest_height', 4., 10.),
                                 ('shoulder_width', 4., 18.),
+                                ('leg_length', LEG_LENGTH_MIN, LEG_LENGTH_MAX),
                                 ('inner_collar_height', 0., 8.),
                                 ('inner_collar_top_width', 1., INNER_COLLAR_WIDTH_MAX),
                                 ('inner_collar_bottom_width', 1., INNER_COLLAR_WIDTH_MAX),
@@ -312,8 +316,8 @@ class OracleConfig:
             raise ValueError('oracle.pixel_mode 必须为 classic / adaptive')
         if not isinstance(self.voice_directory, str) or not self.voice_directory.strip():
             raise ValueError('oracle.voice_directory 必须为非空路径字符串')
-        if not isinstance(self.voice, str) or self.voice not in VOICE_CLIPS:
-            raise ValueError('oracle.voice 必须为 bell / moon / pebbles / sig / prince / none')
+        if not valid_voice(self.voice):
+            raise ValueError('oracle.voice 必须为内置语音或 custom:子目录名')
         if type(self.halo_enabled) is not bool:
             raise ValueError('oracle.halo_enabled 必须为布尔值')
         if type(self.halo_arcs_enabled) is not bool:
@@ -421,7 +425,8 @@ class OracleConfig:
         data['drag_expressions'] = DragExpressionConfig.from_mapping(data.get('drag_expressions', {}))
         data['outfit_settings'] = OutfitSettings.from_mapping(data.get('outfit_settings', {}))
         data['daily_activity'] = DailyActivityConfig(**data.get('daily_activity', {}))
-        data['reading'] = ReadingConfig(**data.get('reading', {}))
+        from .reading_migration import migrate_reading
+        data['reading'] = ReadingConfig(**migrate_reading(data.get('reading', {})))
         data['behavior_styles'] = BehaviorStyleSelections.from_mapping(data.get('behavior_styles', {}))
         data['drift'] = DriftConfig(**data.get('drift', {}))
         data['mouse_avoidance'] = MouseAvoidanceConfig(**data.get('mouse_avoidance', {}))

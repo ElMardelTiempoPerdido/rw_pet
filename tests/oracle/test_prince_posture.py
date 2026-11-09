@@ -11,6 +11,7 @@ from rw_creature_pet.oracle.graphics.appearance import rotate
 from rw_creature_pet.oracle.graphics.damage import body_bounds
 from rw_creature_pet.oracle.graphics.render import OracleRenderer
 from rw_creature_pet.oracle.motion.prince import PrincePosture, WAIST_DEPTH
+from rw_creature_pet.oracle.motion.prince_spine import CHEST, WAIST, NECK, HEAD, LANDMARKS
 from rw_creature_pet.oracle.scene import OracleHead, OracleScene
 from rw_creature_pet.shared.geometry import Vec2
 
@@ -51,7 +52,7 @@ class PrincePostureTests(unittest.TestCase):
                 poses = [PrincePosture(Vec2(), direction, Vec2(side*.7, y), 19.)
                          for y in (-.7, 0., .7)]
                 for posture in poses[:2]:
-                    tail, waist, chest, neck, head = (p.position for p in posture.points)
+                    tail, waist, chest, neck, head = (posture.points[i].position for i in LANDMARKS)
                     self.assertGreater(side*chest.x, 0.)
                     self.assertLess(side*chest.x, 2.)
                     chest_angle = abs(degrees(atan2(chest.x-waist.x, waist.y-chest.y)))
@@ -60,28 +61,28 @@ class PrincePostureTests(unittest.TestCase):
                     self.assertLess(chest_angle, 8.)
                     self.assertGreater(neck_angle-chest_angle, 10.)
                     self.assertGreater(head_angle-chest_angle, 10.)
-                self.assertGreater(side*poses[2].points[2].position.x, 7.)
+                self.assertGreater(side*poses[2].points[CHEST].position.x, 7.)
                 self.assertGreater(side*poses[2].target.x, side*poses[1].target.x)
 
     def test_height_response_is_continuous_and_low_gaze_recovers_to_level(self):
         origin, direction = Vec2(), Vec2(0., -1.)
         near_level = [PrincePosture(origin, direction, Vec2(.7, y), 19.)
                       for y in (-.001, .001)]
-        self.assertLess((near_level[0].points[2].position-near_level[1].points[2].position).length(), .02)
+        self.assertLess((near_level[0].points[CHEST].position-near_level[1].points[CHEST].position).length(), .02)
         posture = PrincePosture(origin, direction, Vec2(.7, .7), 19.)
         head = OracleHead.at(posture.target)
         for y in (0., -.7, .7, 0.):
             for _ in range(400):
-                previous = posture.points[2].position
+                previous = posture.points[CHEST].position
                 posture.step(head, origin, direction, Vec2(.7, y))
-                self.assertLess((posture.points[2].position-previous).length(), 1.5)
+                self.assertLess((posture.points[CHEST].position-previous).length(), 1.5)
                 self.assert_segment_lengths(posture)
             self.assertTrue(posture.settled)
             self.assertEqual(head.position, posture.target)
             if y <= 0.:
-                self.assertLess(posture.points[2].position.x, 2.)
+                self.assertLess(posture.points[CHEST].position.x, 2.)
             else:
-                self.assertGreater(posture.points[2].position.x, 7.)
+                self.assertGreater(posture.points[CHEST].position.x, 7.)
 
     def test_neck_bows_before_body_and_can_reach_near_horizontal(self):
         direction = Vec2(0., -1.)
@@ -89,7 +90,8 @@ class PrincePostureTests(unittest.TestCase):
         for low in (0., .5, 1.):
             # 固定完整侧向投影，单独比较低头输入对三段几何转角的影响
             posture = PrincePosture(Vec2(), direction, Vec2(1., low), 19.)
-            segments = [b.position-a.position for a, b in zip(posture.points[1:], posture.points[2:])]
+            landmarks = [posture.points[i].position for i in (WAIST, CHEST, NECK, HEAD)]
+            segments = [b-a for a, b in zip(landmarks, landmarks[1:])]
             angles.append(tuple(degrees(atan2(v.x, -v.y)) for v in segments))
         for i in range(3):
             progress = (angles[1][i]-angles[0][i])/(angles[2][i]-angles[0][i])
@@ -154,7 +156,7 @@ class PrincePostureTests(unittest.TestCase):
                                               rotate(Vec2(horizontal, 0.), angle), 19.)
                         bowed = PrincePosture(origin, direction,
                                               rotate(Vec2(horizontal, low), angle), 19.)
-                        delta = [b.position-a.position for a, b in zip(level.points[2:], bowed.points[2:])]
+                        delta = [b.position-a.position for a, b in zip(level.points[CHEST:], bowed.points[CHEST:])]
                         drops.append(tuple(-d.x*direction.x-d.y*direction.y for d in delta))
                         for value, expected in zip(drops[-1], drops[0]):
                             self.assertAlmostEqual(value, expected, places=8)
