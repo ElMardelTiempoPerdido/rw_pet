@@ -1,43 +1,26 @@
-# 保存此文件后，review_prince_tentacles.py 的窗口自动刷新
-# 所有位置、长宽均为 1x 逻辑像素；颜色为 #RRGGBB
 version = 1
 
 [motion]
-# 身体定位点距工作区边缘的默认距离，1x 逻辑像素；启动、重置和拖拽松手归位共用
-# 受当前活动带与导航可达范围限制；设置过大时会收回到允许范围
 body_edge_distance =96
 
 [preview]
-size = [280, 420]        # 画布宽高
-origin = [42, 250]       # 三条触手共用原点在画布中的位置
+size = [280, 420]        # 画布
+origin = [42, 250]
 background = "#FFFFFF"
-scale = 3               # 桌宠倍率：1 / 1.5 / 2 / 3 / 4
-coarse_pixels_4x = true  # 2x／4x 时以 1x 的像素块放大，false 则以 2x 为基础
-magnify = 1             # 额外观察放大，不改变像素化密度
+scale = 3               # 倍率
+coarse_pixels_4x = true  # 狗啃设置
+magnify = 1             # 额外观察放大
 show_prince = true
-back_offset = [0, 4]    # 静态预览中触手原点位于胸部中轴下方
-gaze = [-0.75, 0.05]    # 头部朝向，x 左负右正，y 低头负抬头正
+back_offset = [0, 4]
+gaze = [-0.75, 0.05]    # 头部朝向
 
-# 三条主体按列表顺序从后往前绘制，随后绘制全部 bumps，最后绘制全部 cores
-# length：物理链的自然长度，直接修改此值，无需缩放 points
-# root_directions：根部伸出方向；grip_directions：寻找抓点偏好方向
-# top/right/bottom/left 分别对应人偶所在边，各向量均为屏幕坐标 [x, y]
-# x 右正左负，y 下正上负；[1, 1] 与 [2, 2] 方向相同，不影响力度；不能为 [0, 0]
-# grip_reach：四边各自的寻找抓点偏好距离 / length，范围 0～1；也可填一个数值供四边共用
-# 跨角时方向和距离平滑过渡；偏好位置会投影到允许的边缘，移动时仍逐条换点
-# points：静态布局草案，自动平滑经过各点；运行时仅保留第一个点的根部偏移
-# 未配置 length 或方向表时，仍可从 points 推导对应默认值
-# widths / colors：[沿曲线的比例 0～1, 宽度或颜色]，须从 0 开始到 1 结束
-# smoothness：0～1，越大越圆滑；0 为折线，不改变 points 的位置
-# bumps / cores 完全独立；每行可复制增加，或增加 enabled = false 暂时隐藏
-# s：沿曲线的弧长比例，0 为根部，1 为末端
-# offset：沿曲线法线的偏移；向上行进时，正值朝右
-# width：横跨触手的直径，height：沿触手的直径，相等即圆形
-# angle：相对上述方向的顺时针旋转角度
-# bumps 不写 color 时沿用主体当地渐变；cores 不写 color 时使用 core_color
+# root_directions：根部伸出方向
+# grip_directions：寻找抓点偏好方向 grip_reach：寻找抓点偏好距离，凹静止形态用
+# points带趋势的效果不好，目前用length替代了
+# smoothness：0-1越大越圆滑
 
 [[tentacles]]
-name = "最长 - 黑紫渐变"
+name = "最长黑紫"
 length = 341
 grip_reach = { top = 0.65, right = 0.75, bottom = 0.65, left = 0.65 }
 root_directions = { top = [0, 1], right = [0.5, 1], bottom = [0.2, 1], left = [-0.5, 1] }
@@ -52,27 +35,23 @@ widths = [[0, 2], [0.25, 2], [0.65, 2], [1, 2]]
 colors = [[0, "#030307"], [0.35, "#030307"], [0.5, "#7B70D5"], [1, "#CDCCF7"]]
 core_color = "#B29CFD"
 bumps = [
-    # 前半段唯一的突出囊肿
+    #中间单个
     { s = 0.15, offset = -1, width =5, height = 5, color = "#000000" },
-
 #    { s = 0.68, offset = 0.4, width =4.5 ,height = 4.5  },
     { s = 0.78, offset = 0, width =5, height = 5 },
 #    { s = 0.82, offset = 0, width =8, height = 8  },
     { s = 0.885, offset = -0.4, width =5, height = 5 },
 
-
     { s = 0.9, offset = -0.8, width = 7, height = 7 },
     { s = 0.945, offset = 0.4, width = 8, height = 8 },
-    
     { s = 0.96, offset = -0.6, width = 11, height =11 },
-
     { s = 0.98, offset = 1.2, width = 8, height = 8 },
     { s = 1.0, offset = -0.3, width = 10, height = 10 },
 ]
 cores = []
 
 [[tentacles]]
-name = "中长 - 深紫外壳与亮芯"
+name = "中长深紫"
 length = 228
 grip_reach = { top = 0.65, right = 0.65, bottom = 0.65, left = 0.65 }
 root_directions = { top = [0, 1], right = [1, 0.5], bottom = [0.3, 1], left = [-1, 0.5] }
@@ -87,30 +66,23 @@ widths = [[0, 2], [0.45, 2], [0.80, 2], [1, 2]]
 colors = [[0, "#271B6B"], [0.35, "#431EE3"],[0.7,'#BDA4F3'], [1, "#CDCCF7"]]
 core_color = "#DDDEFE"
 bumps = [
-    # 背部附近的小簇
+    #最靠近出发点的
     { s = 0.035, offset = -0.6, width =5, height = 7, color = "#4F49BF" },
 
 #    { s = 0.09, offset = -0.4, width = 7, height = 7, color = "#332C6F" },
 #    { s = 0.08, offset = 0.5, width = 5, height = 5, color = "#332C6F" },
-
     { s = 0.2, offset = -0.5, width = 7, height =7, color = "#4F49BF" },
     { s = 0.22, offset = 0.2, width =8 ,height =8, color = "#4F49BF" },
     { s = 0.28, offset = 0.9, width =5, height =5, color = "#4F49BF" },
-
-    # 末端的大簇
 #    { s = 0.55, offset = 0, width = 6, height =6 },
-    
 #    { s = 0.62, offset = -0.7, width = 7, height =7 },
 #    { s = 0.65, offset = -0.3, width = 8, height =8 },
 #    { s = 0.71, offset = 0.9, width = 9, height = 9 },
-
 #    { s = 0.76, offset = -2, width = 12, height = 12},
-
     { s = 0.8, offset = -1.1, width = 7, height = 7},
 #    { s = 0.83, offset = -0.2, width = 11, height =11 },
 #    { s = 0.84, offset = 1.1, width = 6, height = 6 },
     { s = 0.86, offset = 0, width = 8, height = 8 },
-
 #    { s = 0.89, offset = -0.2, width = 11, height =11 },
     { s = 0.92, offset = 2, width = 7, height = 7 } ,
     { s = 0.93, offset = -2.5, width = 6, height = 6 } ,
@@ -120,7 +92,6 @@ bumps = [
     { s =1, offset = 1, width =10, height = 10 },
 ]
 cores = [
-    # 位置故意与外壳错开，不是外壳的同心缩小版
     { s = 0.70, offset =0.1, width = 5, height =5 },
 #    { s = 0.73, offset =-0.4, width = 7, height =7 },
 #    { s = 0.78, offset = -1.5, width = 6, height =6},
@@ -130,7 +101,7 @@ cores = [
 ]
 
 [[tentacles]]
-name = "最短 - 灰紫"
+name = "最短灰紫"
 length = 148
 grip_reach = { top = 0.65, right = 0.65, bottom = 0.65, left = 0.65 }
 root_directions = { top = [1, 0], right = [1, 0.7], bottom = [-0.1, 1], left = [-1, 0.7] }
@@ -147,10 +118,8 @@ bumps = [
 ]
 cores = [
 #    { s = 0.64, offset = 0, width =5, height = 5 },
-
 #    { s = 0.75, offset = 0.7, width =8, height = 8 },
     { s = 0.8, offset = -0.8, width = 7, height = 7 },
-
     { s = 0.87, offset = -0.3, width = 6, height = 6 },
 #    { s = 0.9, offset = 2, width = 8, height =8},
     { s = 0.95, offset = -1.5, width =8 ,height = 8,color='#BDA4F3'},

@@ -29,18 +29,14 @@ def build_mouse_avoidance_settings(dialog, form, config):
         number_row(dialog, form, config, prefix, row)
     tooltips(dialog, prefix, ('delay_min_seconds', 'delay_max_seconds', 'probability'),
              '发现鼠标后，等待此时间后开始躲避')
-    # tooltips(dialog, prefix, ('enter_distance',), '距离从身体轮廓计算；实际进入距离不超过鼠标停留半径的一半')
-    # tooltips(dialog, prefix, ('exit_distance',), '至少比进入距离大 20 逻辑像素；鼠标远离当前和回正后的身体后，才开始回正等待')
     tooltips(dialog, prefix, ('leave_grace_seconds',), '鼠标离开后，延迟此时间才回正')
     tooltips(dialog, prefix, ('pointer_lag_seconds',), '影响检测鼠标位置并侧倾躲避的跟随灵敏度，值越大越迟缓')
     tooltips(dialog, prefix, ('retry_min_seconds', 'retry_max_seconds'), '所有类型躲避行为的抽取间隔')
     tooltips(dialog, prefix, ('impatience_min_seconds', 'impatience_max_seconds'), '鼠标靠近持续此时间后，人偶进入不耐烦状态')
     tooltips(dialog, prefix, ('move_probability',), '不耐烦后，每次抽取短移动的概率')
-    # tooltips(dialog, prefix, ('move_min_distance', 'move_max_distance', 'lean_move_min_distance',
-    # 'lean_move_max_distance'), '移动的计划距离，落点受限时仍会缩短距离或微调方向；保持活动带和机械臂可达约束')
-    # tooltips(dialog, prefix, ('speed_min', 'speed_max'), '每段只抽取一次速度，单位为逻辑像素/帧，固定 40 Hz；导航仍负责平滑起停')
+
     tooltips(dialog, prefix, ('lean_move_probability',), '倾斜躲避同时触发移动的概率')
     tooltips(dialog, prefix, ('move_angle_jitter',), '向远离鼠标方向移动躲避时，路线会此范围内随机偏转')
-    # tooltips(dialog, prefix, ('lean_min_degrees', 'lean_max_degrees'), '每轮抽取侧倾幅度，实际倾角随鼠标位置变化；不受通常移动侧倾限制，仍受空间限制')
+
     tooltips(dialog, prefix, ('lean_sample_power',), '大于1更偏好小倾角，小于1 更偏好大倾角')
     tooltips(dialog, prefix, ('lean_speed',), '侧倾躲避鼠标时，每秒改变的角度')

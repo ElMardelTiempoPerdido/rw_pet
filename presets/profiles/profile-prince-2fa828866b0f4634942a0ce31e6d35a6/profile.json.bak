@@ -3,7 +3,7 @@
   "version": 2,
   "id": "90fc64fe-b159-4f43-8af9-a5f6a93a607f",
   "name": "prince",
-  "updated_at": "2026-11-09T12:58:52.053378+00:00",
+  "updated_at": "2026-11-09T12:59:00.228355+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -239,9 +239,9 @@
       "voice": "prince"
     }
   },
-  "state": "history/state-28004593ab2f4ae590cab3f63d4e0930.json",
+  "state": "history/state-6426cc664373404fb73f3689a7de5572.json",
   "appearance": {
     "id": "bd979bc0-ceda-4133-9c9d-3dab72214199",
-    "path": "appearance/28004593ab2f4ae590cab3f63d4e0930/appearance.json"
+    "path": "appearance/6426cc664373404fb73f3689a7de5572/appearance.json"
   }
 }

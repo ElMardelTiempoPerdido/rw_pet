@@ -3,7 +3,7 @@
   "version": 2,
   "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
   "name": "moondown",
-  "updated_at": "2026-11-09T08:06:05.102989+00:00",
+  "updated_at": "2026-11-11T06:12:49.627391+00:00",
   "config": {
     "oracle": {
       "body_appearance": "custom",
@@ -12,6 +12,10 @@
         "arm_highlight": "#dfd6d2",
         "beads": "#9cddd8",
         "collar_trim": "#ffa3b5",
+        "cord_long_1": "#091c27",
+        "cord_long_2": "#780f15",
+        "cord_short_1": "#050f88",
+        "cord_short_2": "#780f15",
         "eyes": "#211920",
         "head_highlight": "#c2c7ca",
         "head_shell": "#8fa0ad",
@@ -151,7 +155,7 @@
         "inner_collar_top_width": 11.0,
         "inner_robe_enabled": false,
         "leg_length": 8.5,
-        "neck_width": 3.0,
+        "neck_width": 2.5,
         "neckline_depth": 3.0,
         "neckline_height": 5.5,
         "neckline_roundness": 0.55,
@@ -208,6 +212,10 @@
         "arm_highlight": "#dfd6d2",
         "beads": "#9cddd8",
         "collar_trim": "#dddddd",
+        "cord_long_1": "#1e1f24",
+        "cord_long_2": "#831114",
+        "cord_short_1": "#101187",
+        "cord_short_2": "#831114",
         "eyes": "#ffb7a1",
         "head_highlight": "#d6dcdf",
         "head_shell": "#b9c1c6",
@@ -288,6 +296,10 @@
         "arm_highlight": "#ffffff",
         "beads": "#9cddd8",
         "collar_trim": "#ff949f",
+        "cord_long_1": "#27252d",
+        "cord_long_2": "#881519",
+        "cord_short_1": "#15158b",
+        "cord_short_2": "#881519",
         "eyes": "#050000",
         "head_highlight": "#e0e5e9",
         "head_shell": "#adb3b9",
@@ -301,7 +313,8 @@
         "robe_top": "#000000",
         "skin": "#000000",
         "third_eye": "#bc29e7"
-      }
+      },
+      "prince_neck_width": 3.0
     }
   }
 }
