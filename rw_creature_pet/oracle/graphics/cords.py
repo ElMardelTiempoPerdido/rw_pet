@@ -1,8 +1,4 @@
-"""Oracle 线缆：底座供线、单导向点、可活动分线端和独立软线。
-
-固定 40 Hz 的位置约束绳索；只影响外观，允许局部自然探出边缘活动带。
-保留绳长、导向点和末端柔性拉回，屏幕外沿由窗口裁剪。
-"""
+"""电缆，40hz物理"""
 from dataclasses import dataclass
 from array import array
 from math import hypot, sin, pi
@@ -178,7 +174,7 @@ class OracleCords:
     FINE_COUNT = len(FINE_CORD_SOURCE_INDICES)
     FINE_POINTS = 20
     JUNCTION_PULL_RADIUS = 80.
-    MAIN_TAIL_LENGTH = 190.  # 原版导向点 60 到末端 79：19 段，每段 10。
+    MAIN_TAIL_LENGTH = 190.  # 19段，每段10
 
     def __eq__(self, other):
         if not isinstance(other, OracleCords):
@@ -203,7 +199,7 @@ class OracleCords:
             short = rng.random() < .5
             value = rng.random()
             length = 50.+15.*value if short else 50.+150.*value**1.5
-            # 原版 20 个节点、19 段，每段取长度参数 / 20。
+            # 每段取长度参数/20
             length *= (self.FINE_POINTS-1)/self.FINE_POINTS
             direction = Vec2(rng.uniform(-1., 1.), rng.uniform(-.6, .6))
             color = rng.randrange(3)

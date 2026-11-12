@@ -3,7 +3,7 @@
   "version": 2,
   "id": "2466730e-c7e8-431b-a807-4f49f0b3b878",
   "name": "moondown",
-  "updated_at": "2026-11-11T06:14:43.257290+00:00",
+  "updated_at": "2026-11-12T06:48:19.575901+00:00",
   "config": {
     "interaction": {
       "hover_avoidance_enabled": false,
@@ -239,9 +239,9 @@
       "voice": "moon"
     }
   },
-  "state": "history/state-b4423dadd3a743509fd9ad64c52a006e.json",
+  "state": "history/state-ab7b44dadf8f4e229670331caf48c18f.json",
   "appearance": {
     "id": "2c26fcdd-bb52-443c-a054-26966f36d6a5",
-    "path": "appearance/b4423dadd3a743509fd9ad64c52a006e/appearance.json"
+    "path": "appearance/ab7b44dadf8f4e229670331caf48c18f/appearance.json"
   }
 }

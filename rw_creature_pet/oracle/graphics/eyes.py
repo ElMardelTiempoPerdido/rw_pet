@@ -1,9 +1,11 @@
 """固定像素眼形与摸摸时的眼睑覆盖率过渡"""
-from math import ceil, floor, hypot
+from math import atan2, ceil, cos, degrees, floor, hypot, radians, sin
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter
+
+from .eye_stability import axis_delta, deformation_amount
 
 
 # 坐标相对常规 2×2 睁眼矩形的左上角；第一份对应眼睛1，第二份对应眼睛2
@@ -29,6 +31,68 @@ def draw_eye_shape(painter, kind, sign, rect):
         painter.setBrush(QColor('#ffffff'))
         painter.drawRect(QRectF(rect.x()+cell_width, rect.y()+1, cell_width, 1))
         painter.restore()
+
+
+def draw_eye_ink(painter, kind, sign, width, height, opened, lower, smooth_lid, color):
+    """两种绘制方案共享眼形定义、配色和闭眼遮罩"""
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(color))
+    if kind != 'normal':
+        draw_eye_shape(painter, kind, sign, QRectF(-width/2, -height/2, width, height))
+    elif smooth_lid:
+        EyeLidTransition(QRectF(-width/2, float(lower)-.5, width, 1.),
+                         QRectF(-width/2, -height/2, width, height), opened, color).replay(painter)
+    else:
+        current_height = 1.+(height-1.)*opened
+        y = float(lower)*(1.-opened)-current_height/2
+        painter.drawRect(QRectF(-width/2, y, width, current_height))
+
+
+class PixelEye:
+    """备用方案：位置按真实头部投影，眼内像素在小角度下保持固定排列"""
+    def __init__(self, eye, gx, sign, color, kind, width, height, foreshortening,
+                 opened=0., lower=False, smooth_lid=False, stability=None):
+        self.eye, self.gx, self.sign = eye, gx, sign
+        self.color, self.kind = QColor(color), kind
+        self.width, self.height = width, height
+        self.foreshortening = foreshortening
+        self.opened, self.lower, self.smooth_lid = opened, lower, smooth_lid
+        self.stability = stability
+
+    def replay(self, painter):
+        transform = painter.deviceTransform()
+        density = hypot(transform.m11(), transform.m12())
+        angle = degrees(atan2(transform.m12(), transform.m11()))
+        amount = deformation_amount(angle, self.gx, self.stability)
+        width = self.width-self.foreshortening*amount
+        painter.save()
+        try:
+            if amount == 1.:
+                # 大角度直接复用原变换，避免额外往返变换产生浮点采样差异
+                painter.translate(self.eye.x, self.eye.y)
+            else:
+                anchor = transform.map(QPointF(self.eye.x, self.eye.y))
+                origin = transform.map(QPointF())
+                axis = angle-axis_delta(angle)
+                a = radians(axis)
+                # 正视时各眼的像素相位不同（尤其 1.5x），固定参考点而非逐格取整
+                x, y = self.sign*2.5, 2.
+                reference = QPointF(origin.x()+density*(x*cos(a)-y*sin(a)),
+                                    origin.y()+density*(x*sin(a)+y*cos(a)))
+                snapped = QPointF(reference.x()+floor(anchor.x()-reference.x()+.5),
+                                  reference.y()+floor(anchor.y()-reference.y()+.5))
+                anchor += (snapped-anchor)*(1.-amount)
+                painter.resetTransform()
+                dpr = painter.device().devicePixelRatioF()
+                painter.scale(1/dpr, 1/dpr)
+                painter.translate(anchor)
+                painter.rotate(axis+axis_delta(angle)*amount)
+                painter.scale(density, density)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            draw_eye_ink(painter, self.kind, self.sign, width, self.height,
+                         self.opened, self.lower, self.smooth_lid, self.color)
+        finally:
+            painter.restore()
 
 
 class EyeLidTransition:

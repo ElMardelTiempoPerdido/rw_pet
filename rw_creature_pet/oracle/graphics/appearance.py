@@ -4,7 +4,7 @@
 改为底座供线并允许小幅越界；局部视觉重力随漫游渐变，限幅与阻尼适配窄活动带。
 """
 from dataclasses import dataclass
-from math import atan2, cos, pi, sin, sqrt
+from math import atan2, cos, degrees, pi, sin, sqrt
 
 from ...shared.geometry import Vec2
 from ..config import ROBE_LENGTH_ANCHOR, LEG_LENGTH_DEFAULT
@@ -14,6 +14,7 @@ from ..motion.prince_robe import PrinceRobe, upper_cloth_point
 from .cords import OracleCords
 from .legs import LegShape
 from .upper_body import BELL_UPPER_BODY, upper_body_shape
+from .eye_stability import EyeStability
 
 
 def normalized(v, fallback=Vec2(0, -1)):
@@ -215,7 +216,8 @@ class OracleAppearance:
         self.prince_posture = scene.prince_posture
         self.prince_robe = None
         self.near_phone = -1
-        self.step_phone_side(scene.look_direction)
+        self.eye_stability = None
+        self.step_face_pose(scene.look_direction)
         # 从受力平衡位置创建，避免重置时双手从身体中心突然落下。
         self.hands = [HangingHand.at(self.upper + normalized(f)*HangingHand.MAX_REACH)
                       for f in self.hand_forces()] if scene.config.character.has_hands else []
@@ -290,11 +292,18 @@ class OracleAppearance:
         self._quiet_ticks = 0
         self.revision += 1
 
-    def step_phone_side(self, look):
+    def step_face_pose(self, look):
+        """耳机遮挡与眼形稳定共用固定步的头部局部姿态"""
         # 与绘制使用相同的头部局部视线；倒立和侧躺时仍按面部左右判断。
         # 状态只在固定物理步更新，主画面、放大镜和命中图读取同一个结果。
-        side = perpendicular(normalized(self.head.position-self.upper, self.direction))
+        head_direction = normalized(self.head.position-self.upper, self.direction)
+        side = perpendicular(head_direction)
         gx = look.x*side.x+look.y*side.y
+        angle = degrees(atan2(head_direction.x, -head_direction.y))
+        if self.eye_stability is None:
+            self.eye_stability = EyeStability(angle, gx)
+        else:
+            self.eye_stability.step(angle, gx)
         if gx > self.PHONE_SIDE_HYSTERESIS:
             self.near_phone = -1
         elif gx < -self.PHONE_SIDE_HYSTERESIS:
@@ -632,7 +641,7 @@ class OracleAppearance:
         self.upper = upper.position
         self.direction = rotate(scene.body.direction, self.sway)
         self.head.pin(self.upper + rotate(scene.head.position-self.upper, self.sway))
-        self.step_phone_side(scene.look_direction)
+        self.step_face_pose(scene.look_direction)
         reactions = scene.drag_reactions.hand_forces(self, scene.drag.controller.pointer)
         for index, (hand, force, extra) in enumerate(zip(self.hands, self.hand_forces(), reactions)):
             weight = scene.drag_reactions.hand_weight(index)

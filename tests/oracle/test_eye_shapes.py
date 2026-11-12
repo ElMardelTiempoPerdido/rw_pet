@@ -103,7 +103,7 @@ class EyeShapesTests(unittest.TestCase):
         self.assertEqual(self.pixels(opened, '#ff0000'), self.pixels(closed, '#ff0000'))
         self.assertEqual(len(self.pixels(opened, '#0000ff')), 2*len(self.pixels(closed, '#0000ff')))
 
-    def test_cache_scale_dpi_and_turning_keep_pixelated_shapes(self):
+    def test_cache_scale_dpi_and_turning_keep_eye_shapes_visible(self):
         renderer = OracleRenderer()
         for kind in PATTERNS:
             shape = self.shape(kind)
@@ -112,12 +112,15 @@ class EyeShapesTests(unittest.TestCase):
                     with self.subTest(kind=kind, scale=scale, angle=angle):
                         kw = dict(scale=scale, angle=angle, gx=gx)
                         image = self.render(shape, renderer=renderer, **kw)
-                        self.assertEqual(set(bytes(image.constBits())[3::4]), {0, 255})
+                        if kind == 'round':
+                            self.assertEqual(set(bytes(image.constBits())[3::4]), {0, 255})
                         self.assertEqual(image, self.render(shape, **kw))
                         with_dpi = self.render(shape, renderer=renderer, dpr=1.5, **kw)
                         self.assertEqual(bytes(image.constBits()), bytes(with_dpi.constBits()))
-                        for color in ('#ff0000', '#0000ff'):
-                            self.assertTrue(self.pixels(image, color))
+                        for field in ('eye_1', 'eye_2'):
+                            # 柔化后的细眼形不一定包含完全不透明的原色像素，仍须实际可见
+                            hidden = replace(shape, **{field: replace(getattr(shape, field), visible=False)})
+                            self.assertNotEqual(image, self.render(hidden, **kw), field)
         old = self.render(self.shape('normal'), renderer=renderer)
         self.render(self.shape('round'), renderer=renderer)
         self.assertEqual(old, self.render(self.shape('normal'), renderer=renderer))

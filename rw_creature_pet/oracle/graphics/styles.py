@@ -42,11 +42,11 @@ class CustomStyle(CommonStyle):
 
     def draw_head(self, renderer, painter, gx, gy, openness=0., *, near_phone=None,
                   head_length=1., phone_widths=(1., 1.), phone_cosmetic=False, mark_pixels=None, shape=None,
-                  eye_closure=0., eye_expression=None):
+                  eye_closure=0., eye_expression=None, eye_stability=None):
         near = (-1 if gx >= 0 else 1) if near_phone is None else near_phone
         draw_ear(painter, renderer.colors, shape, -near, gx, gy)
         renderer.draw_face(painter, gx, gy, openness, head_length, shape=shape,
-                           eye_closure=eye_closure, eye_expression=eye_expression)
+                           eye_closure=eye_closure, eye_expression=eye_expression, eye_stability=eye_stability)
         draw_ear(painter, renderer.colors, shape, near, gx, gy)
 
     def draw_body_decorations(self, renderer, painter, scene, alpha):
