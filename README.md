@@ -1,6 +1,6 @@
 # 迭代器桌宠 / rw iterator pet
 
-虽然工程里有部分蜥蜴代码，但蜥蜴真的很难做！所以暂时搁置了
+![iter_presets](./md_preview.jpg)
 
 **未完成，可能存在各种bug和性能问题**
 
@@ -8,7 +8,7 @@
 
 如果您希望直接获取桌宠游玩，请直接下载`gesture_pet_xx.zip`，将exe和presets解压至同一目录下，勿下载source code.zip
 
-If you just want to play this desktop pet, please download the `gesture_pet_xx.zip`(not the source code.zip!!!) and unzip the .exe and presets to the same dir
+If you just want to play this desktop pet, please download the `gesture_pet_xx.zip`(not the source code.zip!!!) and unzip the .exe and presets to the same dir.
 
 ---
 
@@ -27,9 +27,6 @@ If you have Downpour/The Watcher DLC/Hunter Expansion mod, some extra options wi
 To launch in debug mode:
 
 ```powershell
-# 白坨 white lizor
-python run_pet.py --creature lizard
-# 迭 iter
 python run_pet.py --creature oracle
 ```
 
@@ -52,6 +49,14 @@ The following projects were used as references while developing this desktop pet
 
 - 鼠标拖动mod [woutkolkman / MouseDrag](https://github.com/woutkolkman/mousedrag)
 - 蛞蝓猫桌宠 [lingxiaojun / SlugcatPet](https://github.com/lingxiaojun/slugcatpet)
+
+## 相关项目 / Related Projects
+
+另一位开发者制作的坨坨桌宠，喜欢蜥蜴的朋友可以看看这个！
+
+A lizor pet by another itera...developer. Lizard lovers, check it out!
+
+- 青蜥蜴桌宠 [ErraticPu1se / cyan-lizor](https://github.com/ErraticPu1se/cyan-lizor)
 
 
 

@@ -3,7 +3,7 @@
   "version": 2,
   "id": "bd979bc0-ceda-4133-9c9d-3dab72214199",
   "name": "prince",
-  "updated_at": "2026-11-09T12:59:00.228355+00:00",
+  "updated_at": "2026-11-11T08:11:29.726093+00:00",
   "config": {
     "oracle": {
       "body_appearance": "prince",
@@ -12,6 +12,10 @@
         "arm_highlight": "#dfd6d2",
         "beads": "#9cddd8",
         "collar_trim": "#ffa3b5",
+        "cord_long_1": "#091c27",
+        "cord_long_2": "#780f15",
+        "cord_short_1": "#050f88",
+        "cord_short_2": "#780f15",
         "eyes": "#211920",
         "head_highlight": "#c2c7ca",
         "head_shell": "#8fa0ad",
@@ -208,6 +212,10 @@
         "arm_highlight": "#dfd6d2",
         "beads": "#9cddd8",
         "collar_trim": "#a48fd4",
+        "cord_long_1": "#171c17",
+        "cord_long_2": "#7f0f0d",
+        "cord_short_1": "#0d0f7f",
+        "cord_short_2": "#7f0f0d",
         "eyes": "#ffb7a1",
         "head_highlight": "#cfc0b7",
         "head_shell": "#a8938b",
@@ -288,6 +296,10 @@
         "arm_highlight": "#b3afbd",
         "beads": "#9cddd8",
         "collar_trim": "#ff949f",
+        "cord_long_1": "#27252d",
+        "cord_long_2": "#881519",
+        "cord_short_1": "#15158b",
+        "cord_short_2": "#881519",
         "eyes": "#050000",
         "head_highlight": "#e0e5e9",
         "head_shell": "#adb3b9",
@@ -301,7 +313,8 @@
         "robe_top": "#302e3b",
         "skin": "#34313f",
         "third_eye": "#bc29e7"
-      }
+      },
+      "prince_neck_width": 3.0
     }
   }
 }
